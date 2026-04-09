@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mermaid Diagram</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    #viewport {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: grab;
+      position: relative;
+    }
+    #viewport.dragging {
+      cursor: grabbing;
+    }
+    #diagram {
+      position: absolute;
+      transform-origin: 0 0;
+    }
+    #diagram svg {
+      display: block;
+    }
+    #controls {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      display: flex;
+      gap: 6px;
+      z-index: 10;
+    }
+    #controls button {
+      width: 32px;
+      height: 32px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #444;
+    }
+    #controls button:hover {
+      background: #f0f0f0;
+    }
+    #zoom-level {
+      font-size: 11px;
+      color: #888;
+      align-self: center;
+      min-width: 36px;
+      text-align: center;
+    }
+    #error {
+      color: #c00;
+      padding: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <div id="diagram"></div>
+  </div>
+  <div id="controls">
+    <button id="zoom-in" title="Zoom in">+</button>
+    <span id="zoom-level">100%</span>
+    <button id="zoom-out" title="Zoom out">&minus;</button>
+    <button id="zoom-fit" title="Fit to window">&#8862;</button>
+    <button id="zoom-reset" title="Reset zoom">1:1</button>
+  </div>
+  <div id="error"></div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    const svg = localStorage.getItem("mdlite-mermaid-" + id);
+
+    if (!svg) {
+      document.getElementById("error").textContent = "Diagram not found.";
+    } else {
+      localStorage.removeItem("mdlite-mermaid-" + id);
+      document.title = "Mermaid Diagram";
+
+      const viewport = document.getElementById("viewport");
+      const diagram = document.getElementById("diagram");
+      const zoomLevel = document.getElementById("zoom-level");
+
+      // Sanitize SVG: parse into DOM, strip dangerous elements and attributes
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svg, "image/svg+xml");
+      doc.querySelectorAll("script, foreignObject").forEach(el => el.remove());
+      const allEls = doc.querySelectorAll("*");
+      for (const el of allEls) {
+        for (const attr of [...el.attributes]) {
+          if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
+          if (attr.name === "href" && attr.value.trim().toLowerCase().startsWith("javascript")) el.removeAttribute(attr.name);
+          if (attr.name === "xlink:href" && attr.value.trim().toLowerCase().startsWith("javascript")) el.removeAttribute(attr.name);
+        }
+      }
+      const sanitizedSvg = doc.documentElement.outerHTML;
+      diagram.innerHTML = sanitizedSvg;
+
+      let scale = 1;
+      let panX = 0;
+      let panY = 0;
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+      let panStartX = 0;
+      let panStartY = 0;
+
+      const MIN_SCALE = 0.1;
+      const MAX_SCALE = 5;
+      const ZOOM_STEP = 0.15;
+
+      function applyTransform() {
+        diagram.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        zoomLevel.textContent = Math.round(scale * 100) + "%";
+      }
+
+      function fitToWindow() {
+        const svgEl = diagram.querySelector("svg");
+        if (!svgEl) return;
+        const vw = viewport.clientWidth;
+        const vh = viewport.clientHeight;
+        const sw = svgEl.width.baseVal.value || svgEl.getBoundingClientRect().width / scale;
+        const sh = svgEl.height.baseVal.value || svgEl.getBoundingClientRect().height / scale;
+        const padding = 48;
+        scale = Math.min((vw - padding) / sw, (vh - padding) / sh, 2);
+        panX = (vw - sw * scale) / 2;
+        panY = (vh - sh * scale) / 2;
+        applyTransform();
+      }
+
+      // Initial fit
+      fitToWindow();
+
+      // Wheel zoom (centered on cursor)
+      viewport.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        const oldScale = scale;
+        const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * (1 + delta)));
+
+        panX = mx - (mx - panX) * (scale / oldScale);
+        panY = my - (my - panY) * (scale / oldScale);
+        applyTransform();
+      }, { passive: false });
+
+      // Pan via mouse drag
+      viewport.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        panStartX = panX;
+        panStartY = panY;
+        viewport.classList.add("dragging");
+      });
+
+      window.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        panX = panStartX + (e.clientX - dragStartX);
+        panY = panStartY + (e.clientY - dragStartY);
+        applyTransform();
+      });
+
+      window.addEventListener("mouseup", () => {
+        isDragging = false;
+        viewport.classList.remove("dragging");
+      });
+
+      // Button controls
+      document.getElementById("zoom-in").addEventListener("click", () => {
+        const cx = viewport.clientWidth / 2;
+        const cy = viewport.clientHeight / 2;
+        const oldScale = scale;
+        scale = Math.min(MAX_SCALE, scale * (1 + ZOOM_STEP));
+        panX = cx - (cx - panX) * (scale / oldScale);
+        panY = cy - (cy - panY) * (scale / oldScale);
+        applyTransform();
+      });
+
+      document.getElementById("zoom-out").addEventListener("click", () => {
+        const cx = viewport.clientWidth / 2;
+        const cy = viewport.clientHeight / 2;
+        const oldScale = scale;
+        scale = Math.max(MIN_SCALE, scale * (1 - ZOOM_STEP));
+        panX = cx - (cx - panX) * (scale / oldScale);
+        panY = cy - (cy - panY) * (scale / oldScale);
+        applyTransform();
+      });
+
+      document.getElementById("zoom-fit").addEventListener("click", fitToWindow);
+
+      document.getElementById("zoom-reset").addEventListener("click", () => {
+        scale = 1;
+        const svgEl = diagram.querySelector("svg");
+        if (svgEl) {
+          const vw = viewport.clientWidth;
+          const vh = viewport.clientHeight;
+          const sw = svgEl.width.baseVal.value || svgEl.getBoundingClientRect().width;
+          const sh = svgEl.height.baseVal.value || svgEl.getBoundingClientRect().height;
+          panX = (vw - sw) / 2;
+          panY = (vh - sh) / 2;
+        }
+        applyTransform();
+      });
+
+      // Re-fit on window resize
+      window.addEventListener("resize", fitToWindow);
+    }
+  </script>
+</body>
+</html>
