@@ -1,0 +1,351 @@
+html {
+  margin: 0;
+  padding: 0;
+}
+
+#attribution,
+#attribution * {
+  all: initial;
+  box-sizing: border-box;
+}
+
+#attribution {
+  padding: 24px 0 12px;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  line-height: normal;
+  color: #bbb;
+}
+
+#attribution a {
+  color: #999;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.mermaid-block {
+  position: relative;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  margin: 1rem 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.mermaid-rendered {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.mermaid-rendered svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-error {
+  color: #c00;
+  font-size: 13px;
+  margin: 0;
+}
+
+.mermaid-expand {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 8px;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #0366d6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.mermaid-block:hover .mermaid-expand {
+  opacity: 1;
+}
+
+.mermaid-expand:hover {
+  background: #f0f3f6;
+}
+
+/* Folder mode layout */
+#app-container {
+  min-height: 100vh;
+}
+
+body.folder-mode {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: 100% !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+  text-align: left !important;
+}
+
+body.folder-mode #app-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+body.folder-mode #main-content {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* Sidebar */
+#sidebar {
+  display: none;
+  width: 250px;
+  flex-shrink: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f5f5f5;
+  border-right: 1px solid #e0e0e0;
+  color: #333;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  user-select: none;
+}
+
+body.folder-mode #sidebar {
+  display: flex;
+}
+
+#sidebar-header {
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+#sidebar-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  padding: 3px 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 22px;
+}
+
+.tree-item:hover {
+  background: #e8e8e8;
+}
+
+.tree-item.active {
+  background: #d4e4ff;
+  color: #0366d6;
+}
+
+.tree-toggle {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Dark sidebar */
+body.dark-sidebar #sidebar {
+  background: #1e1e1e;
+  border-right-color: #333;
+  color: #ccc;
+}
+
+body.dark-sidebar #sidebar-header {
+  border-bottom-color: #333;
+}
+
+body.dark-sidebar .tree-item:hover {
+  background: #2a2d2e;
+}
+
+body.dark-sidebar .tree-item.active {
+  background: #37373d;
+  color: #fff;
+}
+
+/* Search bar */
+#main-content {
+  position: relative;
+}
+
+#search-bar {
+  position: fixed;
+  top: 0;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  max-width: calc(100vw - 40px);
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  transform: translateY(0);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+#search-bar.search-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+#search-input {
+  width: 220px;
+  min-width: 80px;
+  flex-shrink: 1;
+  padding: 4px 8px;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+  color: #1f2328;
+}
+
+#search-input:focus {
+  border-color: #0969da;
+  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.3);
+}
+
+#search-input.search-invalid {
+  border-color: #cf222e;
+  box-shadow: 0 0 0 2px rgba(207, 34, 46, 0.3);
+}
+
+.search-toggle {
+  padding: 3px 7px;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  background: #fff;
+  color: #656d76;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.search-toggle:hover {
+  background: #f0f3f6;
+}
+
+.search-toggle.active {
+  background: #ddf4ff;
+  border-color: #0969da;
+  color: #0969da;
+}
+
+#search-count {
+  min-width: 70px;
+  text-align: center;
+  color: #656d76;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.search-nav {
+  padding: 3px 7px;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  background: #fff;
+  color: #656d76;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.search-nav:hover {
+  background: #f0f3f6;
+}
+
+/* Search highlights */
+mark.search-match {
+  background: #fff2a8;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0;
+}
+
+mark.search-match-current {
+  background: #f78166;
+  color: #fff;
+}
+
+/* Dark theme search */
+body.dark-sidebar #search-bar {
+  background: #161b22;
+  border-color: #30363d;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-sidebar #search-input {
+  background: #0d1117;
+  border-color: #30363d;
+  color: #e6edf3;
+}
+
+body.dark-sidebar #search-input:focus {
+  border-color: #388bfd;
+  box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.3);
+}
+
+body.dark-sidebar #search-input.search-invalid {
+  border-color: #f85149;
+  box-shadow: 0 0 0 2px rgba(248, 81, 73, 0.3);
+}
+
+body.dark-sidebar .search-toggle,
+body.dark-sidebar .search-nav {
+  background: #21262d;
+  border-color: #30363d;
+  color: #8b949e;
+}
+
+body.dark-sidebar .search-toggle:hover,
+body.dark-sidebar .search-nav:hover {
+  background: #30363d;
+}
+
+body.dark-sidebar .search-toggle.active {
+  background: #143d5e;
+  border-color: #388bfd;
+  color: #58a6ff;
+}
+
+body.dark-sidebar #search-count {
+  color: #8b949e;
+}

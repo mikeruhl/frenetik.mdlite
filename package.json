@@ -1,0 +1,25 @@
+{
+  "name": "mdlite",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/cli": "^2",
+    "vite": "^8.0.8"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-cli": "^2.4.1",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-opener": "^2.5.3",
+    "dompurify": "^3.3.3",
+    "github-markdown-css": "^5.9.0",
+    "marked": "^18.0.0",
+    "mermaid": "^11.14.0"
+  }
+}
