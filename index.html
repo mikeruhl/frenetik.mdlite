@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mdlite</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <style id="theme-style"></style>
+  </head>
+  <body>
+    <div id="app-container">
+      <nav id="sidebar">
+        <div id="sidebar-header"></div>
+        <div id="sidebar-tree"></div>
+      </nav>
+      <div id="main-content">
+        <div id="search-bar" class="search-hidden">
+          <input id="search-input" type="text" placeholder="Search..." spellcheck="false" autocomplete="off" />
+          <button id="search-regex" class="search-toggle" title="Use regular expression">.*</button>
+          <button id="search-case" class="search-toggle" title="Match case">Aa</button>
+          <span id="search-count"></span>
+          <button id="search-prev" class="search-nav" title="Previous match (Shift+Enter)">&#x25B2;</button>
+          <button id="search-next" class="search-nav" title="Next match (Enter)">&#x25BC;</button>
+          <button id="search-close" class="search-nav" title="Close (Escape)">&#x2715;</button>
+        </div>
+        <article id="content"></article>
+        <div id="attribution"></div>
+      </div>
+
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
