@@ -12,6 +12,8 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 ## Features
 
 - **Live reload** — file watcher detects edits and re-renders automatically
+- **Folder view** — open a directory and browse all markdown files in a sidebar tree
+- **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
 - **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
 - **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind), Splendor, Retro, Air, Modest (persisted across sessions)
 - **Fast startup** — native binary, no runtime dependencies
@@ -23,10 +25,10 @@ Download the latest release from the [Releases](../../releases) page.
 
 | Platform | File |
 |----------|------|
-| Windows | `.msi` or `.exe` installer |
+| Windows | `.exe` installer |
 | macOS (Apple Silicon) | `.dmg` |
 | macOS (Intel) | `.dmg` |
-| Linux | `.deb` or `.AppImage` |
+| Linux | `.AppImage` |
 
 Or build from source (see below).
 
@@ -44,9 +46,34 @@ mdlite ~/notes/todo.md
 
 The window title shows the filename. Edit the file in any editor and the preview updates live.
 
+### Folder view
+
+Open a folder to browse all markdown files in a sidebar tree.
+
+```
+mdlite docs/
+mdlite ~/notes/
+```
+
+Or use **File → Open Folder...** from the menu. The sidebar shows a collapsible tree of all `.md`, `.markdown`, and `.mdx` files. Click a file to preview it. Folders with no markdown descendants are hidden. If the folder contains a `README.md`, it opens automatically.
+
+### Search
+
+Press `Ctrl+F` (or `Cmd+F` on macOS) or use **File → Find...** to open the search bar.
+
+| Control | Description |
+|---------|-------------|
+| `.*` button | Toggle regex mode |
+| `Aa` button | Toggle case sensitivity |
+| `Enter` | Jump to next match |
+| `Shift+Enter` | Jump to previous match |
+| `Escape` | Close search bar |
+
+Matches are highlighted inline. The counter shows your position (e.g. "3 of 12").
+
 ### Theme selection
 
-Use the dropdown in the top-right corner. Your choice persists via `localStorage`.
+Use the **Theme** menu. Your choice persists across sessions.
 
 ### Mermaid diagrams
 
