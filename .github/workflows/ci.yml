@@ -12,6 +12,7 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
 
@@ -30,6 +31,7 @@ jobs:
 
   build:
     needs: test
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
