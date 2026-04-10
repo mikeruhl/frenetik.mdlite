@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/ci.yml/badge.svg)](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/ci.yml)
 [![Security](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/security.yml/badge.svg)](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/security.yml)
-[![CodeQL](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/codeql.yml/badge.svg)](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/mikeruhl/frenetik.mdlite/actions/workflows/github-code-scanning/codeql)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A lightweight desktop markdown previewer. Opens fast, renders GitHub-flavored markdown, and live-reloads when the file changes.
