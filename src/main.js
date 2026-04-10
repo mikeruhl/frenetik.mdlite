@@ -2,7 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { marked } from "marked";
+import { markedHighlight } from "marked-highlight";
+import hljs from "highlight.js";
 import DOMPurify from "dompurify";
+
+import hljsLightCss from "highlight.js/styles/github.min.css?inline";
+import hljsDarkCss from "highlight.js/styles/github-dark.min.css?inline";
 
 import githubLightCss from "github-markdown-css/github-markdown-light.css?inline";
 import githubDarkCss from "github-markdown-css/github-markdown-dark.css?inline";
@@ -80,31 +85,44 @@ function slugify(text) {
     .replace(/^-|-$/g, "");
 }
 
-marked.use({
-  gfm: true,
-  breaks: false,
-  renderer: {
-    heading({ tokens, depth }) {
-      const text = this.parser.parseInline(tokens);
-      const id = slugify(text);
-      return `<h${depth} id="${id}">${text}</h${depth}>\n`;
-    },
-    code({ text, lang }) {
-      if (lang === "mermaid") {
-        const idx = mermaidCounter++;
-        const encoded = btoa(unescape(encodeURIComponent(text)));
-        return `<div class="mermaid-block" data-mermaid-idx="${idx}" data-mermaid="${encoded}">
-          <div class="mermaid-rendered" id="mermaid-render-${idx}"></div>
-          <button class="mermaid-expand" title="Open in new window">&#x26F6; Open</button>
-        </div>`;
+marked.use(
+  markedHighlight({
+    langPrefix: "hljs language-",
+    highlight(code, lang) {
+      if (lang === "mermaid") return code;
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(code, { language: lang }).value;
       }
-      return false;
+      return hljs.highlightAuto(code).value;
+    },
+  }),
+  {
+    gfm: true,
+    breaks: false,
+    renderer: {
+      heading({ tokens, depth }) {
+        const text = this.parser.parseInline(tokens);
+        const id = slugify(text);
+        return `<h${depth} id="${id}">${text}</h${depth}>\n`;
+      },
+      code({ text, lang }) {
+        if (lang === "mermaid") {
+          const idx = mermaidCounter++;
+          const encoded = btoa(unescape(encodeURIComponent(text)));
+          return `<div class="mermaid-block" data-mermaid-idx="${idx}" data-mermaid="${encoded}">
+            <div class="mermaid-rendered" id="mermaid-render-${idx}"></div>
+            <button class="mermaid-expand" title="Open in new window">&#x26F6; Open</button>
+          </div>`;
+        }
+        return false;
+      },
     },
   },
-});
+);
 
 const contentEl = document.getElementById("content");
 const themeStyleEl = document.getElementById("theme-style");
+const hljsStyleEl = document.getElementById("hljs-style");
 const attributionEl = document.getElementById("attribution");
 const sidebarHeaderEl = document.getElementById("sidebar-header");
 const sidebarTreeEl = document.getElementById("sidebar-tree");
@@ -151,6 +169,7 @@ function applyTheme(themeId) {
 
   const isDark = themeId.includes("dark");
   document.body.classList.toggle("dark-sidebar", isDark);
+  hljsStyleEl.textContent = isDark ? hljsDarkCss : hljsLightCss;
 }
 
 async function renderMermaidBlocks() {
