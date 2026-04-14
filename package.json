@@ -6,11 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "lint": "eslint src --ext .js",
+    "lint:fix": "eslint src --ext .js --fix",
+    "lint:md": "markdownlint \"**/*.md\" --ignore node_modules --ignore target",
+    "lint:md:fix": "markdownlint \"**/*.md\" --ignore node_modules --ignore target --fix",
+    "format": "prettier --write \"**/*.{js,json,yml,yaml,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,yml,yaml,md}\""
   },
   "devDependencies": {
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2",
+    "eslint": "^9.20.0",
+    "markdownlint-cli": "^0.43.0",
+    "prettier": "^3.4.2",
     "vite": "^8.0.8"
   },
   "dependencies": {

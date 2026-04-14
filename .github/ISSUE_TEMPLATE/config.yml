@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/mikeruhl/frenetik.mdlite/discussions
+    about: Questions, ideas, or general discussion about mdlite
+  - name: 📖 Documentation
+    url: https://github.com/mikeruhl/frenetik.mdlite#readme
+    about: Read the README for usage instructions and features

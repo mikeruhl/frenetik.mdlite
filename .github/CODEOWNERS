@@ -1,0 +1,30 @@
+# CODEOWNERS
+# GitHub automatically requests reviews from code owners when PRs modify their files
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @mikeruhl
+
+# Rust backend
+/src-tauri/ @mikeruhl
+Cargo.toml @mikeruhl
+Cargo.lock @mikeruhl
+
+# Frontend
+/src/ @mikeruhl
+/public/ @mikeruhl
+index.html @mikeruhl
+package.json @mikeruhl
+pnpm-lock.yaml @mikeruhl
+
+# CI/CD and automation
+/.github/workflows/ @mikeruhl
+/.github/dependabot.yml @mikeruhl
+
+# Documentation
+*.md @mikeruhl
+/docs/ @mikeruhl
+
+# Configuration
+/.vscode/ @mikeruhl
+.gitignore @mikeruhl
