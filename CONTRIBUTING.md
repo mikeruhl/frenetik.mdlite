@@ -81,6 +81,7 @@ pnpm format
 ```
 
 The project uses:
+
 - **EditorConfig** for consistent indentation across editors
 - **cargo fmt** for Rust formatting
 - **ESLint** for JavaScript linting

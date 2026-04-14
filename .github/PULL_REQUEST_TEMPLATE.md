@@ -5,8 +5,9 @@
 ## Changes
 
 <!-- List key changes, file modifications, or refactorings -->
-- 
-- 
+
+-
+-
 
 ## Related Issues
 
@@ -17,10 +18,12 @@
 <!-- Describe how you tested these changes -->
 
 **Manual testing:**
+
 - [ ] Tested functionality in dev mode (`pnpm tauri dev`)
 - [ ] Tested on target platform(s): <!-- e.g., Windows 11, macOS, Ubuntu 22.04 -->
 
 **Automated testing:**
+
 - [ ] `cargo test` passes
 - [ ] `cargo clippy` passes with no warnings
 - [ ] `cargo fmt` applied

@@ -25,13 +25,55 @@ const ghUrl = "https://github.com/sindresorhus/github-markdown-css";
 const mdcssUrl = "https://markdowncss.github.io/";
 
 const themes = {
-  github: { label: "GitHub Light", css: githubLightCss, wrapClass: "markdown-body", author: "Sindre Sorhus", url: ghUrl },
-  "github-dark": { label: "GitHub Dark", css: githubDarkCss, wrapClass: "markdown-body", author: "Sindre Sorhus", url: ghUrl },
-  "github-dark-dimmed": { label: "GitHub Dark Dimmed", css: githubDarkDimmedCss, wrapClass: "markdown-body", author: "Sindre Sorhus", url: ghUrl },
-  "github-dark-hc": { label: "GitHub Dark HC", css: githubDarkHcCss, wrapClass: "markdown-body", author: "Sindre Sorhus", url: ghUrl },
-  "github-auto": { label: "GitHub Auto", css: githubAutoCss, wrapClass: "markdown-body", author: "Sindre Sorhus", url: ghUrl },
-  "github-light-cb": { label: "GitHub Light (Colorblind)", css: githubLightCbCss, wrapClass: "markdown-body", author: "Sindre Sorhus", url: ghUrl },
-  "github-dark-cb": { label: "GitHub Dark (Colorblind)", css: githubDarkCbCss, wrapClass: "markdown-body", author: "Sindre Sorhus", url: ghUrl },
+  github: {
+    label: "GitHub Light",
+    css: githubLightCss,
+    wrapClass: "markdown-body",
+    author: "Sindre Sorhus",
+    url: ghUrl,
+  },
+  "github-dark": {
+    label: "GitHub Dark",
+    css: githubDarkCss,
+    wrapClass: "markdown-body",
+    author: "Sindre Sorhus",
+    url: ghUrl,
+  },
+  "github-dark-dimmed": {
+    label: "GitHub Dark Dimmed",
+    css: githubDarkDimmedCss,
+    wrapClass: "markdown-body",
+    author: "Sindre Sorhus",
+    url: ghUrl,
+  },
+  "github-dark-hc": {
+    label: "GitHub Dark HC",
+    css: githubDarkHcCss,
+    wrapClass: "markdown-body",
+    author: "Sindre Sorhus",
+    url: ghUrl,
+  },
+  "github-auto": {
+    label: "GitHub Auto",
+    css: githubAutoCss,
+    wrapClass: "markdown-body",
+    author: "Sindre Sorhus",
+    url: ghUrl,
+  },
+  "github-light-cb": {
+    label: "GitHub Light (Colorblind)",
+    css: githubLightCbCss,
+    wrapClass: "markdown-body",
+    author: "Sindre Sorhus",
+    url: ghUrl,
+  },
+  "github-dark-cb": {
+    label: "GitHub Dark (Colorblind)",
+    css: githubDarkCbCss,
+    wrapClass: "markdown-body",
+    author: "Sindre Sorhus",
+    url: ghUrl,
+  },
   splendor: { label: "Splendor", css: splendorCss, wrapClass: null, author: "John Otander", url: mdcssUrl },
   retro: { label: "Retro", css: retroCss, wrapClass: null, author: "John Otander", url: mdcssUrl },
   air: { label: "Air", css: airCss, wrapClass: null, author: "John Otander", url: mdcssUrl },
@@ -117,7 +159,7 @@ marked.use(
         return false;
       },
     },
-  },
+  }
 );
 
 const contentEl = document.getElementById("content");
@@ -243,7 +285,10 @@ function highlightSearchMatches(query) {
     let lastIdx = 0;
     let match;
     while ((match = regex.exec(text)) !== null) {
-      if (match[0].length === 0) { regex.lastIndex++; continue; }
+      if (match[0].length === 0) {
+        regex.lastIndex++;
+        continue;
+      }
       if (match.index > lastIdx) parts.push(document.createTextNode(text.slice(lastIdx, match.index)));
       const mark = document.createElement("mark");
       mark.className = "search-match";
@@ -271,7 +316,7 @@ function updateSearchCount() {
   if (searchMatches.length === 0) {
     searchCountEl.textContent = searchInputEl.value ? "No results" : "";
   } else {
-    searchCountEl.textContent = (searchCurrentIdx + 1) + " of " + searchMatches.length;
+    searchCountEl.textContent = searchCurrentIdx + 1 + " of " + searchMatches.length;
   }
 }
 
@@ -320,7 +365,7 @@ function renderTree(container, entries, depth) {
     if (entry.is_folder) {
       const item = document.createElement("div");
       item.className = "tree-item tree-folder";
-      item.style.paddingLeft = (12 + depth * 16) + "px";
+      item.style.paddingLeft = 12 + depth * 16 + "px";
 
       const toggle = document.createElement("span");
       toggle.className = "tree-toggle";
@@ -350,7 +395,7 @@ function renderTree(container, entries, depth) {
     } else {
       const item = document.createElement("div");
       item.className = "tree-item tree-file";
-      item.style.paddingLeft = (28 + depth * 16) + "px";
+      item.style.paddingLeft = 28 + depth * 16 + "px";
       item.dataset.path = entry.path;
 
       const label = document.createElement("span");
@@ -412,10 +457,7 @@ async function selectFolderFile(path) {
 
 async function enterFolderMode() {
   document.body.classList.add("folder-mode");
-  const [tree, modeInfo] = await Promise.all([
-    invoke("list_folder"),
-    invoke("get_mode"),
-  ]);
+  const [tree, modeInfo] = await Promise.all([invoke("list_folder"), invoke("get_mode")]);
   sidebarTreeEl.innerHTML = "";
   renderTree(sidebarTreeEl, tree, 0);
 

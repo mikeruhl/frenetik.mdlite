@@ -15,7 +15,8 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 - **Folder view** — open a directory and browse all markdown files in a sidebar tree
 - **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
 - **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
-- **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind), Splendor, Retro, Air, Modest (persisted across sessions)
+- **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
+  Splendor, Retro, Air, Modest (persisted across sessions)
 - **Fast startup** — native binary, no runtime dependencies
 - **Cross-platform** — Windows, macOS, Linux
 
@@ -23,22 +24,22 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 
 Download the latest release from the [Releases](../../releases) page.
 
-| Platform | File |
-|----------|------|
-| Windows | `.exe` installer |
-| macOS (Apple Silicon) | `.dmg` |
-| macOS (Intel) | `.dmg` |
-| Linux | `.AppImage` |
+| Platform              | File             |
+| --------------------- | ---------------- |
+| Windows               | `.exe` installer |
+| macOS (Apple Silicon) | `.dmg`           |
+| macOS (Intel)         | `.dmg`           |
+| Linux                 | `.AppImage`      |
 
 Or build from source (see below).
 
 ## Usage
 
-```
+```bash
 mdlite <file>
 ```
 
-```
+```bash
 mdlite README.md
 mdlite docs/guide.md
 mdlite ~/notes/todo.md
@@ -50,24 +51,26 @@ The window title shows the filename. Edit the file in any editor and the preview
 
 Open a folder to browse all markdown files in a sidebar tree.
 
-```
+```bash
 mdlite docs/
 mdlite ~/notes/
 ```
 
-Or use **File → Open Folder...** from the menu. The sidebar shows a collapsible tree of all `.md`, `.markdown`, and `.mdx` files. Click a file to preview it. Folders with no markdown descendants are hidden. If the folder contains a `README.md`, it opens automatically.
+Or use **File → Open Folder...** from the menu. The sidebar shows a collapsible tree of all `.md`,
+`.markdown`, and `.mdx` files. Click a file to preview it. Folders with no markdown descendants are
+hidden. If the folder contains a `README.md`, it opens automatically.
 
 ### Search
 
 Press `Ctrl+F` (or `Cmd+F` on macOS) or use **File → Find...** to open the search bar.
 
-| Control | Description |
-|---------|-------------|
-| `.*` button | Toggle regex mode |
-| `Aa` button | Toggle case sensitivity |
-| `Enter` | Jump to next match |
-| `Shift+Enter` | Jump to previous match |
-| `Escape` | Close search bar |
+| Control       | Description             |
+| ------------- | ----------------------- |
+| `.*` button   | Toggle regex mode       |
+| `Aa` button   | Toggle case sensitivity |
+| `Enter`       | Jump to next match      |
+| `Shift+Enter` | Jump to previous match  |
+| `Escape`      | Close search bar        |
 
 Matches are highlighted inline. The counter shows your position (e.g. "3 of 12").
 
@@ -77,7 +80,8 @@ Use the **Theme** menu. Your choice persists across sessions.
 
 ### Mermaid diagrams
 
-Fenced code blocks with the `mermaid` language tag render as diagrams inline. Hover over a diagram and click **Open** to view it in a separate window with zoom and pan controls.
+Fenced code blocks with the `mermaid` language tag render as diagrams inline. Hover over a diagram
+and click **Open** to view it in a separate window with zoom and pan controls.
 
 ## Build from source
 
@@ -110,7 +114,7 @@ pnpm tauri dev -- -- path/to/file.md
 
 ## Project structure
 
-```
+```text
 mdlite/
   index.html                  # App shell
   src/
@@ -129,19 +133,19 @@ mdlite/
 
 ## Themes
 
-| Theme | Author | Source |
-|-------|--------|--------|
-| GitHub Light | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
-| GitHub Dark | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
-| GitHub Dark Dimmed | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
-| GitHub Dark HC | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
-| GitHub Auto | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
+| Theme                     | Author                                    | Source                                                                     |
+| ------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| GitHub Light              | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
+| GitHub Dark               | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
+| GitHub Dark Dimmed        | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
+| GitHub Dark HC            | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
+| GitHub Auto               | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
 | GitHub Light (Colorblind) | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
-| GitHub Dark (Colorblind) | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
-| Splendor | [John Otander](https://johnotander.com) | [markdowncss/splendor](https://github.com/markdowncss/splendor) |
-| Retro | [John Otander](https://johnotander.com) | [markdowncss/retro](https://github.com/markdowncss/retro) |
-| Air | [John Otander](https://johnotander.com) | [markdowncss/air](https://github.com/markdowncss/air) |
-| Modest | [John Otander](https://johnotander.com) | [markdowncss/modest](https://github.com/markdowncss/modest) |
+| GitHub Dark (Colorblind)  | [Sindre Sorhus](https://sindresorhus.com) | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) |
+| Splendor                  | [John Otander](https://johnotander.com)   | [markdowncss/splendor](https://github.com/markdowncss/splendor)            |
+| Retro                     | [John Otander](https://johnotander.com)   | [markdowncss/retro](https://github.com/markdowncss/retro)                  |
+| Air                       | [John Otander](https://johnotander.com)   | [markdowncss/air](https://github.com/markdowncss/air)                      |
+| Modest                    | [John Otander](https://johnotander.com)   | [markdowncss/modest](https://github.com/markdowncss/modest)                |
 
 All themes are MIT licensed.
 
