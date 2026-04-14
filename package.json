@@ -15,11 +15,11 @@
     "format:check": "prettier --check \"**/*.{js,json,yml,yaml,md}\""
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^10.0.1",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2",
-    "eslint": "^9.20.0",
-    "markdownlint-cli": "^0.43.0",
+    "eslint": "^10.2.0",
+    "markdownlint-cli": "^0.48.0",
     "prettier": "^3.4.2",
     "vite": "^8.0.8"
   },
@@ -27,7 +27,7 @@
     "@tauri-apps/plugin-cli": "^2.4.1",
     "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-opener": "^2.5.3",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.0",
     "github-markdown-css": "^5.9.0",
     "highlight.js": "^11.11.1",
     "marked": "^18.0.0",
