@@ -15,6 +15,7 @@
     "format:check": "prettier --check \"**/*.{js,json,yml,yaml,md}\""
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2",
     "eslint": "^9.20.0",

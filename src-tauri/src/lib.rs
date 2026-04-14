@@ -1,13 +1,11 @@
-use notify::RecursiveMode;
 use notify::RecommendedWatcher;
+use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, Debouncer};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::menu::{
-    CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
-};
+use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager};
 use tauri_plugin_cli::CliExt;
 use tauri_plugin_dialog::DialogExt;
@@ -81,16 +79,11 @@ fn get_mode(state: tauri::State<'_, Mutex<AppState>>) -> serde_json::Value {
         AppMode::Folder => {
             let mut val = serde_json::json!({ "mode": "folder" });
             if !state.file_path.as_os_str().is_empty() {
-                val["current_file"] =
-                    serde_json::json!(display_path(&state.file_path));
+                val["current_file"] = serde_json::json!(display_path(&state.file_path));
             }
             if let Some(ref fp) = state.folder_path {
-                val["folder_name"] = serde_json::json!(
-                    fp.file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string()
-                );
+                val["folder_name"] =
+                    serde_json::json!(fp.file_name().unwrap_or_default().to_string_lossy().to_string());
             }
             val
         }
@@ -112,8 +105,7 @@ fn open_folder_file(
     state: tauri::State<'_, Mutex<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
-    let file_path =
-        std::fs::canonicalize(&path).map_err(|e| format!("Invalid path {}: {}", path, e))?;
+    let file_path = std::fs::canonicalize(&path).map_err(|e| format!("Invalid path {}: {}", path, e))?;
 
     {
         let s = state.lock().unwrap();
@@ -124,8 +116,7 @@ fn open_folder_file(
         }
     }
 
-    let content = std::fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read {}: {}", path, e))?;
+    let content = std::fs::read_to_string(&file_path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
 
     let needs_new_watcher = {
         let mut s = state.lock().unwrap();
@@ -141,10 +132,7 @@ fn open_folder_file(
         state.lock().unwrap().debouncer = Some(debouncer);
     }
 
-    let name = file_path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy();
+    let name = file_path.file_name().unwrap_or_default().to_string_lossy();
     let folder_name = state
         .lock()
         .unwrap()
@@ -226,12 +214,7 @@ fn find_default_file(dir: &Path) -> Option<PathBuf> {
     if let Ok(entries) = std::fs::read_dir(dir) {
         let mut md_files: Vec<_> = entries
             .flatten()
-            .filter(|e| {
-                e.path().is_file()
-                    && e.path()
-                        .extension()
-                        .is_some_and(is_markdown_ext)
-            })
+            .filter(|e| e.path().is_file() && e.path().extension().is_some_and(is_markdown_ext))
             .collect();
         md_files.sort_by_key(|e| e.file_name());
         return md_files.first().map(|e| e.path());
@@ -267,10 +250,7 @@ fn save_recent_to(config_path: &Path, files: &[String]) {
 
 fn load_theme_from(config_path: &Path) -> String {
     let config = load_config_from(config_path);
-    config["theme"]
-        .as_str()
-        .unwrap_or("github")
-        .to_string()
+    config["theme"].as_str().unwrap_or("github").to_string()
 }
 
 fn save_theme_to(config_path: &Path, theme: &str) {
@@ -293,10 +273,7 @@ fn prune_recent_list(list: Vec<String>) -> Vec<String> {
 // --- Config wrappers (Tauri AppHandle) ---
 
 fn config_path(app: &tauri::AppHandle) -> PathBuf {
-    let dir = app
-        .path()
-        .app_config_dir()
-        .expect("Failed to resolve app config dir");
+    let dir = app.path().app_config_dir().expect("Failed to resolve app config dir");
     std::fs::create_dir_all(&dir).ok();
     dir.join("config.json")
 }
@@ -346,15 +323,10 @@ fn build_menu(
         recent_sub = recent_sub.item(&item);
     } else {
         for (i, path) in recent.iter().enumerate() {
-            let label = Path::new(path)
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy();
+            let label = Path::new(path).file_name().unwrap_or_default().to_string_lossy();
             recent_sub = recent_sub.text(format!("recent-{}", i), label.as_ref());
         }
-        recent_sub = recent_sub
-            .separator()
-            .text("clear-recent", "Clear Recent Files");
+        recent_sub = recent_sub.separator().text("clear-recent", "Clear Recent Files");
     }
 
     let find_item = MenuItemBuilder::with_id("find", "Find...")
@@ -379,10 +351,7 @@ fn build_menu(
         theme_sub = theme_sub.item(&item);
     }
 
-    MenuBuilder::new(app)
-        .item(&file_menu)
-        .item(&theme_sub.build()?)
-        .build()
+    MenuBuilder::new(app).item(&file_menu).item(&theme_sub.build()?).build()
 }
 
 fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &str) {
@@ -393,8 +362,7 @@ fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &str) {
 
 fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debouncer<RecommendedWatcher> {
     let (tx, rx) = std::sync::mpsc::channel();
-    let mut debouncer =
-        new_debouncer(Duration::from_millis(200), tx).expect("Failed to create watcher");
+    let mut debouncer = new_debouncer(Duration::from_millis(200), tx).expect("Failed to create watcher");
     debouncer
         .watcher()
         .watch(watch_dir, RecursiveMode::NonRecursive)
@@ -404,12 +372,7 @@ fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debouncer<Recommend
         for result in rx {
             match result {
                 Ok(events) => {
-                    let current = app
-                        .state::<Mutex<AppState>>()
-                        .lock()
-                        .unwrap()
-                        .file_path
-                        .clone();
+                    let current = app.state::<Mutex<AppState>>().lock().unwrap().file_path.clone();
                     if events.iter().any(|e| e.path == current) {
                         if let Ok(content) = std::fs::read_to_string(&current) {
                             let _ = app.emit("file-changed", content);
@@ -428,12 +391,7 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     let new_path = PathBuf::from(new_path_str);
     if !new_path.exists() {
         let recent = prune_recent(app);
-        let theme = app
-            .state::<Mutex<AppState>>()
-            .lock()
-            .unwrap()
-            .current_theme
-            .clone();
+        let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
         rebuild_menu(app, &recent, &theme);
         return;
     }
@@ -457,16 +415,10 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     if needs_new_watcher {
         let watch_dir = new_path.parent().unwrap_or(&new_path).to_path_buf();
         let debouncer = start_watcher(&watch_dir, app.clone());
-        app.state::<Mutex<AppState>>()
-            .lock()
-            .unwrap()
-            .debouncer = Some(debouncer);
+        app.state::<Mutex<AppState>>().lock().unwrap().debouncer = Some(debouncer);
     }
 
-    let name = new_path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy();
+    let name = new_path.file_name().unwrap_or_default().to_string_lossy();
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.set_title(&format!("mdlite — {}", name));
     }
@@ -476,12 +428,7 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     }
 
     let recent = add_to_recent(app, &new_path);
-    let theme = app
-        .state::<Mutex<AppState>>()
-        .lock()
-        .unwrap()
-        .current_theme
-        .clone();
+    let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
     rebuild_menu(app, &recent, &theme);
 }
 
@@ -516,10 +463,7 @@ fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
     if !file_path.as_os_str().is_empty() {
         let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();
         let debouncer = start_watcher(&watch_dir, app.clone());
-        app.state::<Mutex<AppState>>()
-            .lock()
-            .unwrap()
-            .debouncer = Some(debouncer);
+        app.state::<Mutex<AppState>>().lock().unwrap().debouncer = Some(debouncer);
     }
 
     let _ = app.emit("enter-folder-mode", ());
@@ -559,11 +503,7 @@ pub fn run() {
                 });
                 if input_path.is_dir() {
                     let default_file = find_default_file(&input_path);
-                    (
-                        AppMode::Folder,
-                        default_file.unwrap_or_default(),
-                        Some(input_path),
-                    )
+                    (AppMode::Folder, default_file.unwrap_or_default(), Some(input_path))
                 } else {
                     (AppMode::File, input_path, None)
                 }
@@ -580,24 +520,15 @@ pub fn run() {
                             .unwrap_or_default()
                             .to_string_lossy();
                         if !file_path.as_os_str().is_empty() {
-                            let file_name = file_path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy();
-                            let _ = w.set_title(&format!(
-                                "mdlite — {} — {}",
-                                folder_name, file_name
-                            ));
+                            let file_name = file_path.file_name().unwrap_or_default().to_string_lossy();
+                            let _ = w.set_title(&format!("mdlite — {} — {}", folder_name, file_name));
                         } else {
                             let _ = w.set_title(&format!("mdlite — {}", folder_name));
                         }
                         let _ = w.set_size(tauri::LogicalSize::new(1100.0, 700.0));
                     }
                     AppMode::File => {
-                        let filename = file_path
-                            .file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy();
+                        let filename = file_path.file_name().unwrap_or_default().to_string_lossy();
                         let _ = w.set_title(&format!("mdlite — {}", filename));
                     }
                     AppMode::Empty => {}
@@ -626,10 +557,7 @@ pub fn run() {
             if !file_path.as_os_str().is_empty() {
                 let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();
                 let debouncer = start_watcher(&watch_dir, app.handle().clone());
-                app.state::<Mutex<AppState>>()
-                    .lock()
-                    .unwrap()
-                    .debouncer = Some(debouncer);
+                app.state::<Mutex<AppState>>().lock().unwrap().debouncer = Some(debouncer);
             }
 
             app.on_menu_event(|handle, event| {
@@ -659,12 +587,7 @@ pub fn run() {
                     });
                 } else if id == "clear-recent" {
                     save_recent(handle, &[]);
-                    let theme = handle
-                        .state::<Mutex<AppState>>()
-                        .lock()
-                        .unwrap()
-                        .current_theme
-                        .clone();
+                    let theme = handle.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
                     rebuild_menu(handle, &[], &theme);
                 } else if let Some(idx_str) = id.strip_prefix("recent-") {
                     if let Ok(idx) = idx_str.parse::<usize>() {
@@ -677,11 +600,7 @@ pub fn run() {
                     let _ = handle.emit("open-search", ());
                 } else if let Some(theme_id) = id.strip_prefix("theme-") {
                     save_theme_config(handle, theme_id);
-                    handle
-                        .state::<Mutex<AppState>>()
-                        .lock()
-                        .unwrap()
-                        .current_theme = theme_id.to_string();
+                    handle.state::<Mutex<AppState>>().lock().unwrap().current_theme = theme_id.to_string();
                     let recent = load_recent(handle);
                     rebuild_menu(handle, &recent, theme_id);
                     let _ = handle.emit("set-theme", theme_id);
@@ -1065,9 +984,7 @@ mod tests {
 
     #[test]
     fn add_to_recent_truncates_to_max() {
-        let mut list: Vec<String> = (0..MAX_RECENT)
-            .map(|i| format!("{}.md", i))
-            .collect();
+        let mut list: Vec<String> = (0..MAX_RECENT).map(|i| format!("{}.md", i)).collect();
         assert_eq!(list.len(), MAX_RECENT);
 
         add_to_recent_list(Path::new("overflow.md"), &mut list);
@@ -1091,10 +1008,7 @@ mod tests {
         let real = tmp.path().join("exists.md");
         fs::write(&real, "# exists").unwrap();
 
-        let list = vec![
-            real.to_string_lossy().to_string(),
-            "/no/such/file.md".to_string(),
-        ];
+        let list = vec![real.to_string_lossy().to_string(), "/no/such/file.md".to_string()];
 
         let pruned = prune_recent_list(list);
         assert_eq!(pruned.len(), 1);
@@ -1103,10 +1017,7 @@ mod tests {
 
     #[test]
     fn prune_all_invalid_returns_empty() {
-        let list = vec![
-            "/fake/path/a.md".to_string(),
-            "/fake/path/b.md".to_string(),
-        ];
+        let list = vec!["/fake/path/a.md".to_string(), "/fake/path/b.md".to_string()];
         let pruned = prune_recent_list(list);
         assert!(pruned.is_empty());
     }
