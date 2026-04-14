@@ -1,0 +1,106 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Clear, well-thought-out proposals help us prioritize and implement effectively.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What workflow is currently difficult or impossible?
+      placeholder: Currently, when I need to X, I have to manually Y, which is tedious because Z
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work? Be specific about UI, commands, or behavior.
+      placeholder: |
+        Add a "Export to PDF" option in the File menu that...
+        Or: Support a keyboard shortcut (Ctrl+E) to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other solutions have you thought about? Why is your proposal better?
+      placeholder: |
+        Alternative 1: Use external tool X, but that requires...
+        Alternative 2: Implement Y instead, but that doesn't handle...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: Which area does this feature relate to?
+      options:
+        - Rendering/Display
+        - File Management
+        - Search/Navigation
+        - Themes/Styling
+        - Mermaid Diagrams
+        - Performance
+        - Accessibility
+        - Keyboard Shortcuts
+        - CLI/Command Line
+        - Export/Print
+        - Configuration
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Impact/Priority
+      description: How would this feature affect your workflow?
+      options:
+        - Critical - Blocks my primary use case
+        - High - Significantly improves my workflow
+        - Medium - Nice to have, would use occasionally
+        - Low - Minor convenience
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockup
+    attributes:
+      label: Mockups or Examples
+      description: |
+        Attach screenshots, wireframes, or examples from other apps that show the desired behavior.
+        Drag/drop images or paste links.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: |
+        Any other details: related issues, edge cases, platform-specific needs, implementation notes
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I searched existing issues and this feature hasn't been requested
+          required: true
+        - label: This feature aligns with mdlite's goal of being a lightweight markdown previewer
+          required: true
+        - label: I'm willing to contribute or test this feature if implemented
+          required: false
