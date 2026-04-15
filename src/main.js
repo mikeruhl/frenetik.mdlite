@@ -576,8 +576,9 @@ await listen("folder-changed", async () => {
   sidebarTreeEl.innerHTML = "";
   renderTree(sidebarTreeEl, tree, 0);
   if (currentFilePath) {
-    const stillExists = Array.from(sidebarTreeEl.querySelectorAll(".tree-file"))
-      .some((el) => el.dataset.path === currentFilePath);
+    const stillExists = Array.from(sidebarTreeEl.querySelectorAll(".tree-file")).some(
+      (el) => el.dataset.path === currentFilePath
+    );
     if (stillExists) {
       expandToFile(currentFilePath);
       highlightCurrentFile();
