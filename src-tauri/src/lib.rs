@@ -382,13 +382,16 @@ fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debouncer<Recommend
     debouncer
 }
 
-fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Debouncer<RecommendedWatcher> {
+fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Option<Debouncer<RecommendedWatcher>> {
     let (tx, rx) = std::sync::mpsc::channel();
-    let mut debouncer = new_debouncer(Duration::from_millis(300), tx).expect("Failed to create folder watcher");
-    debouncer
-        .watcher()
-        .watch(folder_root, RecursiveMode::Recursive)
-        .expect("Failed to watch folder");
+    let Ok(mut debouncer) = new_debouncer(Duration::from_millis(300), tx) else {
+        eprintln!("Failed to create folder watcher");
+        return None;
+    };
+    if let Err(e) = debouncer.watcher().watch(folder_root, RecursiveMode::Recursive) {
+        eprintln!("Failed to watch folder {:?}: {:?}", folder_root, e);
+        return None;
+    }
 
     std::thread::spawn(move || {
         for result in rx {
@@ -416,7 +419,7 @@ fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Debouncer<
         }
     });
 
-    debouncer
+    Some(debouncer)
 }
 
 fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
@@ -438,6 +441,7 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         s.mode = AppMode::File;
         s.folder_path = None;
         s.folder_debouncer = None;
+        s.startup_error = None;
         (old_dir != new_dir || was_other, was_other)
     };
 
@@ -497,7 +501,7 @@ fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         let state = app.state::<Mutex<AppState>>();
         let mut s = state.lock().unwrap();
         s.debouncer = None;
-        s.folder_debouncer = Some(start_folder_watcher(&folder_path, app.clone()));
+        s.folder_debouncer = start_folder_watcher(&folder_path, app.clone());
     }
 
     let _ = app.emit("enter-folder-mode", ());
@@ -604,8 +608,8 @@ pub fn run() {
 
             if mode == AppMode::Folder {
                 if let Some(ref fp) = folder_path_for_watch {
-                    let folder_debouncer = start_folder_watcher(fp, app.handle().clone());
-                    app.state::<Mutex<AppState>>().lock().unwrap().folder_debouncer = Some(folder_debouncer);
+                    app.state::<Mutex<AppState>>().lock().unwrap().folder_debouncer =
+                        start_folder_watcher(fp, app.handle().clone());
                 }
             } else if !file_path.as_os_str().is_empty() {
                 let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();

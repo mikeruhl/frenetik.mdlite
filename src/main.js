@@ -345,7 +345,10 @@ function closeSearch() {
 
 function render(markdown) {
   if (startupErrorMsg) {
-    contentEl.innerHTML = `<div class="startup-error">${startupErrorMsg}</div>`;
+    const startupErrorEl = document.createElement("div");
+    startupErrorEl.className = "startup-error";
+    startupErrorEl.textContent = startupErrorMsg;
+    contentEl.replaceChildren(startupErrorEl);
     return;
   }
   mermaidCounter = 0;
@@ -528,7 +531,7 @@ const startupError = await invoke("get_startup_error");
 
 if (startupError) {
   startupErrorMsg = startupError;
-  contentEl.innerHTML = `<div class="startup-error">${startupError}</div>`;
+  render("");
 } else if (modeInfo.mode === "empty") {
   showWelcome();
 } else if (modeInfo.mode === "folder") {
