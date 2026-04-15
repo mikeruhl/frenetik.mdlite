@@ -514,8 +514,6 @@ function highlightCurrentFile() {
   });
 }
 
-
-
 async function selectFolderFile(path) {
   try {
     if (currentFilePath && mainContentEl) {
