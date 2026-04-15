@@ -179,6 +179,7 @@ const searchCloseBtn = document.getElementById("search-close");
 
 let currentFilePath = null;
 let lastMarkdown = "";
+let startupErrorMsg = null;
 let searchMatches = [];
 let searchCurrentIdx = -1;
 let searchIsRegex = false;
@@ -343,6 +344,10 @@ function closeSearch() {
 }
 
 function render(markdown) {
+  if (startupErrorMsg) {
+    contentEl.innerHTML = `<div class="startup-error">${startupErrorMsg}</div>`;
+    return;
+  }
   mermaidCounter = 0;
   const raw = marked.parse(markdown);
   contentEl.innerHTML = DOMPurify.sanitize(raw, {
@@ -446,6 +451,7 @@ function expandToFile(filePath) {
 async function selectFolderFile(path) {
   try {
     const content = await invoke("open_folder_file", { path });
+    startupErrorMsg = null;
     currentFilePath = path;
     lastMarkdown = content;
     render(content);
@@ -456,6 +462,7 @@ async function selectFolderFile(path) {
 }
 
 async function enterFolderMode() {
+  startupErrorMsg = null;
   document.body.classList.add("folder-mode");
   const [tree, modeInfo] = await Promise.all([invoke("list_folder"), invoke("get_mode")]);
   sidebarTreeEl.innerHTML = "";
@@ -517,8 +524,12 @@ await listen("set-theme", (event) => {
 });
 
 const modeInfo = await invoke("get_mode");
+const startupError = await invoke("get_startup_error");
 
-if (modeInfo.mode === "empty") {
+if (startupError) {
+  startupErrorMsg = startupError;
+  contentEl.innerHTML = `<div class="startup-error">${startupError}</div>`;
+} else if (modeInfo.mode === "empty") {
   showWelcome();
 } else if (modeInfo.mode === "folder") {
   document.body.classList.add("folder-mode");
@@ -550,12 +561,32 @@ if (modeInfo.mode === "empty") {
 }
 
 await listen("file-changed", (event) => {
+  startupErrorMsg = null;
   lastMarkdown = event.payload;
   render(lastMarkdown);
 });
 
 await listen("enter-folder-mode", async () => {
   await enterFolderMode();
+});
+
+await listen("folder-changed", async () => {
+  if (!document.body.classList.contains("folder-mode")) return;
+  const tree = await invoke("list_folder");
+  sidebarTreeEl.innerHTML = "";
+  renderTree(sidebarTreeEl, tree, 0);
+  if (currentFilePath) {
+    const stillExists = Array.from(sidebarTreeEl.querySelectorAll(".tree-file"))
+      .some((el) => el.dataset.path === currentFilePath);
+    if (stillExists) {
+      expandToFile(currentFilePath);
+      highlightCurrentFile();
+    } else {
+      currentFilePath = null;
+      lastMarkdown = "";
+      render("");
+    }
+  }
 });
 
 await listen("enter-file-mode", () => {
