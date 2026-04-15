@@ -194,6 +194,8 @@ body.folder-mode #sidebar {
 }
 
 .tree-label {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -375,6 +377,49 @@ body.dark-sidebar .search-toggle.active {
 
 body.dark-sidebar #search-count {
   color: #8b949e;
+}
+
+/* Scanning indicator */
+.sidebar-scanning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #666;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+body.dark-sidebar .sidebar-scanning {
+  color: #888;
+  border-bottom-color: #333;
+}
+
+.sidebar-spinner-sm {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid #ddd;
+  border-top-color: #888;
+  border-radius: 50%;
+  animation: sidebar-spin 0.7s linear infinite;
+}
+
+@keyframes sidebar-spin {
+  to { transform: rotate(360deg); }
+}
+
+body.dark-sidebar .sidebar-spinner-sm {
+  border-color: #444;
+  border-top-color: #999;
+}
+
+.folder-scan-spinner {
+  margin-left: auto;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .startup-error {
