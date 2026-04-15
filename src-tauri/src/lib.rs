@@ -480,6 +480,7 @@ fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         s.mode = AppMode::Folder;
         s.folder_path = Some(folder_path.clone());
         s.file_path = file_path.clone();
+        s.startup_error = None;
     }
 
     let folder_name = folder_path
