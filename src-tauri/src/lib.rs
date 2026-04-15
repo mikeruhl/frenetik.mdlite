@@ -2,7 +2,9 @@ use notify::RecommendedWatcher;
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, Debouncer};
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
@@ -41,6 +43,20 @@ struct FolderEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     children: Option<Vec<FolderEntry>>,
 }
+
+#[derive(Serialize, Clone)]
+struct DirAncestor {
+    name: String,
+    path: String,
+}
+
+#[derive(Serialize, Clone)]
+struct FolderScanFiles {
+    path_chain: Vec<DirAncestor>,
+    files: Vec<FolderEntry>,
+}
+
+static SCAN_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 struct AppState {
     mode: AppMode,
@@ -84,6 +100,7 @@ fn get_mode(state: tauri::State<'_, Mutex<AppState>>) -> serde_json::Value {
                 val["current_file"] = serde_json::json!(display_path(&state.file_path));
             }
             if let Some(ref fp) = state.folder_path {
+                val["folder_path"] = serde_json::json!(display_path(fp));
                 val["folder_name"] =
                     serde_json::json!(fp.file_name().unwrap_or_default().to_string_lossy().to_string());
             }
@@ -99,9 +116,85 @@ fn get_startup_error(state: tauri::State<'_, Mutex<AppState>>) -> Option<String>
 
 #[tauri::command]
 fn list_folder(state: tauri::State<'_, Mutex<AppState>>) -> Result<Vec<FolderEntry>, String> {
-    let state = state.lock().unwrap();
-    match &state.folder_path {
-        Some(path) => Ok(scan_folder(path)),
+    let folder_path = {
+        let s = state.lock().unwrap();
+        s.folder_path.clone()
+    };
+    match folder_path {
+        Some(path) => Ok(scan_folder(&path)),
+        None => Err("Not in folder mode".to_string()),
+    }
+}
+
+#[tauri::command]
+fn start_folder_scan(state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) -> Result<(), String> {
+    let folder_path = {
+        let s = state.lock().unwrap();
+        s.folder_path.clone()
+    };
+    match folder_path {
+        Some(root) => {
+            let gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+            std::thread::spawn(move || {
+                let mut queue: VecDeque<(PathBuf, Vec<DirAncestor>)> = VecDeque::new();
+                queue.push_back((root, Vec::new()));
+
+                while let Some((dir, chain)) = queue.pop_front() {
+                    if SCAN_GENERATION.load(Ordering::Relaxed) != gen {
+                        return;
+                    }
+
+                    let Ok(rd) = std::fs::read_dir(&dir) else {
+                        continue;
+                    };
+                    let mut items: Vec<_> = rd.flatten().collect();
+                    items.sort_by_key(|e| e.file_name());
+
+                    let mut files = Vec::new();
+                    for entry in items {
+                        let path = entry.path();
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if name.starts_with('.') {
+                            continue;
+                        }
+                        if path.is_dir() {
+                            let mut child_chain = chain.clone();
+                            child_chain.push(DirAncestor {
+                                name: name.clone(),
+                                path: display_path(&path),
+                            });
+                            queue.push_back((path, child_chain));
+                        } else if path.is_file() {
+                            if let Some(ext) = path.extension() {
+                                if is_markdown_ext(ext) {
+                                    files.push(FolderEntry {
+                                        name,
+                                        path: display_path(&path),
+                                        is_folder: false,
+                                        children: None,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    if !files.is_empty() {
+                        let _ = app.emit(
+                            "folder-scan-files",
+                            FolderScanFiles {
+                                path_chain: chain,
+                                files,
+                            },
+                        );
+                    }
+                }
+
+                if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
+                    let _ = app.emit("folder-scan-complete", ());
+                }
+            });
+            Ok(())
+        }
         None => Err("Not in folder mode".to_string()),
     }
 }
@@ -526,7 +619,8 @@ pub fn run() {
             get_mode,
             get_startup_error,
             list_folder,
-            open_folder_file
+            open_folder_file,
+            start_folder_scan
         ])
         .setup(|app| {
             let matches = app.cli().matches().expect("Failed to parse CLI arguments");

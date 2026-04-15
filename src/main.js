@@ -163,6 +163,7 @@ marked.use(
 );
 
 const contentEl = document.getElementById("content");
+const mainContentEl = document.getElementById("main-content");
 const themeStyleEl = document.getElementById("theme-style");
 const hljsStyleEl = document.getElementById("hljs-style");
 const attributionEl = document.getElementById("attribution");
@@ -180,6 +181,7 @@ const searchCloseBtn = document.getElementById("search-close");
 let currentFilePath = null;
 let lastMarkdown = "";
 let startupErrorMsg = null;
+const folderScrollPositions = new Map();
 let searchMatches = [];
 let searchCurrentIdx = -1;
 let searchIsRegex = false;
@@ -368,55 +370,137 @@ function render(markdown) {
 
 // --- Folder mode ---
 
-function renderTree(container, entries, depth) {
-  for (const entry of entries) {
-    if (entry.is_folder) {
-      const item = document.createElement("div");
-      item.className = "tree-item tree-folder";
-      item.style.paddingLeft = 12 + depth * 16 + "px";
+let folderRootPath = null;
+const folderNodeMap = new Map();
 
-      const toggle = document.createElement("span");
-      toggle.className = "tree-toggle";
-      toggle.textContent = "\u25b8";
-      item.appendChild(toggle);
+function showScanningIndicator() {
+  removeScanningIndicator();
+  const el = document.createElement("div");
+  el.className = "sidebar-scanning";
+  el.innerHTML = '<div class="sidebar-spinner-sm"></div><span>Scanning\u2026</span>';
+  sidebarTreeEl.prepend(el);
+}
 
-      const label = document.createElement("span");
-      label.className = "tree-label";
-      label.textContent = entry.name;
-      item.appendChild(label);
+function removeScanningIndicator() {
+  const el = sidebarTreeEl.querySelector(".sidebar-scanning");
+  if (el) el.remove();
+}
 
-      const children = document.createElement("div");
-      children.className = "tree-children";
-      children.style.display = "none";
-      renderTree(children, entry.children || [], depth + 1);
+function insertFolderSorted(container, folderItem, childrenEl, name) {
+  const children = Array.from(container.children);
+  for (const child of children) {
+    if (!child.classList.contains("tree-folder") && !child.classList.contains("tree-file")) continue;
+    if (child.classList.contains("tree-file")) {
+      container.insertBefore(folderItem, child);
+      container.insertBefore(childrenEl, child);
+      return;
+    }
+    if (child.classList.contains("tree-folder")) {
+      const childName = child.querySelector(".tree-label").textContent;
+      if (name.localeCompare(childName, undefined, { sensitivity: "base" }) < 0) {
+        container.insertBefore(folderItem, child);
+        container.insertBefore(childrenEl, child);
+        return;
+      }
+    }
+  }
+  container.appendChild(folderItem);
+  container.appendChild(childrenEl);
+}
 
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const expanded = children.style.display !== "none";
-        children.style.display = expanded ? "none" : "block";
-        toggle.textContent = expanded ? "\u25b8" : "\u25be";
-        item.classList.toggle("expanded", !expanded);
-      });
+function createFolderNode(container, name, dirPath, depth) {
+  const item = document.createElement("div");
+  item.className = "tree-item tree-folder";
+  item.style.paddingLeft = 12 + depth * 16 + "px";
 
-      container.appendChild(item);
-      container.appendChild(children);
+  const toggle = document.createElement("span");
+  toggle.className = "tree-toggle";
+  toggle.textContent = "\u25b8";
+  item.appendChild(toggle);
+
+  const label = document.createElement("span");
+  label.className = "tree-label";
+  label.textContent = name;
+  item.appendChild(label);
+
+  const spinner = document.createElement("span");
+  spinner.className = "folder-scan-spinner";
+  spinner.innerHTML = '<div class="sidebar-spinner-sm"></div>';
+  item.appendChild(spinner);
+
+  const childrenDiv = document.createElement("div");
+  childrenDiv.className = "tree-children";
+  childrenDiv.style.display = "none";
+
+  item.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const expanded = childrenDiv.style.display !== "none";
+    childrenDiv.style.display = expanded ? "none" : "block";
+    toggle.textContent = expanded ? "\u25b8" : "\u25be";
+    item.classList.toggle("expanded", !expanded);
+  });
+
+  insertFolderSorted(container, item, childrenDiv, name);
+  const nodeInfo = { container: childrenDiv, depth: depth + 1 };
+  folderNodeMap.set(dirPath, nodeInfo);
+  return nodeInfo;
+}
+
+function ensureDirChain(pathChain) {
+  let container = sidebarTreeEl;
+  let depth = 0;
+  for (const ancestor of pathChain) {
+    const existing = folderNodeMap.get(ancestor.path);
+    if (existing) {
+      container = existing.container;
+      depth = existing.depth;
     } else {
-      const item = document.createElement("div");
-      item.className = "tree-item tree-file";
-      item.style.paddingLeft = 28 + depth * 16 + "px";
-      item.dataset.path = entry.path;
+      const node = createFolderNode(container, ancestor.name, ancestor.path, depth);
+      container = node.container;
+      depth = node.depth;
+    }
+  }
+  return { container, depth };
+}
 
-      const label = document.createElement("span");
-      label.className = "tree-label";
-      label.textContent = entry.name;
-      item.appendChild(label);
+function handleScanFiles(pathChain, files) {
+  const { container, depth } = ensureDirChain(pathChain);
+  for (const file of files) {
+    const item = document.createElement("div");
+    item.className = "tree-item tree-file";
+    item.style.paddingLeft = 28 + depth * 16 + "px";
+    item.dataset.path = file.path;
 
-      item.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        await selectFolderFile(entry.path);
-      });
+    const label = document.createElement("span");
+    label.className = "tree-label";
+    label.textContent = file.name;
+    item.appendChild(label);
 
-      container.appendChild(item);
+    item.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await selectFolderFile(file.path);
+    });
+
+    container.appendChild(item);
+
+    if (file.path === currentFilePath) {
+      item.classList.add("active");
+    }
+  }
+}
+
+function handleScanComplete() {
+  removeScanningIndicator();
+  sidebarTreeEl.querySelectorAll(".folder-scan-spinner").forEach((el) => el.remove());
+  folderNodeMap.clear();
+  if (currentFilePath) {
+    const stillExists = Array.from(sidebarTreeEl.querySelectorAll(".tree-file")).some(
+      (el) => el.dataset.path === currentFilePath
+    );
+    if (!stillExists) {
+      currentFilePath = null;
+      lastMarkdown = "";
+      render("");
     }
   }
 }
@@ -453,12 +537,18 @@ function expandToFile(filePath) {
 
 async function selectFolderFile(path) {
   try {
+    if (currentFilePath && mainContentEl) {
+      folderScrollPositions.set(currentFilePath, mainContentEl.scrollTop);
+    }
     const content = await invoke("open_folder_file", { path });
     startupErrorMsg = null;
     currentFilePath = path;
     lastMarkdown = content;
     render(content);
     highlightCurrentFile();
+    if (mainContentEl) {
+      mainContentEl.scrollTop = folderScrollPositions.get(path) || 0;
+    }
   } catch (e) {
     console.error("Failed to open file:", e);
   }
@@ -467,23 +557,24 @@ async function selectFolderFile(path) {
 async function enterFolderMode() {
   startupErrorMsg = null;
   document.body.classList.add("folder-mode");
-  const [tree, modeInfo] = await Promise.all([invoke("list_folder"), invoke("get_mode")]);
-  sidebarTreeEl.innerHTML = "";
-  renderTree(sidebarTreeEl, tree, 0);
+  const modeInfo = await invoke("get_mode");
 
   if (modeInfo.folder_name) {
     sidebarHeaderEl.textContent = modeInfo.folder_name;
   }
   currentFilePath = modeInfo.current_file || null;
-  if (currentFilePath) {
-    expandToFile(currentFilePath);
-    highlightCurrentFile();
-  }
+  folderRootPath = modeInfo.folder_path || null;
+  folderNodeMap.clear();
+  sidebarTreeEl.innerHTML = "";
+  showScanningIndicator();
+  invoke("start_folder_scan");
 }
 
 function exitFolderMode() {
   document.body.classList.remove("folder-mode");
   sidebarTreeEl.innerHTML = "";
+  folderNodeMap.clear();
+  folderRootPath = null;
   currentFilePath = null;
 }
 
@@ -517,51 +608,11 @@ function showWelcome() {
   render(WELCOME_MD);
 }
 
-// --- Initialization ---
-
-const savedTheme = await invoke("get_theme");
-applyTheme(savedTheme);
+// --- Event listeners (registered before init to avoid race conditions) ---
 
 await listen("set-theme", (event) => {
   applyTheme(event.payload);
 });
-
-const modeInfo = await invoke("get_mode");
-const startupError = await invoke("get_startup_error");
-
-if (startupError) {
-  startupErrorMsg = startupError;
-  render("");
-} else if (modeInfo.mode === "empty") {
-  showWelcome();
-} else if (modeInfo.mode === "folder") {
-  document.body.classList.add("folder-mode");
-  const tree = await invoke("list_folder");
-  sidebarTreeEl.innerHTML = "";
-  renderTree(sidebarTreeEl, tree, 0);
-
-  if (modeInfo.folder_name) {
-    sidebarHeaderEl.textContent = modeInfo.folder_name;
-  }
-  currentFilePath = modeInfo.current_file || null;
-  if (currentFilePath) {
-    expandToFile(currentFilePath);
-  }
-
-  try {
-    const content = await invoke("read_file");
-    lastMarkdown = content;
-    render(content);
-    highlightCurrentFile();
-  } catch {
-    lastMarkdown = "";
-    render("");
-  }
-} else {
-  const content = await invoke("read_file");
-  lastMarkdown = content;
-  render(content);
-}
 
 await listen("file-changed", (event) => {
   startupErrorMsg = null;
@@ -573,24 +624,20 @@ await listen("enter-folder-mode", async () => {
   await enterFolderMode();
 });
 
+await listen("folder-scan-files", (event) => {
+  handleScanFiles(event.payload.path_chain, event.payload.files);
+});
+
+await listen("folder-scan-complete", () => {
+  handleScanComplete();
+});
+
 await listen("folder-changed", async () => {
   if (!document.body.classList.contains("folder-mode")) return;
-  const tree = await invoke("list_folder");
+  folderNodeMap.clear();
   sidebarTreeEl.innerHTML = "";
-  renderTree(sidebarTreeEl, tree, 0);
-  if (currentFilePath) {
-    const stillExists = Array.from(sidebarTreeEl.querySelectorAll(".tree-file")).some(
-      (el) => el.dataset.path === currentFilePath
-    );
-    if (stillExists) {
-      expandToFile(currentFilePath);
-      highlightCurrentFile();
-    } else {
-      currentFilePath = null;
-      lastMarkdown = "";
-      render("");
-    }
-  }
+  showScanningIndicator();
+  invoke("start_folder_scan");
 });
 
 await listen("enter-file-mode", () => {
@@ -601,6 +648,46 @@ await listen("open-search", () => {
   openSearch();
   if (searchInputEl.value) highlightSearchMatches(searchInputEl.value);
 });
+
+// --- Initialization ---
+
+const savedTheme = await invoke("get_theme");
+applyTheme(savedTheme);
+
+const modeInfo = await invoke("get_mode");
+const startupError = await invoke("get_startup_error");
+
+if (startupError) {
+  startupErrorMsg = startupError;
+  render("");
+} else if (modeInfo.mode === "empty") {
+  showWelcome();
+} else if (modeInfo.mode === "folder") {
+  document.body.classList.add("folder-mode");
+  if (modeInfo.folder_name) {
+    sidebarHeaderEl.textContent = modeInfo.folder_name;
+  }
+  currentFilePath = modeInfo.current_file || null;
+  folderRootPath = modeInfo.folder_path || null;
+  folderNodeMap.clear();
+  showScanningIndicator();
+  invoke("start_folder_scan");
+
+  if (currentFilePath) {
+    try {
+      const content = await invoke("read_file");
+      lastMarkdown = content;
+      render(content);
+    } catch {
+      lastMarkdown = "";
+      render("");
+    }
+  }
+} else {
+  const content = await invoke("read_file");
+  lastMarkdown = content;
+  render(content);
+}
 
 // --- Search event handlers ---
 
