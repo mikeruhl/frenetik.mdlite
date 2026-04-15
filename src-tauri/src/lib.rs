@@ -127,6 +127,11 @@ fn list_folder(state: tauri::State<'_, Mutex<AppState>>) -> Result<Vec<FolderEnt
 }
 
 #[tauri::command]
+fn cancel_folder_scan() {
+    SCAN_GENERATION.fetch_add(1, Ordering::Relaxed);
+}
+
+#[tauri::command]
 fn start_folder_scan(state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) -> Result<(), String> {
     let folder_path = {
         let s = state.lock().unwrap();
@@ -178,7 +183,7 @@ fn start_folder_scan(state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHa
                         }
                     }
 
-                    if !files.is_empty() {
+                    if !files.is_empty() && SCAN_GENERATION.load(Ordering::Relaxed) == gen {
                         let _ = app.emit(
                             "folder-scan-files",
                             FolderScanFiles {
@@ -620,7 +625,8 @@ pub fn run() {
             get_startup_error,
             list_folder,
             open_folder_file,
-            start_folder_scan
+            start_folder_scan,
+            cancel_folder_scan
         ])
         .setup(|app| {
             let matches = app.cli().matches().expect("Failed to parse CLI arguments");

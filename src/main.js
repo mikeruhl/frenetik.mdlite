@@ -370,7 +370,6 @@ function render(markdown) {
 
 // --- Folder mode ---
 
-let folderRootPath = null;
 const folderNodeMap = new Map();
 
 function showScanningIndicator() {
@@ -515,25 +514,7 @@ function highlightCurrentFile() {
   });
 }
 
-function expandToFile(filePath) {
-  sidebarTreeEl.querySelectorAll(".tree-file").forEach((el) => {
-    if (el.dataset.path === filePath) {
-      let parent = el.parentElement;
-      while (parent && parent !== sidebarTreeEl) {
-        if (parent.classList && parent.classList.contains("tree-children")) {
-          parent.style.display = "block";
-          const folder = parent.previousElementSibling;
-          if (folder && folder.classList.contains("tree-folder")) {
-            const toggle = folder.querySelector(".tree-toggle");
-            if (toggle) toggle.textContent = "\u25be";
-            folder.classList.add("expanded");
-          }
-        }
-        parent = parent.parentElement;
-      }
-    }
-  });
-}
+
 
 async function selectFolderFile(path) {
   try {
@@ -563,18 +544,19 @@ async function enterFolderMode() {
     sidebarHeaderEl.textContent = modeInfo.folder_name;
   }
   currentFilePath = modeInfo.current_file || null;
-  folderRootPath = modeInfo.folder_path || null;
+
   folderNodeMap.clear();
   sidebarTreeEl.innerHTML = "";
   showScanningIndicator();
-  invoke("start_folder_scan");
+  invoke("start_folder_scan").catch((e) => console.error("Folder scan failed:", e));
 }
 
 function exitFolderMode() {
+  invoke("cancel_folder_scan").catch(() => {});
   document.body.classList.remove("folder-mode");
   sidebarTreeEl.innerHTML = "";
   folderNodeMap.clear();
-  folderRootPath = null;
+  folderScrollPositions.clear();
   currentFilePath = null;
 }
 
@@ -625,10 +607,12 @@ await listen("enter-folder-mode", async () => {
 });
 
 await listen("folder-scan-files", (event) => {
+  if (!document.body.classList.contains("folder-mode")) return;
   handleScanFiles(event.payload.path_chain, event.payload.files);
 });
 
 await listen("folder-scan-complete", () => {
+  if (!document.body.classList.contains("folder-mode")) return;
   handleScanComplete();
 });
 
@@ -637,7 +621,7 @@ await listen("folder-changed", async () => {
   folderNodeMap.clear();
   sidebarTreeEl.innerHTML = "";
   showScanningIndicator();
-  invoke("start_folder_scan");
+  invoke("start_folder_scan").catch((e) => console.error("Folder scan failed:", e));
 });
 
 await listen("enter-file-mode", () => {
@@ -668,10 +652,10 @@ if (startupError) {
     sidebarHeaderEl.textContent = modeInfo.folder_name;
   }
   currentFilePath = modeInfo.current_file || null;
-  folderRootPath = modeInfo.folder_path || null;
+
   folderNodeMap.clear();
   showScanningIndicator();
-  invoke("start_folder_scan");
+  invoke("start_folder_scan").catch((e) => console.error("Folder scan failed:", e));
 
   if (currentFilePath) {
     try {
