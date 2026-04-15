@@ -48,6 +48,8 @@ struct AppState {
     folder_path: Option<PathBuf>,
     current_theme: String,
     debouncer: Option<Debouncer<RecommendedWatcher>>,
+    folder_debouncer: Option<Debouncer<RecommendedWatcher>>,
+    startup_error: Option<String>,
 }
 
 fn display_path(p: &Path) -> String {
@@ -91,6 +93,11 @@ fn get_mode(state: tauri::State<'_, Mutex<AppState>>) -> serde_json::Value {
 }
 
 #[tauri::command]
+fn get_startup_error(state: tauri::State<'_, Mutex<AppState>>) -> Option<String> {
+    state.lock().unwrap().startup_error.clone()
+}
+
+#[tauri::command]
 fn list_folder(state: tauri::State<'_, Mutex<AppState>>) -> Result<Vec<FolderEntry>, String> {
     let state = state.lock().unwrap();
     match &state.folder_path {
@@ -118,19 +125,7 @@ fn open_folder_file(
 
     let content = std::fs::read_to_string(&file_path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
 
-    let needs_new_watcher = {
-        let mut s = state.lock().unwrap();
-        let old_dir = s.file_path.parent().map(|p| p.to_path_buf());
-        let new_dir = file_path.parent().map(|p| p.to_path_buf());
-        s.file_path = file_path.clone();
-        old_dir != new_dir
-    };
-
-    if needs_new_watcher {
-        let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();
-        let debouncer = start_watcher(&watch_dir, app.clone());
-        state.lock().unwrap().debouncer = Some(debouncer);
-    }
+    state.lock().unwrap().file_path = file_path.clone();
 
     let name = file_path.file_name().unwrap_or_default().to_string_lossy();
     let folder_name = state
@@ -387,6 +382,46 @@ fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debouncer<Recommend
     debouncer
 }
 
+fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Option<Debouncer<RecommendedWatcher>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let Ok(mut debouncer) = new_debouncer(Duration::from_millis(300), tx) else {
+        eprintln!("Failed to create folder watcher");
+        return None;
+    };
+    if let Err(e) = debouncer.watcher().watch(folder_root, RecursiveMode::Recursive) {
+        eprintln!("Failed to watch folder {:?}: {:?}", folder_root, e);
+        return None;
+    }
+
+    std::thread::spawn(move || {
+        for result in rx {
+            match result {
+                Ok(events) => {
+                    let current = app.state::<Mutex<AppState>>().lock().unwrap().file_path.clone();
+                    let current_touched = events.iter().any(|e| e.path == current);
+                    let other_touched = events.iter().any(|e| e.path != current);
+                    if current_touched {
+                        match std::fs::read_to_string(&current) {
+                            Ok(content) => {
+                                let _ = app.emit("file-changed", content);
+                            }
+                            Err(_) => {
+                                let _ = app.emit("folder-changed", ());
+                            }
+                        }
+                    }
+                    if other_touched {
+                        let _ = app.emit("folder-changed", ());
+                    }
+                }
+                Err(e) => eprintln!("Folder watch error: {:?}", e),
+            }
+        }
+    });
+
+    Some(debouncer)
+}
+
 fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     let new_path = PathBuf::from(new_path_str);
     if !new_path.exists() {
@@ -405,6 +440,8 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         s.file_path = new_path.clone();
         s.mode = AppMode::File;
         s.folder_path = None;
+        s.folder_debouncer = None;
+        s.startup_error = None;
         (old_dir != new_dir || was_other, was_other)
     };
 
@@ -443,6 +480,7 @@ fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         s.mode = AppMode::Folder;
         s.folder_path = Some(folder_path.clone());
         s.file_path = file_path.clone();
+        s.startup_error = None;
     }
 
     let folder_name = folder_path
@@ -460,10 +498,11 @@ fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         let _ = w.set_size(tauri::LogicalSize::new(1100.0, 700.0));
     }
 
-    if !file_path.as_os_str().is_empty() {
-        let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();
-        let debouncer = start_watcher(&watch_dir, app.clone());
-        app.state::<Mutex<AppState>>().lock().unwrap().debouncer = Some(debouncer);
+    {
+        let state = app.state::<Mutex<AppState>>();
+        let mut s = state.lock().unwrap();
+        s.debouncer = None;
+        s.folder_debouncer = start_folder_watcher(&folder_path, app.clone());
     }
 
     let _ = app.emit("enter-folder-mode", ());
@@ -485,6 +524,7 @@ pub fn run() {
             read_file,
             get_theme,
             get_mode,
+            get_startup_error,
             list_folder,
             open_folder_file
         ])
@@ -496,19 +536,29 @@ pub fn run() {
                 .and_then(|a| a.value.as_str())
                 .filter(|s| !s.is_empty());
 
-            let (mode, file_path, folder_path) = if let Some(arg) = path_arg {
-                let input_path = std::fs::canonicalize(arg).unwrap_or_else(|_| {
-                    eprintln!("Path not found: {}", arg);
-                    std::process::exit(1);
-                });
-                if input_path.is_dir() {
-                    let default_file = find_default_file(&input_path);
-                    (AppMode::Folder, default_file.unwrap_or_default(), Some(input_path))
-                } else {
-                    (AppMode::File, input_path, None)
+            let (mode, file_path, folder_path, startup_error) = if let Some(arg) = path_arg {
+                match std::fs::canonicalize(arg) {
+                    Ok(input_path) => {
+                        if input_path.is_dir() {
+                            let default_file = find_default_file(&input_path);
+                            (
+                                AppMode::Folder,
+                                default_file.unwrap_or_default(),
+                                Some(input_path),
+                                None,
+                            )
+                        } else {
+                            (AppMode::File, input_path, None, None)
+                        }
+                    }
+                    Err(_) => {
+                        let msg = format!("File not found: {}", arg);
+                        eprintln!("{}", msg);
+                        (AppMode::Empty, PathBuf::new(), None, Some(msg))
+                    }
                 }
             } else {
-                (AppMode::Empty, PathBuf::new(), None)
+                (AppMode::Empty, PathBuf::new(), None, None)
             };
 
             if let Some(w) = app.get_webview_window("main") {
@@ -546,15 +596,23 @@ pub fn run() {
             let menu = build_menu(app.handle(), &recent, &theme)?;
             app.set_menu(menu)?;
 
+            let folder_path_for_watch = folder_path.clone();
             app.manage(Mutex::new(AppState {
                 mode: mode.clone(),
                 file_path: file_path.clone(),
                 folder_path,
                 current_theme: theme,
                 debouncer: None,
+                folder_debouncer: None,
+                startup_error,
             }));
 
-            if !file_path.as_os_str().is_empty() {
+            if mode == AppMode::Folder {
+                if let Some(ref fp) = folder_path_for_watch {
+                    app.state::<Mutex<AppState>>().lock().unwrap().folder_debouncer =
+                        start_folder_watcher(fp, app.handle().clone());
+                }
+            } else if !file_path.as_os_str().is_empty() {
                 let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();
                 let debouncer = start_watcher(&watch_dir, app.handle().clone());
                 app.state::<Mutex<AppState>>().lock().unwrap().debouncer = Some(debouncer);
