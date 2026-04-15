@@ -399,8 +399,12 @@ fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Debouncer<
                     let other_touched = events.iter().any(|e| e.path != current);
                     if current_touched {
                         match std::fs::read_to_string(&current) {
-                            Ok(content) => { let _ = app.emit("file-changed", content); }
-                            Err(_) => { let _ = app.emit("folder-changed", ()); }
+                            Ok(content) => {
+                                let _ = app.emit("file-changed", content);
+                            }
+                            Err(_) => {
+                                let _ = app.emit("folder-changed", ());
+                            }
                         }
                     }
                     if other_touched {
@@ -532,7 +536,12 @@ pub fn run() {
                     Ok(input_path) => {
                         if input_path.is_dir() {
                             let default_file = find_default_file(&input_path);
-                            (AppMode::Folder, default_file.unwrap_or_default(), Some(input_path), None)
+                            (
+                                AppMode::Folder,
+                                default_file.unwrap_or_default(),
+                                Some(input_path),
+                                None,
+                            )
                         } else {
                             (AppMode::File, input_path, None, None)
                         }
