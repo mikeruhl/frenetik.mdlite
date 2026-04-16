@@ -118,9 +118,13 @@ async function openMermaidWindow(svgContent) {
 }
 
 function slugify(text) {
-  return text
-    .toLowerCase()
-    .replace(/<[^>]*>/g, "")
+  let result = text.toLowerCase();
+  let prev;
+  do {
+    prev = result;
+    result = result.replace(/<[^>]*>/g, "");
+  } while (result !== prev);
+  return result
     .replace(/[^\w\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
