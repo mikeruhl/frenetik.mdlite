@@ -1,8 +1,8 @@
 use std::sync::Mutex;
 use tauri::Manager;
 
-use crate::config::{load_zoom_config, save_zoom_config, MIN_ZOOM, MAX_ZOOM};
-use crate::scan::{scan_folder, FolderEntry, run_progressive_scan, SCAN_GENERATION};
+use crate::config::{load_zoom_config, save_zoom_config, MAX_ZOOM, MIN_ZOOM};
+use crate::scan::{run_progressive_scan, scan_folder, FolderEntry, SCAN_GENERATION};
 use crate::{display_path, AppMode, AppState};
 
 #[tauri::command]
@@ -75,10 +75,7 @@ pub(crate) fn cancel_folder_scan() {
 }
 
 #[tauri::command]
-pub(crate) fn start_folder_scan(
-    state: tauri::State<'_, Mutex<AppState>>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
+pub(crate) fn start_folder_scan(state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) -> Result<(), String> {
     let folder_path = {
         let s = state.lock().unwrap();
         s.folder_path.clone()

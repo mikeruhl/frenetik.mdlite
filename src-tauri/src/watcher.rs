@@ -36,10 +36,7 @@ pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debounce
     debouncer
 }
 
-pub(crate) fn start_folder_watcher(
-    folder_root: &Path,
-    app: tauri::AppHandle,
-) -> Option<Debouncer<RecommendedWatcher>> {
+pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Option<Debouncer<RecommendedWatcher>> {
     let (tx, rx) = std::sync::mpsc::channel();
     let Ok(mut debouncer) = new_debouncer(Duration::from_millis(300), tx) else {
         eprintln!("Failed to create folder watcher");

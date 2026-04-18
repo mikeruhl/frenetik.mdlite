@@ -14,7 +14,6 @@ import {
   exitFolderMode,
   resetSidebarForRescan,
   initFolderStartup,
-  setCurrentFilePath,
 } from "./sidebar.js";
 
 const contentEl = document.getElementById("content");

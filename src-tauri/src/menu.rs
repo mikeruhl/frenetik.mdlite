@@ -72,7 +72,11 @@ pub(crate) fn build_menu(
         .item(&zoom_reset)
         .build()?;
 
-    MenuBuilder::new(app).item(&file_menu).item(&view_menu).item(&theme_sub.build()?).build()
+    MenuBuilder::new(app)
+        .item(&file_menu)
+        .item(&view_menu)
+        .item(&theme_sub.build()?)
+        .build()
 }
 
 pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &str) {
