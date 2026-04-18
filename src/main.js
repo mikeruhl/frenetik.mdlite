@@ -7,6 +7,7 @@ import { applyZoom, getZoom } from "./zoom.js";
 import { parseMarkdown, renderMermaidBlocks, bindMermaidButtons, resetMermaidCounter } from "./markdown.js";
 import { highlightSearchMatches, openSearch, isSearchActive, getSearchQuery, bindSearchEvents } from "./search.js";
 import { toggleToc, refreshToc, bindTocEvents } from "./toc.js";
+import { initHistory, pushNavigation, navigateBack, navigateForward } from "./history.js";
 import {
   initSidebar,
   handleScanFiles,
@@ -15,9 +16,12 @@ import {
   exitFolderMode,
   resetSidebarForRescan,
   initFolderStartup,
+  getCurrentFilePath,
+  navigateToFile,
 } from "./sidebar.js";
 
 const contentEl = document.getElementById("content");
+const mainContentEl = document.getElementById("main-content");
 
 let lastMarkdown = "";
 let startupErrorMsg = null;
@@ -43,6 +47,16 @@ function render(markdown) {
 
 initSidebar(render);
 
+initHistory(
+  () => ({ filePath: getCurrentFilePath(), scrollTop: mainContentEl.scrollTop }),
+  async (filePath, scrollTop) => {
+    if (filePath && filePath !== getCurrentFilePath()) {
+      await navigateToFile(filePath);
+    }
+    mainContentEl.scrollTop = scrollTop;
+  }
+);
+
 const WELCOME_MD = `# mdlite
 
 A lightweight markdown previewer.
@@ -65,6 +79,8 @@ A lightweight markdown previewer.
 | Zoom out | Ctrl+- |
 | Reset zoom | Ctrl+0 |
 | Toggle outline | Ctrl+Shift+O |
+| Go back | Alt+Left |
+| Go forward | Alt+Right |
 | Switch theme | Theme menu |
 
 **Supported formats** — \`.md\`, \`.markdown\`, \`.mdx\`
@@ -121,6 +137,14 @@ await listen("toggle-outline", () => {
 await listen("open-search", () => {
   openSearch();
   if (getSearchQuery()) highlightSearchMatches(getSearchQuery());
+});
+
+await listen("navigate-back", () => {
+  navigateBack();
+});
+
+await listen("navigate-forward", () => {
+  navigateForward();
 });
 
 // --- Initialization ---
@@ -187,6 +211,14 @@ document.addEventListener("keydown", (e) => {
     applyZoom(100);
     invoke("save_zoom", { level: 100 });
   }
+  if (e.altKey && e.key === "ArrowLeft") {
+    e.preventDefault();
+    navigateBack();
+  }
+  if (e.altKey && e.key === "ArrowRight") {
+    e.preventDefault();
+    navigateForward();
+  }
 });
 
 document.addEventListener("click", (e) => {
@@ -196,10 +228,23 @@ document.addEventListener("click", (e) => {
   if (href && href.startsWith("#")) {
     e.preventDefault();
     const target = document.getElementById(href.slice(1));
-    if (target) target.scrollIntoView({ behavior: "smooth" });
+    if (target) {
+      pushNavigation();
+      target.scrollIntoView({ behavior: "smooth" });
+    }
   } else if (href && href.startsWith("http")) {
     e.preventDefault();
     openUrl(href);
+  }
+});
+
+window.addEventListener("mouseup", (e) => {
+  if (e.button === 3) {
+    e.preventDefault();
+    navigateBack();
+  } else if (e.button === 4) {
+    e.preventDefault();
+    navigateForward();
   }
 });
 

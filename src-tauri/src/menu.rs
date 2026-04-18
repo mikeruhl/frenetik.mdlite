@@ -56,6 +56,8 @@ pub(crate) fn build_menu(
         theme_sub = theme_sub.item(&item);
     }
 
+    let nav_back = MenuItemBuilder::with_id("navigate-back", "Back\tAlt+\u{2190}").build(app)?;
+    let nav_forward = MenuItemBuilder::with_id("navigate-forward", "Forward\tAlt+\u{2192}").build(app)?;
     let zoom_in = MenuItemBuilder::with_id("zoom-in", "Zoom In")
         .accelerator("CmdOrCtrl+=")
         .build(app)?;
@@ -69,6 +71,9 @@ pub(crate) fn build_menu(
         .accelerator("CmdOrCtrl+Shift+O")
         .build(app)?;
     let view_menu = SubmenuBuilder::new(app, "View")
+        .item(&nav_back)
+        .item(&nav_forward)
+        .separator()
         .item(&zoom_in)
         .item(&zoom_out)
         .separator()
