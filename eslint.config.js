@@ -17,6 +17,9 @@ export default [
         NodeFilter: "readonly",
         clearTimeout: "readonly",
         setTimeout: "readonly",
+        TextEncoder: "readonly",
+        TextDecoder: "readonly",
+        Uint8Array: "readonly",
       },
     },
     rules: {
