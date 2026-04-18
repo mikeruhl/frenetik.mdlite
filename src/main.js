@@ -66,7 +66,7 @@ A lightweight markdown previewer.
 
 **Supported formats** — \`.md\`, \`.markdown\`, \`.mdx\`
 
-**Features** — live reload, mermaid diagrams, multiple themes
+**Features** — live reload, mermaid diagrams, math/LaTeX (KaTeX), multiple themes
 `;
 
 // --- Event listeners (registered before init to avoid race conditions) ---

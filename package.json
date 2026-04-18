@@ -12,13 +12,16 @@
     "lint:md": "markdownlint \"**/*.md\" --ignore node_modules --ignore target",
     "lint:md:fix": "markdownlint \"**/*.md\" --ignore node_modules --ignore target --fix",
     "format": "prettier --write \"**/*.{js,json,yml,yaml,md}\"",
-    "format:check": "prettier --check \"**/*.{js,json,yml,yaml,md}\""
+    "format:check": "prettier --check \"**/*.{js,json,yml,yaml,md}\"",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2.10.1",
     "eslint": "^9.39.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "markdownlint-cli": "^0.48.0",
     "prettier": "^3.8.3",
     "vite": "^8.0.8"
@@ -30,8 +33,23 @@
     "dompurify": "^3.4.0",
     "github-markdown-css": "^5.9.0",
     "highlight.js": "^11.11.1",
+    "katex": "^0.16.45",
     "marked": "^18.0.0",
     "marked-highlight": "^2.2.4",
+    "marked-katex-extension": "^5.1.8",
     "mermaid": "^11.14.0"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.md": [
+      "markdownlint --fix --ignore node_modules --ignore target",
+      "prettier --write"
+    ],
+    "*.{json,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }
