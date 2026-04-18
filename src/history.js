@@ -14,13 +14,17 @@ export function initHistory(getState, navigate) {
 export function pushNavigation() {
   if (isNavigating || !getStateFn) return;
   const state = getStateFn();
+  const last = backStack[backStack.length - 1];
+  if (last && last.filePath === state.filePath && Math.abs(last.scrollTop - state.scrollTop) < 5) {
+    return;
+  }
   backStack.push({ ...state });
   forwardStack.length = 0;
   if (backStack.length > MAX_ENTRIES) backStack.shift();
 }
 
 export async function navigateBack() {
-  if (backStack.length === 0 || !navigateFn || !getStateFn) return;
+  if (isNavigating || backStack.length === 0 || !navigateFn || !getStateFn) return;
   const state = getStateFn();
   forwardStack.push({ ...state });
   const target = backStack.pop();
@@ -33,7 +37,7 @@ export async function navigateBack() {
 }
 
 export async function navigateForward() {
-  if (forwardStack.length === 0 || !navigateFn || !getStateFn) return;
+  if (isNavigating || forwardStack.length === 0 || !navigateFn || !getStateFn) return;
   const state = getStateFn();
   backStack.push({ ...state });
   const target = forwardStack.pop();
