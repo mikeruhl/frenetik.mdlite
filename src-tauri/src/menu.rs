@@ -65,11 +65,16 @@ pub(crate) fn build_menu(
     let zoom_reset = MenuItemBuilder::with_id("zoom-reset", "Reset Zoom")
         .accelerator("CmdOrCtrl+0")
         .build(app)?;
+    let toggle_outline = MenuItemBuilder::with_id("toggle-outline", "Toggle Outline")
+        .accelerator("CmdOrCtrl+Shift+O")
+        .build(app)?;
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&zoom_in)
         .item(&zoom_out)
         .separator()
         .item(&zoom_reset)
+        .separator()
+        .item(&toggle_outline)
         .build()?;
 
     MenuBuilder::new(app)

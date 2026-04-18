@@ -287,6 +287,8 @@ pub fn run() {
                     let _ = handle.emit("set-zoom", new_zoom);
                 } else if id == "find" {
                     let _ = handle.emit("open-search", ());
+                } else if id == "toggle-outline" {
+                    let _ = handle.emit("toggle-outline", ());
                 } else if let Some(theme_id) = id.strip_prefix("theme-") {
                     save_theme_config(handle, theme_id);
                     handle.state::<Mutex<AppState>>().lock().unwrap().current_theme = theme_id.to_string();
