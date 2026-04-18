@@ -56,7 +56,7 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                     let current_touched = events.iter().any(|e| e.path == current);
                     let structure_changed = events
                         .iter()
-                        .any(|e| e.path != current && e.path.extension().is_some_and(|ext| is_markdown_ext(ext)));
+                        .any(|e| e.path != current && e.path.extension().is_some_and(is_markdown_ext));
                     if current_touched {
                         match std::fs::read_to_string(&current) {
                             Ok(content) => {
