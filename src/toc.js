@@ -5,6 +5,7 @@ const mainContent = document.getElementById("main-content");
 
 let visible = false;
 let observer = null;
+const intersectingHeadings = new Set();
 
 export function toggleToc() {
   visible ? hideToc() : showToc();
@@ -45,8 +46,9 @@ function buildToc() {
 
   for (const heading of headings) {
     const level = parseInt(heading.tagName[1]);
-    const item = document.createElement("div");
+    const item = document.createElement("button");
     item.className = "toc-item";
+    item.type = "button";
     item.dataset.level = level;
     item.style.paddingLeft = 8 + (level - 1) * 14 + "px";
     item.textContent = heading.textContent;
@@ -63,6 +65,7 @@ function buildToc() {
 function observeHeadings() {
   if (observer) {
     observer.disconnect();
+    intersectingHeadings.clear();
   }
 
   const headings = contentEl.querySelectorAll("h1, h2, h3, h4, h5, h6");
@@ -70,16 +73,27 @@ function observeHeadings() {
 
   observer = new IntersectionObserver(
     (entries) => {
-      let topVisible = null;
       for (const entry of entries) {
         if (entry.isIntersecting) {
-          if (!topVisible || entry.boundingClientRect.top < topVisible.boundingClientRect.top) {
-            topVisible = entry;
-          }
+          intersectingHeadings.add(entry.target);
+        } else {
+          intersectingHeadings.delete(entry.target);
         }
       }
+
+      let topVisible = null;
+      let topVisibleOffset = Infinity;
+
+      for (const heading of intersectingHeadings) {
+        const top = heading.getBoundingClientRect().top;
+        if (top < topVisibleOffset) {
+          topVisible = heading;
+          topVisibleOffset = top;
+        }
+      }
+
       if (topVisible) {
-        highlightTocItem(topVisible.target.id);
+        highlightTocItem(topVisible.id);
       }
     },
     {
@@ -103,4 +117,6 @@ function highlightTocItem(id) {
   }
 }
 
-tocClose.addEventListener("click", hideToc);
+export function bindTocEvents() {
+  tocClose.addEventListener("click", hideToc);
+}

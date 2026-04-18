@@ -6,7 +6,7 @@ import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
 import { parseMarkdown, renderMermaidBlocks, bindMermaidButtons, resetMermaidCounter } from "./markdown.js";
 import { highlightSearchMatches, openSearch, isSearchActive, getSearchQuery, bindSearchEvents } from "./search.js";
-import { toggleToc, refreshToc } from "./toc.js";
+import { toggleToc, refreshToc, bindTocEvents } from "./toc.js";
 import {
   initSidebar,
   handleScanFiles,
@@ -158,6 +158,7 @@ if (startupError) {
 // --- Global event handlers ---
 
 bindSearchEvents();
+bindTocEvents();
 
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "f") {

@@ -475,6 +475,11 @@ body.toc-visible {
   overflow: hidden;
 }
 
+body.toc-visible #search-bar {
+  right: 240px;
+  max-width: calc(100vw - 260px);
+}
+
 #toc-header {
   display: flex;
   align-items: center;
@@ -512,6 +517,12 @@ body.toc-visible {
 }
 
 .toc-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
   padding: 3px 8px;
   cursor: pointer;
   white-space: nowrap;
