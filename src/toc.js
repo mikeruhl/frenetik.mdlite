@@ -65,8 +65,8 @@ function buildToc() {
 function observeHeadings() {
   if (observer) {
     observer.disconnect();
-    intersectingHeadings.clear();
   }
+  intersectingHeadings.clear();
 
   const headings = contentEl.querySelectorAll("h1, h2, h3, h4, h5, h6");
   if (headings.length === 0) return;

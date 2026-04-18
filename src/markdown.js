@@ -63,7 +63,7 @@ marked.use(
     renderer: {
       heading({ tokens, depth }) {
         const text = this.parser.parseInline(tokens);
-        let id = slugify(text);
+        let id = slugify(text) || `heading-${usedIds.size}`;
         if (usedIds.has(id)) {
           let i = 1;
           while (usedIds.has(`${id}-${i}`)) i++;
