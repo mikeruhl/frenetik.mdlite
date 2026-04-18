@@ -54,7 +54,7 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                 Ok(events) => {
                     let current = app.state::<Mutex<AppState>>().lock().unwrap().file_path.clone();
                     let current_touched = events.iter().any(|e| e.path == current);
-                    let structure_changed = events
+                    let markdown_file_changed = events
                         .iter()
                         .any(|e| e.path != current && e.path.extension().is_some_and(is_markdown_ext));
                     if current_touched {
@@ -67,7 +67,7 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                             }
                         }
                     }
-                    if structure_changed {
+                    if markdown_file_changed {
                         let _ = app.emit("folder-changed", ());
                     }
                 }
