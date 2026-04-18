@@ -7,6 +7,7 @@ import "katex/dist/katex.min.css";
 
 let mermaidInstance = null;
 let mermaidCounter = 0;
+const usedIds = new Set();
 
 async function getMermaid() {
   if (!mermaidInstance) {
@@ -62,7 +63,13 @@ marked.use(
     renderer: {
       heading({ tokens, depth }) {
         const text = this.parser.parseInline(tokens);
-        const id = slugify(text);
+        let id = slugify(text) || `heading-${usedIds.size}`;
+        if (usedIds.has(id)) {
+          let i = 1;
+          while (usedIds.has(`${id}-${i}`)) i++;
+          id = `${id}-${i}`;
+        }
+        usedIds.add(id);
         return `<h${depth} id="${id}">${text}</h${depth}>\n`;
       },
       code({ text, lang }) {
@@ -124,6 +131,7 @@ export function bindMermaidButtons() {
 
 export function resetMermaidCounter() {
   mermaidCounter = 0;
+  usedIds.clear();
 }
 
 export function parseMarkdown(markdown) {

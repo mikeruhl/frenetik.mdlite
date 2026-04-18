@@ -20,6 +20,8 @@ export default [
         TextEncoder: "readonly",
         TextDecoder: "readonly",
         Uint8Array: "readonly",
+        IntersectionObserver: "readonly",
+        CSS: "readonly",
       },
     },
     rules: {

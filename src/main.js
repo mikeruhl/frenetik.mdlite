@@ -6,6 +6,7 @@ import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
 import { parseMarkdown, renderMermaidBlocks, bindMermaidButtons, resetMermaidCounter } from "./markdown.js";
 import { highlightSearchMatches, openSearch, isSearchActive, getSearchQuery, bindSearchEvents } from "./search.js";
+import { toggleToc, refreshToc, bindTocEvents } from "./toc.js";
 import {
   initSidebar,
   handleScanFiles,
@@ -37,6 +38,7 @@ function render(markdown) {
   if (isSearchActive()) {
     highlightSearchMatches(getSearchQuery());
   }
+  refreshToc();
 }
 
 initSidebar(render);
@@ -62,6 +64,7 @@ A lightweight markdown previewer.
 | Zoom in | Ctrl+= |
 | Zoom out | Ctrl+- |
 | Reset zoom | Ctrl+0 |
+| Toggle outline | Ctrl+Shift+O |
 | Switch theme | Theme menu |
 
 **Supported formats** — \`.md\`, \`.markdown\`, \`.mdx\`
@@ -111,6 +114,10 @@ await listen("enter-file-mode", () => {
   exitFolderMode();
 });
 
+await listen("toggle-outline", () => {
+  toggleToc();
+});
+
 await listen("open-search", () => {
   openSearch();
   if (getSearchQuery()) highlightSearchMatches(getSearchQuery());
@@ -151,12 +158,17 @@ if (startupError) {
 // --- Global event handlers ---
 
 bindSearchEvents();
+bindTocEvents();
 
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "f") {
     e.preventDefault();
     openSearch();
     if (getSearchQuery()) highlightSearchMatches(getSearchQuery());
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "O") {
+    e.preventDefault();
+    toggleToc();
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+")) {
     e.preventDefault();
