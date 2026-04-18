@@ -64,7 +64,7 @@ marked.use(
       code({ text, lang }) {
         if (lang === "mermaid") {
           const idx = mermaidCounter++;
-          const encoded = btoa(unescape(encodeURIComponent(text)));
+          const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(text)));
           return `<div class="mermaid-block" data-mermaid-idx="${idx}" data-mermaid="${encoded}">
             <div class="mermaid-rendered" id="mermaid-render-${idx}"></div>
             <button class="mermaid-expand" title="Open in new window">&#x26F6; Open</button>
@@ -84,7 +84,7 @@ export async function renderMermaidBlocks() {
 
   const mermaid = await getMermaid();
   for (const block of blocks) {
-    const code = decodeURIComponent(escape(atob(block.dataset.mermaid)));
+    const code = new TextDecoder().decode(Uint8Array.from(atob(block.dataset.mermaid), (c) => c.charCodeAt(0)));
     const target = block.querySelector(".mermaid-rendered");
     try {
       const { svg } = await mermaid.render("mermaid-svg-" + block.dataset.mermaidIdx + "-" + Date.now(), code);

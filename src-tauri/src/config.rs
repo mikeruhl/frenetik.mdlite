@@ -45,7 +45,7 @@ pub(crate) fn load_zoom_from(config_path: &Path) -> u32 {
     let config = load_config_from(config_path);
     config["zoom"]
         .as_u64()
-        .map(|z| (z as u32).clamp(MIN_ZOOM, MAX_ZOOM))
+        .map(|z| z.clamp(MIN_ZOOM as u64, MAX_ZOOM as u64) as u32)
         .unwrap_or(DEFAULT_ZOOM)
 }
 

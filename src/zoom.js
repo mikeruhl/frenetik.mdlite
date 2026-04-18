@@ -9,7 +9,7 @@ export function getZoom() {
 
 export function applyZoom(level) {
   currentZoom = Math.max(50, Math.min(200, level));
-  contentEl.style.zoom = currentZoom / 100;
+  contentEl.style.fontSize = currentZoom + "%";
   updateZoomIndicator();
 }
 
