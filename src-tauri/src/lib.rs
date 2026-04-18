@@ -285,6 +285,10 @@ pub fn run() {
                     };
                     save_zoom_config(handle, new_zoom);
                     let _ = handle.emit("set-zoom", new_zoom);
+                } else if id == "navigate-back" {
+                    let _ = handle.emit("navigate-back", ());
+                } else if id == "navigate-forward" {
+                    let _ = handle.emit("navigate-forward", ());
                 } else if id == "find" {
                     let _ = handle.emit("open-search", ());
                 } else if id == "toggle-outline" {

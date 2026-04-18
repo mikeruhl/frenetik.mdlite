@@ -1,3 +1,5 @@
+import { pushNavigation } from "./history.js";
+
 const tocTree = document.getElementById("toc-tree");
 const tocClose = document.getElementById("toc-close");
 const contentEl = document.getElementById("content");
@@ -55,6 +57,7 @@ function buildToc() {
     item.dataset.targetId = heading.id;
 
     item.addEventListener("click", () => {
+      pushNavigation();
       heading.scrollIntoView({ behavior: "smooth" });
     });
 

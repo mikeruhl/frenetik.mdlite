@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { pushNavigation } from "./history.js";
 
 const mainContentEl = document.getElementById("main-content");
 const sidebarHeaderEl = document.getElementById("sidebar-header");
@@ -164,6 +165,7 @@ function highlightCurrentFile() {
 
 async function selectFolderFile(path) {
   try {
+    pushNavigation();
     if (currentFilePath && mainContentEl) {
       folderScrollPositions.set(currentFilePath, mainContentEl.scrollTop);
     }
@@ -176,6 +178,20 @@ async function selectFolderFile(path) {
     }
   } catch (e) {
     console.error("Failed to open file:", e);
+  }
+}
+
+export async function navigateToFile(path) {
+  try {
+    if (currentFilePath && mainContentEl) {
+      folderScrollPositions.set(currentFilePath, mainContentEl.scrollTop);
+    }
+    const content = await invoke("open_folder_file", { path });
+    currentFilePath = path;
+    renderFn(content);
+    highlightCurrentFile();
+  } catch (e) {
+    console.error("Failed to navigate to file:", e);
   }
 }
 
