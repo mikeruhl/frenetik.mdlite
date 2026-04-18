@@ -15,6 +15,7 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 - **Folder view** — open a directory and browse all markdown files in a sidebar tree
 - **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
 - **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
+- **Math/LaTeX** — inline (`$...$`) and block (`$$...$$`) math via KaTeX
 - **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
   Splendor, Retro, Air, Modest (persisted across sessions)
 - **Fast startup** — native binary, no runtime dependencies
@@ -87,7 +88,7 @@ and click **Open** to view it in a separate window with zoom and pan controls.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org) 18+
+- [Node.js](https://nodejs.org) 20+
 - [pnpm](https://pnpm.io)
 - [Rust](https://rustup.rs) stable
 - Platform-specific dependencies:

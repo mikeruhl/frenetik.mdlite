@@ -80,6 +80,12 @@ marked.use(
   }
 );
 
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.hasAttribute("style") && !node.closest(".katex")) {
+    node.removeAttribute("style");
+  }
+});
+
 const contentEl = document.getElementById("content");
 
 export async function renderMermaidBlocks() {
@@ -159,7 +165,6 @@ export function parseMarkdown(markdown) {
       "data-mermaid",
       "title",
       "id",
-      "style",
       "aria-hidden",
       "encoding",
       "xmlns",
