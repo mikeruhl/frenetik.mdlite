@@ -13,6 +13,10 @@ use tauri_plugin_cli::CliExt;
 use tauri_plugin_dialog::DialogExt;
 
 const MAX_RECENT: usize = 10;
+const DEFAULT_ZOOM: u32 = 100;
+const MIN_ZOOM: u32 = 50;
+const MAX_ZOOM: u32 = 200;
+const ZOOM_STEP: u32 = 10;
 
 const THEMES: &[(&str, &str)] = &[
     ("github", "GitHub Light"),
@@ -86,6 +90,17 @@ fn read_file(state: tauri::State<'_, Mutex<AppState>>) -> Result<String, String>
 #[tauri::command]
 fn get_theme(state: tauri::State<'_, Mutex<AppState>>) -> String {
     state.lock().unwrap().current_theme.clone()
+}
+
+#[tauri::command]
+fn get_zoom(app: tauri::AppHandle) -> u32 {
+    load_zoom_config(&app)
+}
+
+#[tauri::command]
+fn save_zoom(app: tauri::AppHandle, level: u32) {
+    let clamped = level.clamp(MIN_ZOOM, MAX_ZOOM);
+    save_zoom_config(&app, clamped);
 }
 
 #[tauri::command]
@@ -352,6 +367,20 @@ fn save_theme_to(config_path: &Path, theme: &str) {
     save_config_to(config_path, &config);
 }
 
+fn load_zoom_from(config_path: &Path) -> u32 {
+    let config = load_config_from(config_path);
+    config["zoom"]
+        .as_u64()
+        .map(|z| (z as u32).clamp(MIN_ZOOM, MAX_ZOOM))
+        .unwrap_or(DEFAULT_ZOOM)
+}
+
+fn save_zoom_to(config_path: &Path, zoom: u32) {
+    let mut config = load_config_from(config_path);
+    config["zoom"] = serde_json::json!(zoom);
+    save_config_to(config_path, &config);
+}
+
 fn add_to_recent_list(path: &Path, list: &mut Vec<String>) {
     let s = path.to_string_lossy().to_string();
     list.retain(|p| p != &s);
@@ -385,6 +414,14 @@ fn load_theme_config(app: &tauri::AppHandle) -> String {
 
 fn save_theme_config(app: &tauri::AppHandle, theme: &str) {
     save_theme_to(&config_path(app), theme);
+}
+
+fn load_zoom_config(app: &tauri::AppHandle) -> u32 {
+    load_zoom_from(&config_path(app))
+}
+
+fn save_zoom_config(app: &tauri::AppHandle, zoom: u32) {
+    save_zoom_to(&config_path(app), zoom);
 }
 
 fn add_to_recent(app: &tauri::AppHandle, path: &Path) -> Vec<String> {
@@ -444,7 +481,23 @@ fn build_menu(
         theme_sub = theme_sub.item(&item);
     }
 
-    MenuBuilder::new(app).item(&file_menu).item(&theme_sub.build()?).build()
+    let zoom_in = MenuItemBuilder::with_id("zoom-in", "Zoom In")
+        .accelerator("CmdOrCtrl+=")
+        .build(app)?;
+    let zoom_out = MenuItemBuilder::with_id("zoom-out", "Zoom Out")
+        .accelerator("CmdOrCtrl+-")
+        .build(app)?;
+    let zoom_reset = MenuItemBuilder::with_id("zoom-reset", "Reset Zoom")
+        .accelerator("CmdOrCtrl+0")
+        .build(app)?;
+    let view_menu = SubmenuBuilder::new(app, "View")
+        .item(&zoom_in)
+        .item(&zoom_out)
+        .separator()
+        .item(&zoom_reset)
+        .build()?;
+
+    MenuBuilder::new(app).item(&file_menu).item(&view_menu).item(&theme_sub.build()?).build()
 }
 
 fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &str) {
@@ -621,6 +674,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_file,
             get_theme,
+            get_zoom,
+            save_zoom,
             get_mode,
             get_startup_error,
             list_folder,
@@ -754,6 +809,15 @@ pub fn run() {
                             switch_file(handle, &path);
                         }
                     }
+                } else if id == "zoom-in" || id == "zoom-out" || id == "zoom-reset" {
+                    let current = load_zoom_config(handle);
+                    let new_zoom = match id {
+                        "zoom-in" => (current + ZOOM_STEP).min(MAX_ZOOM),
+                        "zoom-out" => current.saturating_sub(ZOOM_STEP).max(MIN_ZOOM),
+                        _ => DEFAULT_ZOOM,
+                    };
+                    save_zoom_config(handle, new_zoom);
+                    let _ = handle.emit("set-zoom", new_zoom);
                 } else if id == "find" {
                     let _ = handle.emit("open-search", ());
                 } else if let Some(theme_id) = id.strip_prefix("theme-") {
@@ -1089,6 +1153,50 @@ mod tests {
         let config = load_config_from(&cp);
         assert_eq!(config["theme"], "retro");
         assert_eq!(config["recent_files"][0], "a.md");
+    }
+
+    // --- zoom config ---
+
+    #[test]
+    fn zoom_save_and_load() {
+        let tmp = TempDir::new().unwrap();
+        let cp = tmp.path().join("config.json");
+
+        save_zoom_to(&cp, 150);
+        assert_eq!(load_zoom_from(&cp), 150);
+    }
+
+    #[test]
+    fn zoom_default_is_100() {
+        let tmp = TempDir::new().unwrap();
+        let cp = tmp.path().join("config.json");
+        assert_eq!(load_zoom_from(&cp), DEFAULT_ZOOM);
+    }
+
+    #[test]
+    fn zoom_clamps_to_range() {
+        let tmp = TempDir::new().unwrap();
+        let cp = tmp.path().join("config.json");
+
+        let mut config = serde_json::json!({ "zoom": 10 });
+        save_config_to(&cp, &config);
+        assert_eq!(load_zoom_from(&cp), MIN_ZOOM);
+
+        config["zoom"] = serde_json::json!(500);
+        save_config_to(&cp, &config);
+        assert_eq!(load_zoom_from(&cp), MAX_ZOOM);
+    }
+
+    #[test]
+    fn zoom_preserves_other_config() {
+        let tmp = TempDir::new().unwrap();
+        let cp = tmp.path().join("config.json");
+
+        save_theme_to(&cp, "retro");
+        save_zoom_to(&cp, 120);
+
+        assert_eq!(load_theme_from(&cp), "retro");
+        assert_eq!(load_zoom_from(&cp), 120);
     }
 
     // --- recent files ---

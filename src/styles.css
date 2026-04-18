@@ -30,6 +30,10 @@ html {
   display: none;
 }
 
+#zoom-indicator {
+  font-weight: 600;
+}
+
 #attribution a {
   color: #999;
   text-decoration: underline;

@@ -185,6 +185,7 @@ const searchCloseBtn = document.getElementById("search-close");
 let currentFilePath = null;
 let lastMarkdown = "";
 let startupErrorMsg = null;
+let currentZoom = 100;
 const folderScrollPositions = new Map();
 let searchMatches = [];
 let searchCurrentIdx = -1;
@@ -215,10 +216,31 @@ function applyTheme(themeId) {
     attributionEl.appendChild(link);
     attributionEl.appendChild(document.createTextNode(" by " + theme.author));
   }
+  updateZoomIndicator();
 
   const isDark = themeId.includes("dark");
   document.body.classList.toggle("dark-sidebar", isDark);
   hljsStyleEl.textContent = isDark ? hljsDarkCss : hljsLightCss;
+}
+
+function applyZoom(level) {
+  currentZoom = Math.max(50, Math.min(200, level));
+  contentEl.style.zoom = currentZoom / 100;
+  updateZoomIndicator();
+}
+
+function updateZoomIndicator() {
+  let indicator = document.getElementById("zoom-indicator");
+  if (currentZoom === 100) {
+    if (indicator) indicator.remove();
+    return;
+  }
+  if (!indicator) {
+    indicator = document.createElement("span");
+    indicator.id = "zoom-indicator";
+    attributionEl.prepend(indicator);
+  }
+  indicator.textContent = currentZoom + "% · ";
 }
 
 async function renderMermaidBlocks() {
@@ -580,6 +602,9 @@ A lightweight markdown previewer.
 |---|---|
 | Open file | File \u2192 Open... |
 | Open folder | File \u2192 Open Folder... |
+| Zoom in | Ctrl+= |
+| Zoom out | Ctrl+- |
+| Reset zoom | Ctrl+0 |
 | Switch theme | Theme menu |
 
 **Supported formats** — \`.md\`, \`.markdown\`, \`.mdx\`
@@ -596,6 +621,10 @@ function showWelcome() {
 
 await listen("set-theme", (event) => {
   applyTheme(event.payload);
+});
+
+await listen("set-zoom", (event) => {
+  applyZoom(event.payload);
 });
 
 await listen("file-changed", (event) => {
@@ -639,6 +668,9 @@ await listen("open-search", () => {
 
 const savedTheme = await invoke("get_theme");
 applyTheme(savedTheme);
+
+const savedZoom = await invoke("get_zoom");
+applyZoom(savedZoom);
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");
@@ -714,6 +746,23 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     openSearch();
     if (searchInputEl.value) highlightSearchMatches(searchInputEl.value);
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+")) {
+    e.preventDefault();
+    const newZoom = Math.min(200, currentZoom + 10);
+    applyZoom(newZoom);
+    invoke("save_zoom", { level: newZoom });
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === "-") {
+    e.preventDefault();
+    const newZoom = Math.max(50, currentZoom - 10);
+    applyZoom(newZoom);
+    invoke("save_zoom", { level: newZoom });
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === "0") {
+    e.preventDefault();
+    applyZoom(100);
+    invoke("save_zoom", { level: 100 });
   }
 });
 
