@@ -1,7 +1,9 @@
 import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
+import markedKatex from "marked-katex-extension";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
+import "katex/dist/katex.min.css";
 
 let mermaidInstance = null;
 let mermaidCounter = 0;
@@ -41,6 +43,8 @@ function slugify(text) {
     .replace(/^-|-$/g, "");
 }
 
+marked.use(markedKatex({ throwOnError: false }));
+
 marked.use(
   markedHighlight({
     langPrefix: "hljs language-",
@@ -75,6 +79,12 @@ marked.use(
     },
   }
 );
+
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.hasAttribute("style") && !node.closest(".katex")) {
+    node.removeAttribute("style");
+  }
+});
 
 const contentEl = document.getElementById("content");
 
@@ -119,7 +129,72 @@ export function resetMermaidCounter() {
 export function parseMarkdown(markdown) {
   const raw = marked.parse(markdown);
   return DOMPurify.sanitize(raw, {
-    ADD_TAGS: ["div", "button"],
-    ADD_ATTR: ["data-mermaid-idx", "data-mermaid", "title", "id"],
+    ADD_TAGS: [
+      "div",
+      "button",
+      "math",
+      "semantics",
+      "annotation",
+      "mrow",
+      "mi",
+      "mo",
+      "mn",
+      "ms",
+      "mtext",
+      "msup",
+      "msub",
+      "msubsup",
+      "mfrac",
+      "mover",
+      "munder",
+      "munderover",
+      "msqrt",
+      "mroot",
+      "mtable",
+      "mtr",
+      "mtd",
+      "mspace",
+      "menclose",
+      "mpadded",
+      "mphantom",
+      "mglyph",
+      "mlabeledtr",
+    ],
+    ADD_ATTR: [
+      "data-mermaid-idx",
+      "data-mermaid",
+      "title",
+      "id",
+      "aria-hidden",
+      "encoding",
+      "xmlns",
+      "mathvariant",
+      "stretchy",
+      "fence",
+      "separator",
+      "accent",
+      "accentunder",
+      "lspace",
+      "rspace",
+      "linethickness",
+      "displaystyle",
+      "scriptlevel",
+      "columnalign",
+      "rowalign",
+      "columnspacing",
+      "rowspacing",
+      "columnlines",
+      "rowlines",
+      "frame",
+      "framespacing",
+      "width",
+      "height",
+      "depth",
+      "voffset",
+      "minsize",
+      "maxsize",
+      "movablelimits",
+      "symmetric",
+    ],
   });
 }
