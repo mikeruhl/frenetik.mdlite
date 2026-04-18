@@ -7,6 +7,7 @@ use std::time::Duration;
 use tauri::Emitter;
 use tauri::Manager;
 
+use crate::scan::is_markdown_ext;
 use crate::AppState;
 
 pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debouncer<RecommendedWatcher> {
@@ -53,7 +54,9 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                 Ok(events) => {
                     let current = app.state::<Mutex<AppState>>().lock().unwrap().file_path.clone();
                     let current_touched = events.iter().any(|e| e.path == current);
-                    let other_touched = events.iter().any(|e| e.path != current);
+                    let structure_changed = events
+                        .iter()
+                        .any(|e| e.path != current && e.path.extension().is_some_and(|ext| is_markdown_ext(ext)));
                     if current_touched {
                         match std::fs::read_to_string(&current) {
                             Ok(content) => {
@@ -64,7 +67,7 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                             }
                         }
                     }
-                    if other_touched {
+                    if structure_changed {
                         let _ = app.emit("folder-changed", ());
                     }
                 }

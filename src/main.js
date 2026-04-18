@@ -99,9 +99,11 @@ await listen("folder-scan-complete", () => {
   handleScanComplete();
 });
 
+let folderChangedTimer;
 await listen("folder-changed", async () => {
   if (!document.body.classList.contains("folder-mode")) return;
-  resetSidebarForRescan();
+  clearTimeout(folderChangedTimer);
+  folderChangedTimer = setTimeout(() => resetSidebarForRescan(), 500);
 });
 
 await listen("enter-file-mode", () => {
