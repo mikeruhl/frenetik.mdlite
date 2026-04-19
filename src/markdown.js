@@ -1,6 +1,10 @@
 import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
 import markedKatex from "marked-katex-extension";
+import markedFootnote from "marked-footnote";
+import markedAlert from "marked-alert";
+import { markedEmoji } from "marked-emoji";
+import { gemoji } from "gemoji";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
 import "katex/dist/katex.min.css";
@@ -44,7 +48,17 @@ function slugify(text) {
     .replace(/^-|-$/g, "");
 }
 
+const emojiMap = {};
+for (const entry of gemoji) {
+  for (const name of entry.names) {
+    emojiMap[name] = entry.emoji;
+  }
+}
+
 marked.use(markedKatex({ throwOnError: false }));
+marked.use(markedFootnote());
+marked.use(markedAlert());
+marked.use(markedEmoji({ emojis: emojiMap, renderer: (token) => token.emoji }));
 
 marked.use(
   markedHighlight({
@@ -181,6 +195,9 @@ export function parseMarkdown(markdown) {
     ADD_TAGS: [
       "div",
       "button",
+      "section",
+      "svg",
+      "path",
       "math",
       "semantics",
       "annotation",
@@ -212,9 +229,22 @@ export function parseMarkdown(markdown) {
     ADD_ATTR: [
       "data-mermaid-idx",
       "data-mermaid",
+      "data-footnote-ref",
+      "data-footnote-backref",
+      "data-footnotes",
       "title",
       "id",
       "aria-hidden",
+      "aria-label",
+      "aria-describedby",
+      "role",
+      "viewBox",
+      "fill",
+      "d",
+      "stroke",
+      "stroke-width",
+      "stroke-linecap",
+      "stroke-linejoin",
       "encoding",
       "xmlns",
       "mathvariant",

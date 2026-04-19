@@ -651,6 +651,168 @@ body.dark-sidebar .toc-empty {
   color: #666;
 }
 
+/* GitHub-style admonition/alert blocks */
+.markdown-alert {
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  border-left: 4px solid;
+  border-radius: 4px;
+}
+
+.markdown-alert > :first-child {
+  margin-top: 0;
+}
+
+.markdown-alert > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.markdown-alert-title svg {
+  flex-shrink: 0;
+}
+
+.markdown-alert-note {
+  border-left-color: #0969da;
+  background: #ddf4ff;
+}
+
+.markdown-alert-note .markdown-alert-title {
+  color: #0969da;
+}
+
+.markdown-alert-tip {
+  border-left-color: #1a7f37;
+  background: #dafbe1;
+}
+
+.markdown-alert-tip .markdown-alert-title {
+  color: #1a7f37;
+}
+
+.markdown-alert-important {
+  border-left-color: #8250df;
+  background: #fbefff;
+}
+
+.markdown-alert-important .markdown-alert-title {
+  color: #8250df;
+}
+
+.markdown-alert-warning {
+  border-left-color: #9a6700;
+  background: #fff8c5;
+}
+
+.markdown-alert-warning .markdown-alert-title {
+  color: #9a6700;
+}
+
+.markdown-alert-caution {
+  border-left-color: #cf222e;
+  background: #ffebe9;
+}
+
+.markdown-alert-caution .markdown-alert-title {
+  color: #cf222e;
+}
+
+/* Dark theme alerts */
+body.dark-sidebar .markdown-alert-note {
+  background: #0d1d30;
+  border-left-color: #388bfd;
+}
+
+body.dark-sidebar .markdown-alert-note .markdown-alert-title {
+  color: #388bfd;
+}
+
+body.dark-sidebar .markdown-alert-tip {
+  background: #0d2818;
+  border-left-color: #3fb950;
+}
+
+body.dark-sidebar .markdown-alert-tip .markdown-alert-title {
+  color: #3fb950;
+}
+
+body.dark-sidebar .markdown-alert-important {
+  background: #1c0d30;
+  border-left-color: #a371f7;
+}
+
+body.dark-sidebar .markdown-alert-important .markdown-alert-title {
+  color: #a371f7;
+}
+
+body.dark-sidebar .markdown-alert-warning {
+  background: #271d08;
+  border-left-color: #d29922;
+}
+
+body.dark-sidebar .markdown-alert-warning .markdown-alert-title {
+  color: #d29922;
+}
+
+body.dark-sidebar .markdown-alert-caution {
+  background: #2b0f0e;
+  border-left-color: #f85149;
+}
+
+body.dark-sidebar .markdown-alert-caution .markdown-alert-title {
+  color: #f85149;
+}
+
+/* Footnotes */
+.footnotes {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d0d7de;
+  font-size: 0.875em;
+  color: #656d76;
+}
+
+.footnotes ol {
+  padding-left: 1.5em;
+}
+
+.footnotes li {
+  margin-bottom: 0.5em;
+}
+
+.footnotes li:target {
+  background: #fff8c5;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin-left: -4px;
+}
+
+[data-footnote-ref] {
+  text-decoration: none;
+  font-weight: 600;
+}
+
+[data-footnote-backref] {
+  text-decoration: none;
+  font-size: 0.85em;
+}
+
+body.dark-sidebar .footnotes {
+  border-top-color: #30363d;
+  color: #8b949e;
+}
+
+body.dark-sidebar .footnotes li:target {
+  background: #2d333b;
+}
+
 /* Print header (hidden on screen, visible in print when enabled) */
 #print-header {
   display: none;
