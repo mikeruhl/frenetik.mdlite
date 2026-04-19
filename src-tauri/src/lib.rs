@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod export;
 mod menu;
 mod scan;
 mod watcher;
@@ -30,6 +31,7 @@ pub(crate) struct AppState {
     pub(crate) file_path: PathBuf,
     pub(crate) folder_path: Option<PathBuf>,
     pub(crate) current_theme: String,
+    pub(crate) print_header: bool,
     pub(crate) debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) folder_debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) startup_error: Option<String>,
@@ -43,7 +45,7 @@ pub(crate) fn display_path(p: &Path) -> String {
 fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     let new_path = PathBuf::from(new_path_str);
     if !new_path.exists() {
-        let recent = prune_recent(app);
+        let recent = store_prune_recent(app);
         let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
         rebuild_menu(app, &recent, &theme);
         return;
@@ -82,7 +84,7 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         let _ = app.emit("file-changed", content);
     }
 
-    let recent = add_to_recent(app, &new_path);
+    let recent = store_add_recent(app, &new_path);
     let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
     rebuild_menu(app, &recent, &theme);
 }
@@ -138,19 +140,20 @@ pub fn run() {
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             read_file,
-            get_theme,
-            get_zoom,
-            save_zoom,
             get_mode,
             get_startup_error,
             list_folder,
             open_folder_file,
             start_folder_scan,
-            cancel_folder_scan
+            cancel_folder_scan,
+            export::export_pdf
         ])
         .setup(|app| {
+            migrate_legacy_config(app.handle());
+
             let matches = app.cli().matches().expect("Failed to parse CLI arguments");
             let path_arg = matches
                 .args
@@ -207,12 +210,13 @@ pub fn run() {
                 }
             }
 
-            let theme = load_theme_config(app.handle());
+            let theme = store_get_theme(app.handle());
+            let print_header = store_get_print_header(app.handle());
             let recent = if mode == AppMode::File {
-                prune_recent(app.handle());
-                add_to_recent(app.handle(), &file_path)
+                store_prune_recent(app.handle());
+                store_add_recent(app.handle(), &file_path)
             } else {
-                prune_recent(app.handle())
+                store_prune_recent(app.handle())
             };
 
             let menu = build_menu(app.handle(), &recent, &theme)?;
@@ -224,6 +228,7 @@ pub fn run() {
                 file_path: file_path.clone(),
                 folder_path,
                 current_theme: theme,
+                print_header,
                 debouncer: None,
                 folder_debouncer: None,
                 startup_error,
@@ -266,37 +271,50 @@ pub fn run() {
                         }
                     });
                 } else if id == "clear-recent" {
-                    save_recent(handle, &[]);
+                    store_set_recent(handle, &[]);
                     let theme = handle.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
                     rebuild_menu(handle, &[], &theme);
                 } else if let Some(idx_str) = id.strip_prefix("recent-") {
                     if let Ok(idx) = idx_str.parse::<usize>() {
-                        let recent = load_recent(handle);
+                        let recent = store_get_recent(handle);
                         if let Some(path) = recent.get(idx).cloned() {
                             switch_file(handle, &path);
                         }
                     }
                 } else if id == "zoom-in" || id == "zoom-out" || id == "zoom-reset" {
-                    let current = load_zoom_config(handle);
+                    let current = store_get_zoom(handle);
                     let new_zoom = match id {
                         "zoom-in" => (current + ZOOM_STEP).min(MAX_ZOOM),
                         "zoom-out" => current.saturating_sub(ZOOM_STEP).max(MIN_ZOOM),
                         _ => DEFAULT_ZOOM,
                     };
-                    save_zoom_config(handle, new_zoom);
+                    store_set_zoom(handle, new_zoom);
                     let _ = handle.emit("set-zoom", new_zoom);
                 } else if id == "navigate-back" {
                     let _ = handle.emit("navigate-back", ());
                 } else if id == "navigate-forward" {
                     let _ = handle.emit("navigate-forward", ());
+                } else if id == "print" {
+                    let _ = handle.emit("print", ());
+                } else if id == "export-pdf" {
+                    export::show_export_dialog(handle);
                 } else if id == "find" {
                     let _ = handle.emit("open-search", ());
                 } else if id == "toggle-outline" {
                     let _ = handle.emit("toggle-outline", ());
+                } else if id == "toggle-print-header" {
+                    let new_val = {
+                        let state = handle.state::<Mutex<AppState>>();
+                        let mut s = state.lock().unwrap();
+                        s.print_header = !s.print_header;
+                        s.print_header
+                    };
+                    store_set_print_header(handle, new_val);
+                    let _ = handle.emit("set-print-header", new_val);
                 } else if let Some(theme_id) = id.strip_prefix("theme-") {
-                    save_theme_config(handle, theme_id);
+                    store_set_theme(handle, theme_id);
                     handle.state::<Mutex<AppState>>().lock().unwrap().current_theme = theme_id.to_string();
-                    let recent = load_recent(handle);
+                    let recent = store_get_recent(handle);
                     rebuild_menu(handle, &recent, theme_id);
                     let _ = handle.emit("set-theme", theme_id);
                 }

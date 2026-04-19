@@ -1,7 +1,6 @@
 use std::sync::Mutex;
 use tauri::Manager;
 
-use crate::config::{load_zoom_config, save_zoom_config, MAX_ZOOM, MIN_ZOOM};
 use crate::scan::{run_progressive_scan, scan_folder, FolderEntry, SCAN_GENERATION};
 use crate::{display_path, AppMode, AppState};
 
@@ -13,22 +12,6 @@ pub(crate) fn read_file(state: tauri::State<'_, Mutex<AppState>>) -> Result<Stri
     }
     std::fs::read_to_string(&state.file_path)
         .map_err(|e| format!("Failed to read {}: {}", state.file_path.display(), e))
-}
-
-#[tauri::command]
-pub(crate) fn get_theme(state: tauri::State<'_, Mutex<AppState>>) -> String {
-    state.lock().unwrap().current_theme.clone()
-}
-
-#[tauri::command]
-pub(crate) fn get_zoom(app: tauri::AppHandle) -> u32 {
-    load_zoom_config(&app)
-}
-
-#[tauri::command]
-pub(crate) fn save_zoom(app: tauri::AppHandle, level: u32) {
-    let clamped = level.clamp(MIN_ZOOM, MAX_ZOOM);
-    save_zoom_config(&app, clamped);
 }
 
 #[tauri::command]

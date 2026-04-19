@@ -68,10 +68,38 @@ export const themes = {
     author: "Sindre Sorhus",
     url: ghUrl,
   },
-  splendor: { label: "Splendor", css: splendorCss, wrapClass: null, author: "John Otander", url: mdcssUrl },
-  retro: { label: "Retro", css: retroCss, wrapClass: null, author: "John Otander", url: mdcssUrl },
-  air: { label: "Air", css: airCss, wrapClass: null, author: "John Otander", url: mdcssUrl },
-  modest: { label: "Modest", css: modestCss, wrapClass: null, author: "John Otander", url: mdcssUrl },
+  splendor: {
+    label: "Splendor",
+    css: splendorCss,
+    wrapClass: null,
+    contentCss: "",
+    author: "John Otander",
+    url: mdcssUrl,
+  },
+  retro: {
+    label: "Retro",
+    css: retroCss,
+    wrapClass: null,
+    contentCss: "#content { max-width: 48rem; margin: 6rem auto 1rem; padding: .25rem; }",
+    author: "John Otander",
+    url: mdcssUrl,
+  },
+  air: {
+    label: "Air",
+    css: airCss,
+    wrapClass: null,
+    contentCss: "#content { max-width: 48rem; margin: 6rem auto 1rem; text-align: center; }",
+    author: "John Otander",
+    url: mdcssUrl,
+  },
+  modest: {
+    label: "Modest",
+    css: modestCss,
+    wrapClass: null,
+    contentCss: "#content { max-width: 48rem; margin: 0 auto; padding: .25rem; }",
+    author: "John Otander",
+    url: mdcssUrl,
+  },
 };
 
 const GITHUB_WRAP_CSS = `
@@ -98,6 +126,8 @@ export function applyTheme(themeId) {
   let css = theme.css;
   if (theme.wrapClass === "markdown-body") {
     css += GITHUB_WRAP_CSS;
+  } else if (theme.contentCss) {
+    css += theme.contentCss;
   }
   themeStyleEl.textContent = css;
 

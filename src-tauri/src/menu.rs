@@ -1,5 +1,9 @@
 use std::path::Path;
+use std::sync::Mutex;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::Manager;
+
+use crate::AppState;
 
 pub(crate) const THEMES: &[(&str, &str)] = &[
     ("github", "GitHub Light"),
@@ -20,6 +24,11 @@ pub(crate) fn build_menu(
     recent: &[String],
     current_theme: &str,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    let print_header = app
+        .try_state::<Mutex<AppState>>()
+        .map(|s| s.lock().unwrap().print_header)
+        .unwrap_or(true);
+
     let mut recent_sub = SubmenuBuilder::new(app, "Recent Files");
     if recent.is_empty() {
         let item = MenuItemBuilder::with_id("no-recent", "(No Recent Files)")
@@ -28,8 +37,13 @@ pub(crate) fn build_menu(
         recent_sub = recent_sub.item(&item);
     } else {
         for (i, path) in recent.iter().enumerate() {
-            let label = Path::new(path).file_name().unwrap_or_default().to_string_lossy();
-            recent_sub = recent_sub.text(format!("recent-{}", i), label.as_ref());
+            let p = Path::new(path);
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
+            let label = match p.parent().and_then(|d| d.file_name()) {
+                Some(dir) => format!("{} — {}", name, dir.to_string_lossy()),
+                None => name.to_string(),
+            };
+            recent_sub = recent_sub.text(format!("recent-{}", i), &label);
         }
         recent_sub = recent_sub.separator().text("clear-recent", "Clear Recent Files");
     }
@@ -38,12 +52,28 @@ pub(crate) fn build_menu(
         .accelerator("CmdOrCtrl+F")
         .build(app)?;
 
-    let file_menu = SubmenuBuilder::new(app, "File")
+    let print_item = MenuItemBuilder::with_id("print", "Print...\tCtrl+P").build(app)?;
+    let print_header_item = CheckMenuItemBuilder::with_id("toggle-print-header", "Print Header (filename & date)")
+        .checked(print_header)
+        .build(app)?;
+
+    let mut file_menu = SubmenuBuilder::new(app, "File")
         .text("open-file", "Open...")
         .text("open-folder", "Open Folder...")
         .item(&recent_sub.build()?)
         .separator()
         .item(&find_item)
+        .separator()
+        .item(&print_item);
+
+    #[cfg(target_os = "windows")]
+    {
+        let export_pdf_item = MenuItemBuilder::with_id("export-pdf", "Export to PDF...\tCtrl+Shift+E").build(app)?;
+        file_menu = file_menu.item(&export_pdf_item);
+    }
+
+    let file_menu = file_menu
+        .item(&print_header_item)
         .separator()
         .item(&PredefinedMenuItem::quit(app, None)?)
         .build()?;
