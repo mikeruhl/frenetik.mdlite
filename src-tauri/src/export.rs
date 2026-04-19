@@ -44,6 +44,7 @@ fn do_export(app: &tauri::AppHandle, path: &std::path::Path) {
     use windows_core::Interface;
 
     let Some(window) = app.get_webview_window("main") else {
+        let _ = app.emit("export-pdf-error", "Main window not found");
         return;
     };
 
@@ -52,11 +53,28 @@ fn do_export(app: &tauri::AppHandle, path: &std::path::Path) {
     let (tx, rx) = mpsc::channel();
     let app_clone = app.clone();
 
+    let app_err = app_clone.clone();
     let result = window.with_webview(move |webview| unsafe {
         let controller = webview.controller();
-        let core: ICoreWebView2 = controller.CoreWebView2().unwrap();
-        let core7: ICoreWebView2_7 = core.cast().unwrap();
         let tx_err = tx.clone();
+
+        let core: ICoreWebView2 = match controller.CoreWebView2() {
+            Ok(core) => core,
+            Err(e) => {
+                let _ = app_err.emit("export-pdf-error", format!("{}", e));
+                let _ = tx_err.send(false);
+                return;
+            }
+        };
+
+        let core7: ICoreWebView2_7 = match core.cast() {
+            Ok(c) => c,
+            Err(_) => {
+                let _ = app_err.emit("export-pdf-error", "PDF export requires a newer WebView2 runtime");
+                let _ = tx_err.send(false);
+                return;
+            }
+        };
         let handler: ICoreWebView2PrintToPdfCompletedHandler = PdfHandler { tx }.into();
         if core7
             .PrintToPdf(windows_core::PCWSTR(path_wide.as_ptr()), None, Some(&handler))
