@@ -71,8 +71,7 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
 
     if needs_new_watcher {
         let watch_dir = new_path.parent().unwrap_or(&new_path).to_path_buf();
-        let debouncer = start_watcher(&watch_dir, app.clone());
-        app.state::<Mutex<AppState>>().lock().unwrap().debouncer = Some(debouncer);
+        app.state::<Mutex<AppState>>().lock().unwrap().debouncer = start_watcher(&watch_dir, app.clone());
     }
 
     let name = new_path.file_name().unwrap_or_default().to_string_lossy();
@@ -145,7 +144,6 @@ pub fn run() {
             read_file,
             get_mode,
             get_startup_error,
-            list_folder,
             open_folder_file,
             start_folder_scan,
             cancel_folder_scan,
@@ -241,8 +239,8 @@ pub fn run() {
                 }
             } else if !file_path.as_os_str().is_empty() {
                 let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();
-                let debouncer = start_watcher(&watch_dir, app.handle().clone());
-                app.state::<Mutex<AppState>>().lock().unwrap().debouncer = Some(debouncer);
+                app.state::<Mutex<AppState>>().lock().unwrap().debouncer =
+                    start_watcher(&watch_dir, app.handle().clone());
             }
 
             app.on_menu_event(|handle, event| {

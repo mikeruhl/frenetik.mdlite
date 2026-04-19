@@ -34,6 +34,7 @@ pub(crate) fn is_markdown_ext(ext: &std::ffi::OsStr) -> bool {
     s == "md" || s == "markdown" || s == "mdx"
 }
 
+#[cfg(test)]
 pub(crate) fn scan_folder(dir: &Path) -> Vec<FolderEntry> {
     let mut folders = Vec::new();
     let mut files = Vec::new();

@@ -26,7 +26,6 @@ const store = new LazyStore("settings.json");
 const contentEl = document.getElementById("content");
 const mainContentEl = document.getElementById("main-content");
 
-let lastMarkdown = "";
 let startupErrorMsg = null;
 
 function render(markdown) {
@@ -37,7 +36,6 @@ function render(markdown) {
     contentEl.replaceChildren(startupErrorEl);
     return;
   }
-  lastMarkdown = markdown;
   resetMermaidCounter();
   contentEl.innerHTML = parseMarkdown(markdown);
   renderMermaidBlocks();
@@ -162,16 +160,12 @@ await listen("export-pdf-error", (event) => {
 
 await listen("set-print-header", (event) => {
   document.body.classList.toggle("print-header-enabled", event.payload);
-  document.getElementById("print-header").style.display = event.payload ? "" : "none";
 });
 
 // --- Print header ---
 
 function updatePrintHeader() {
-  const headerEl = document.getElementById("print-header");
-  const enabled = document.body.classList.contains("print-header-enabled");
-  headerEl.style.display = enabled ? "" : "none";
-  if (!enabled) return;
+  if (!document.body.classList.contains("print-header-enabled")) return;
   const titleEl = document.getElementById("print-header-title");
   const dateEl = document.getElementById("print-header-date");
   const pageTitle = document.title;
@@ -197,9 +191,6 @@ applyZoom(savedZoom);
 
 const printHeader = (await store.get("print_header")) ?? true;
 document.body.classList.toggle("print-header-enabled", printHeader);
-if (!printHeader) {
-  document.getElementById("print-header").style.display = "none";
-}
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");
@@ -305,5 +296,5 @@ window.addEventListener("mouseup", (e) => {
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => render(lastMarkdown), 150);
+  resizeTimer = setTimeout(() => refreshToc(), 150);
 });

@@ -10,13 +10,16 @@ use tauri::Manager;
 use crate::scan::is_markdown_ext;
 use crate::AppState;
 
-pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debouncer<RecommendedWatcher> {
+pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Option<Debouncer<RecommendedWatcher>> {
     let (tx, rx) = std::sync::mpsc::channel();
-    let mut debouncer = new_debouncer(Duration::from_millis(200), tx).expect("Failed to create watcher");
-    debouncer
-        .watcher()
-        .watch(watch_dir, RecursiveMode::NonRecursive)
-        .expect("Failed to watch directory");
+    let Ok(mut debouncer) = new_debouncer(Duration::from_millis(200), tx) else {
+        eprintln!("Failed to create file watcher");
+        return None;
+    };
+    if let Err(e) = debouncer.watcher().watch(watch_dir, RecursiveMode::NonRecursive) {
+        eprintln!("Failed to watch {:?}: {:?}", watch_dir, e);
+        return None;
+    }
 
     std::thread::spawn(move || {
         for result in rx {
@@ -34,7 +37,7 @@ pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Debounce
         }
     });
 
-    debouncer
+    Some(debouncer)
 }
 
 pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Option<Debouncer<RecommendedWatcher>> {

@@ -22,6 +22,7 @@ export default [
         Uint8Array: "readonly",
         IntersectionObserver: "readonly",
         CSS: "readonly",
+        getComputedStyle: "readonly",
       },
     },
     rules: {

@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 use tauri::Manager;
 
-use crate::scan::{run_progressive_scan, scan_folder, FolderEntry, SCAN_GENERATION};
+use crate::scan::{run_progressive_scan, SCAN_GENERATION};
 use crate::{display_path, AppMode, AppState};
 
 #[tauri::command]
@@ -38,18 +38,6 @@ pub(crate) fn get_mode(state: tauri::State<'_, Mutex<AppState>>) -> serde_json::
 #[tauri::command]
 pub(crate) fn get_startup_error(state: tauri::State<'_, Mutex<AppState>>) -> Option<String> {
     state.lock().unwrap().startup_error.clone()
-}
-
-#[tauri::command]
-pub(crate) fn list_folder(state: tauri::State<'_, Mutex<AppState>>) -> Result<Vec<FolderEntry>, String> {
-    let folder_path = {
-        let s = state.lock().unwrap();
-        s.folder_path.clone()
-    };
-    match folder_path {
-        Some(path) => Ok(scan_folder(&path)),
-        None => Err("Not in folder mode".to_string()),
-    }
 }
 
 #[tauri::command]
@@ -91,17 +79,16 @@ pub(crate) fn open_folder_file(
 
     let content = std::fs::read_to_string(&file_path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
 
-    state.lock().unwrap().file_path = file_path.clone();
-
+    let folder_name = {
+        let mut s = state.lock().unwrap();
+        s.file_path = file_path.clone();
+        s.folder_path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default()
+    };
     let name = file_path.file_name().unwrap_or_default().to_string_lossy();
-    let folder_name = state
-        .lock()
-        .unwrap()
-        .folder_path
-        .as_ref()
-        .and_then(|p| p.file_name())
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.set_title(&format!("mdlite — {} — {}", folder_name, name));
     }

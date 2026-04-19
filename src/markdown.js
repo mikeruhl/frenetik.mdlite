@@ -75,7 +75,10 @@ marked.use(
       code({ text, lang }) {
         if (lang === "mermaid") {
           const idx = mermaidCounter++;
-          const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+          const bytes = new TextEncoder().encode(text);
+          const chars = new Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) chars[i] = String.fromCharCode(bytes[i]);
+          const encoded = btoa(chars.join(""));
           return `<div class="mermaid-block" data-mermaid-idx="${idx}" data-mermaid="${encoded}">
             <div class="mermaid-rendered" id="mermaid-render-${idx}"></div>
             <button class="mermaid-expand" title="Open in new window">&#x26F6; Open</button>

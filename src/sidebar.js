@@ -18,10 +18,6 @@ export function getCurrentFilePath() {
   return currentFilePath;
 }
 
-export function setCurrentFilePath(path) {
-  currentFilePath = path;
-}
-
 function showScanningIndicator() {
   removeScanningIndicator();
   const el = document.createElement("div");
@@ -163,19 +159,21 @@ function highlightCurrentFile() {
   });
 }
 
+async function loadFile(path) {
+  if (currentFilePath) {
+    folderScrollPositions.set(currentFilePath, mainContentEl.scrollTop);
+  }
+  const content = await invoke("open_folder_file", { path });
+  currentFilePath = path;
+  renderFn(content);
+  highlightCurrentFile();
+}
+
 async function selectFolderFile(path) {
   try {
     pushNavigation();
-    if (currentFilePath && mainContentEl) {
-      folderScrollPositions.set(currentFilePath, mainContentEl.scrollTop);
-    }
-    const content = await invoke("open_folder_file", { path });
-    currentFilePath = path;
-    renderFn(content);
-    highlightCurrentFile();
-    if (mainContentEl) {
-      mainContentEl.scrollTop = folderScrollPositions.get(path) || 0;
-    }
+    await loadFile(path);
+    mainContentEl.scrollTop = folderScrollPositions.get(path) || 0;
   } catch (e) {
     console.error("Failed to open file:", e);
   }
@@ -183,13 +181,7 @@ async function selectFolderFile(path) {
 
 export async function navigateToFile(path) {
   try {
-    if (currentFilePath && mainContentEl) {
-      folderScrollPositions.set(currentFilePath, mainContentEl.scrollTop);
-    }
-    const content = await invoke("open_folder_file", { path });
-    currentFilePath = path;
-    renderFn(content);
-    highlightCurrentFile();
+    await loadFile(path);
   } catch (e) {
     console.error("Failed to navigate to file:", e);
   }
