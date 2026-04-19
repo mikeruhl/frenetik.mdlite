@@ -76,9 +76,9 @@ marked.use(
         if (lang === "mermaid") {
           const idx = mermaidCounter++;
           const bytes = new TextEncoder().encode(text);
-          let binary = "";
-          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-          const encoded = btoa(binary);
+          const chars = new Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) chars[i] = String.fromCharCode(bytes[i]);
+          const encoded = btoa(chars.join(""));
           return `<div class="mermaid-block" data-mermaid-idx="${idx}" data-mermaid="${encoded}">
             <div class="mermaid-rendered" id="mermaid-render-${idx}"></div>
             <button class="mermaid-expand" title="Open in new window">&#x26F6; Open</button>
