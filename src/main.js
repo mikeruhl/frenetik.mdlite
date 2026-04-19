@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { LazyStore } from "@tauri-apps/plugin-store";
 
 import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
@@ -19,6 +20,8 @@ import {
   getCurrentFilePath,
   navigateToFile,
 } from "./sidebar.js";
+
+const store = new LazyStore("settings.json");
 
 const contentEl = document.getElementById("content");
 const mainContentEl = document.getElementById("main-content");
@@ -79,6 +82,8 @@ A lightweight markdown previewer.
 | Zoom out | Ctrl+- |
 | Reset zoom | Ctrl+0 |
 | Toggle outline | Ctrl+Shift+O |
+| Print | Ctrl+P |
+| Export to PDF | Ctrl+Shift+E |
 | Go back | Alt+Left |
 | Go forward | Alt+Right |
 | Switch theme | Theme menu |
@@ -147,13 +152,54 @@ await listen("navigate-forward", () => {
   navigateForward();
 });
 
+await listen("print", () => {
+  window.print();
+});
+
+await listen("export-pdf-error", (event) => {
+  window.alert("PDF export failed: " + event.payload);
+});
+
+await listen("set-print-header", (event) => {
+  document.body.classList.toggle("print-header-enabled", event.payload);
+  document.getElementById("print-header").style.display = event.payload ? "" : "none";
+});
+
+// --- Print header ---
+
+function updatePrintHeader() {
+  const headerEl = document.getElementById("print-header");
+  const enabled = document.body.classList.contains("print-header-enabled");
+  headerEl.style.display = enabled ? "" : "none";
+  if (!enabled) return;
+  const titleEl = document.getElementById("print-header-title");
+  const dateEl = document.getElementById("print-header-date");
+  const pageTitle = document.title;
+  const parts = pageTitle
+    .replace("mdlite", "")
+    .replace(/—/g, "|")
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  titleEl.textContent = parts.join(" / ") || "mdlite";
+  dateEl.textContent = new Date().toLocaleDateString();
+}
+
+window.addEventListener("beforeprint", updatePrintHeader);
+
 // --- Initialization ---
 
-const savedTheme = await invoke("get_theme");
+const savedTheme = (await store.get("theme")) ?? "github";
 applyTheme(savedTheme);
 
-const savedZoom = await invoke("get_zoom");
+const savedZoom = (await store.get("zoom")) ?? 100;
 applyZoom(savedZoom);
+
+const printHeader = (await store.get("print_header")) ?? true;
+document.body.classList.toggle("print-header-enabled", printHeader);
+if (!printHeader) {
+  document.getElementById("print-header").style.display = "none";
+}
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");
@@ -198,18 +244,26 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     const newZoom = Math.min(200, getZoom() + 10);
     applyZoom(newZoom);
-    invoke("save_zoom", { level: newZoom });
+    store.set("zoom", newZoom);
   }
   if ((e.ctrlKey || e.metaKey) && e.key === "-") {
     e.preventDefault();
     const newZoom = Math.max(50, getZoom() - 10);
     applyZoom(newZoom);
-    invoke("save_zoom", { level: newZoom });
+    store.set("zoom", newZoom);
   }
   if ((e.ctrlKey || e.metaKey) && e.key === "0") {
     e.preventDefault();
     applyZoom(100);
-    invoke("save_zoom", { level: 100 });
+    store.set("zoom", 100);
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "p") {
+    e.preventDefault();
+    window.print();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "E") {
+    e.preventDefault();
+    invoke("export_pdf");
   }
   if (e.altKey && e.key === "ArrowLeft") {
     e.preventDefault();
