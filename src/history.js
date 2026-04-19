@@ -48,15 +48,3 @@ export async function navigateForward() {
     isNavigating = false;
   }
 }
-
-export function canGoBack() {
-  return backStack.length > 0;
-}
-
-export function canGoForward() {
-  return forwardStack.length > 0;
-}
-
-export function isHistoryNavigation() {
-  return isNavigating;
-}

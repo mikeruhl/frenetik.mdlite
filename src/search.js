@@ -13,7 +13,7 @@ let searchCurrentIdx = -1;
 let searchIsRegex = false;
 let searchCaseSensitive = false;
 
-export function clearSearchHighlights() {
+function clearSearchHighlights() {
   contentEl.querySelectorAll("mark.search-match").forEach((mark) => {
     const parent = mark.parentNode;
     parent.replaceChild(document.createTextNode(mark.textContent), mark);

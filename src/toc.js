@@ -9,23 +9,38 @@ let visible = false;
 let observer = null;
 const intersectingHeadings = new Set();
 
+function isMainContentScrollable() {
+  return getComputedStyle(mainContent).overflowY === "auto";
+}
+
 export function toggleToc() {
   visible ? hideToc() : showToc();
 }
 
 function showToc() {
   visible = true;
+  const wasScrollable = isMainContentScrollable();
+  const scrollPos = wasScrollable ? mainContent.scrollTop : window.scrollY;
   buildToc();
   document.body.classList.add("toc-visible");
+  void mainContent.offsetHeight;
+  mainContent.scrollTop = scrollPos;
   observeHeadings();
 }
 
 function hideToc() {
   visible = false;
+  const scrollPos = mainContent.scrollTop;
   document.body.classList.remove("toc-visible");
   if (observer) {
     observer.disconnect();
     observer = null;
+  }
+  void mainContent.offsetHeight;
+  if (isMainContentScrollable()) {
+    mainContent.scrollTop = scrollPos;
+  } else {
+    window.scrollTo(0, scrollPos);
   }
 }
 
