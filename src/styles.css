@@ -135,12 +135,18 @@ body.toc-visible #attribution {
   font-size: 11px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s, visibility 0.15s;
   z-index: 1;
 }
 
-.code-block-wrapper:hover .copy-code-btn {
+.code-block-wrapper:hover .copy-code-btn,
+.code-block-wrapper:focus-within .copy-code-btn,
+.copy-code-btn:focus {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .copy-code-btn:hover {
