@@ -57,6 +57,7 @@ pub(crate) fn build_menu(
         .checked(print_header)
         .build(app)?;
 
+    #[allow(unused_mut)]
     let mut file_menu = SubmenuBuilder::new(app, "File")
         .text("open-file", "Open...")
         .text("open-folder", "Open Folder...")

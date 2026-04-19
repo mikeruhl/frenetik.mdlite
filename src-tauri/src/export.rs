@@ -4,7 +4,9 @@ use std::os::windows::ffi::OsStrExt;
 use std::sync::mpsc;
 
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
+#[cfg(target_os = "windows")]
+use tauri::Emitter;
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::AppState;
@@ -100,7 +102,7 @@ impl webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2PrintToPdfCompl
 }
 
 #[tauri::command]
-pub(crate) fn export_pdf(app: tauri::AppHandle) {
+pub(crate) fn export_pdf(#[cfg_attr(not(target_os = "windows"), allow(unused))] app: tauri::AppHandle) {
     #[cfg(target_os = "windows")]
     show_export_dialog(&app);
 }
