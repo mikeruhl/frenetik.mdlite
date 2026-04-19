@@ -54,8 +54,14 @@ fn do_export(app: &tauri::AppHandle, path: &std::path::Path) {
         let controller = webview.controller();
         let core: ICoreWebView2 = controller.CoreWebView2().unwrap();
         let core7: ICoreWebView2_7 = core.cast().unwrap();
+        let tx_err = tx.clone();
         let handler: ICoreWebView2PrintToPdfCompletedHandler = PdfHandler { tx }.into();
-        let _ = core7.PrintToPdf(windows_core::PCWSTR(path_wide.as_ptr()), None, Some(&handler));
+        if core7
+            .PrintToPdf(windows_core::PCWSTR(path_wide.as_ptr()), None, Some(&handler))
+            .is_err()
+        {
+            let _ = tx_err.send(false);
+        }
     });
 
     if let Err(e) = result {
@@ -95,5 +101,6 @@ impl webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2PrintToPdfCompl
 
 #[tauri::command]
 pub(crate) fn export_pdf(app: tauri::AppHandle) {
+    #[cfg(target_os = "windows")]
     show_export_dialog(&app);
 }
