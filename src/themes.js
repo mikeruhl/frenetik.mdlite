@@ -151,4 +151,9 @@ export function applyTheme(themeId) {
   const isDark = themeId.includes("dark");
   document.body.classList.toggle("dark-sidebar", isDark);
   hljsStyleEl.textContent = isDark ? hljsDarkCss : hljsLightCss;
+
+  requestAnimationFrame(() => {
+    const bg = getComputedStyle(contentEl).backgroundColor;
+    document.body.style.backgroundColor = bg || "";
+  });
 }

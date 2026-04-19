@@ -5,7 +5,13 @@ import { LazyStore } from "@tauri-apps/plugin-store";
 
 import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
-import { parseMarkdown, renderMermaidBlocks, bindMermaidButtons, resetMermaidCounter } from "./markdown.js";
+import {
+  parseMarkdown,
+  renderMermaidBlocks,
+  bindMermaidButtons,
+  bindCopyButtons,
+  resetMermaidCounter,
+} from "./markdown.js";
 import { highlightSearchMatches, openSearch, isSearchActive, getSearchQuery, bindSearchEvents } from "./search.js";
 import { toggleToc, refreshToc, bindTocEvents } from "./toc.js";
 import { initHistory, pushNavigation, navigateBack, navigateForward } from "./history.js";
@@ -40,6 +46,7 @@ function render(markdown) {
   contentEl.innerHTML = parseMarkdown(markdown);
   renderMermaidBlocks();
   bindMermaidButtons();
+  bindCopyButtons();
   if (isSearchActive()) {
     highlightSearchMatches(getSearchQuery());
   }
