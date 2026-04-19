@@ -23,6 +23,8 @@ export default [
         IntersectionObserver: "readonly",
         CSS: "readonly",
         getComputedStyle: "readonly",
+        navigator: "readonly",
+        requestAnimationFrame: "readonly",
       },
     },
     rules: {
