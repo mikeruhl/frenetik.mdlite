@@ -31,7 +31,7 @@ pub(crate) fn store_get_theme(app: &tauri::AppHandle) -> String {
 
 pub(crate) fn store_set_theme(app: &tauri::AppHandle, theme: &str) {
     let store = app.store(STORE_FILE).expect("store");
-    let _ = store.set("theme", serde_json::json!(theme));
+    store.set("theme", serde_json::json!(theme));
     let _ = store.save();
 }
 
@@ -46,7 +46,7 @@ pub(crate) fn store_get_zoom(app: &tauri::AppHandle) -> u32 {
 
 pub(crate) fn store_set_zoom(app: &tauri::AppHandle, zoom: u32) {
     let store = app.store(STORE_FILE).expect("store");
-    let _ = store.set("zoom", serde_json::json!(zoom));
+    store.set("zoom", serde_json::json!(zoom));
     let _ = store.save();
 }
 
@@ -60,7 +60,7 @@ pub(crate) fn store_get_recent(app: &tauri::AppHandle) -> Vec<String> {
 
 pub(crate) fn store_set_recent(app: &tauri::AppHandle, files: &[String]) {
     let store = app.store(STORE_FILE).expect("store");
-    let _ = store.set("recent_files", serde_json::json!(files));
+    store.set("recent_files", serde_json::json!(files));
     let _ = store.save();
 }
 
@@ -71,7 +71,7 @@ pub(crate) fn store_get_print_header(app: &tauri::AppHandle) -> bool {
 
 pub(crate) fn store_set_print_header(app: &tauri::AppHandle, enabled: bool) {
     let store = app.store(STORE_FILE).expect("store");
-    let _ = store.set("print_header", serde_json::json!(enabled));
+    store.set("print_header", serde_json::json!(enabled));
     let _ = store.save();
 }
 
@@ -108,13 +108,13 @@ pub(crate) fn migrate_legacy_config(app: &tauri::AppHandle) {
     let store = app.store(STORE_FILE).expect("store");
 
     if let Some(theme) = old.get("theme").and_then(|v| v.as_str()) {
-        let _ = store.set("theme", serde_json::json!(theme));
+        store.set("theme", serde_json::json!(theme));
     }
     if let Some(zoom) = old.get("zoom").and_then(|v| v.as_u64()) {
-        let _ = store.set("zoom", serde_json::json!(zoom));
+        store.set("zoom", serde_json::json!(zoom));
     }
     if let Some(recent) = old.get("recent_files") {
-        let _ = store.set("recent_files", recent.clone());
+        store.set("recent_files", recent.clone());
     }
 
     let _ = store.save();
