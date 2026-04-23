@@ -89,6 +89,34 @@ pub(crate) fn store_prune_recent(app: &tauri::AppHandle) -> Vec<String> {
     valid
 }
 
+pub(crate) fn store_get_recent_folders(app: &tauri::AppHandle) -> Vec<String> {
+    let store = app.store(STORE_FILE).expect("store");
+    store
+        .get("recent_folders")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default()
+}
+
+pub(crate) fn store_set_recent_folders(app: &tauri::AppHandle, folders: &[String]) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("recent_folders", serde_json::json!(folders));
+    let _ = store.save();
+}
+
+pub(crate) fn store_add_recent_folder(app: &tauri::AppHandle, path: &Path) -> Vec<String> {
+    let mut list = store_get_recent_folders(app);
+    add_to_recent_list(path, &mut list);
+    store_set_recent_folders(app, &list);
+    list
+}
+
+pub(crate) fn store_prune_recent_folders(app: &tauri::AppHandle) -> Vec<String> {
+    let list = store_get_recent_folders(app);
+    let valid = prune_recent_list(list);
+    store_set_recent_folders(app, &valid);
+    valid
+}
+
 pub(crate) fn migrate_legacy_config(app: &tauri::AppHandle) {
     let dir = app.path().app_config_dir().expect("Failed to resolve app config dir");
     let old_path = dir.join("config.json");
