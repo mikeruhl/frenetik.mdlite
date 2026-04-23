@@ -116,7 +116,9 @@ mod win {
 
                 let array: IObjectArray = coll.cast()?;
                 let label = to_wide("Recent Folders");
-                let _ = dest_list.AppendCategory(PCWSTR(label.as_ptr()), &array);
+                if let Err(e) = dest_list.AppendCategory(PCWSTR(label.as_ptr()), &array) {
+                    eprintln!("AppendCategory (folders) failed: {e}");
+                }
             }
 
             if !recent_files.is_empty() {
@@ -146,7 +148,9 @@ mod win {
 
                 let array: IObjectArray = coll.cast()?;
                 let label = to_wide("Recent");
-                let _ = dest_list.AppendCategory(PCWSTR(label.as_ptr()), &array);
+                if let Err(e) = dest_list.AppendCategory(PCWSTR(label.as_ptr()), &array) {
+                    eprintln!("AppendCategory (files) failed: {e}");
+                }
             }
 
             dest_list.CommitList()?;
@@ -204,7 +208,10 @@ mod dock {
     }
 
     fn ns_string(s: &str) -> Id {
-        let c = CString::new(s).unwrap_or_default();
+        let c = match CString::new(s) {
+            Ok(c) => c,
+            Err(_) => return std::ptr::null_mut(),
+        };
         unsafe { msg1_cstr(cls(b"NSString\0"), sel(b"stringWithUTF8String:\0"), c.as_ptr()) }
     }
 

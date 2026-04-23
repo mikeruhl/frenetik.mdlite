@@ -47,7 +47,7 @@ pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     let new_path = PathBuf::from(new_path_str);
     if !new_path.exists() {
         let recent = store_prune_recent(app);
-        let recent_folders = store_get_recent_folders(app);
+        let recent_folders = store_prune_recent_folders(app);
         jumplist::update_jump_list(&recent, &recent_folders);
         let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
         rebuild_menu(app, &recent, &theme);
