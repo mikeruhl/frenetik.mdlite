@@ -91,6 +91,24 @@ mod win {
             let mut max_slots = 0u32;
             let _removed: windows_core::IUnknown = dest_list.BeginList(core::ptr::from_mut(&mut max_slots))?;
 
+            struct AbortGuard<'a> {
+                list: &'a ICustomDestinationList,
+                committed: bool,
+            }
+            impl Drop for AbortGuard<'_> {
+                fn drop(&mut self) {
+                    if !self.committed {
+                        unsafe {
+                            let _ = self.list.AbortList();
+                        }
+                    }
+                }
+            }
+            let mut guard = AbortGuard {
+                list: &dest_list,
+                committed: false,
+            };
+
             let exe = std::env::current_exe().map_err(|e| Error::new(HRESULT(0x80004005u32 as i32), e.to_string()))?;
             let exe_wide = to_wide(&exe.to_string_lossy());
 
@@ -99,7 +117,10 @@ mod win {
                     CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
 
                 for path_str in recent_folders {
-                    let name = Path::new(path_str).file_name().unwrap_or_default().to_string_lossy();
+                    let name = Path::new(path_str)
+                        .file_name()
+                        .map(|n| n.to_string_lossy())
+                        .unwrap_or_else(|| path_str.as_str().into());
 
                     let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
                     link.SetPath(PCWSTR(exe_wide.as_ptr()))?;
@@ -154,6 +175,7 @@ mod win {
             }
 
             dest_list.CommitList()?;
+            guard.committed = true;
             Ok(())
         }
     }
@@ -292,16 +314,18 @@ mod dock {
         };
 
         unsafe {
-            let menu_alloc = msg0(cls(b"NSMenu\0"), sel(b"alloc\0"));
-            let menu = msg0(menu_alloc, sel(b"init\0"));
+            let pool = msg0(msg0(cls(b"NSAutoreleasePool\0"), sel(b"alloc\0")), sel(b"init\0"));
+
+            let menu = msg0(msg0(cls(b"NSMenu\0"), sel(b"alloc\0")), sel(b"init\0"));
+            msg0(menu, sel(b"autorelease\0"));
 
             if !recent_folders.is_empty() {
                 add_header(menu, "Recent Folders");
                 for path_str in recent_folders {
                     let name = std::path::Path::new(path_str)
                         .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy();
+                        .map(|n| n.to_string_lossy())
+                        .unwrap_or_else(|| path_str.as_str().into());
                     add_item(menu, &name, path_str, handler, b"openFolder:\0");
                 }
             }
@@ -326,6 +350,8 @@ mod dock {
 
             let app = msg0(cls(b"NSApplication\0"), sel(b"sharedApplication\0"));
             msg_void1(app, sel(b"setDockMenu:\0"), menu);
+
+            msg0(pool, sel(b"drain\0"));
         }
     }
 
@@ -339,6 +365,7 @@ mod dock {
             ns_string(""),
         );
         msg_void_bool(item, sel(b"setEnabled:\0"), false);
+        msg0(item, sel(b"autorelease\0"));
         msg_void1(menu, sel(b"addItem:\0"), item);
     }
 
@@ -353,6 +380,7 @@ mod dock {
         );
         msg_void1(item, sel(b"setTarget:\0"), target);
         msg_void1(item, sel(b"setRepresentedObject:\0"), ns_string(path));
+        msg0(item, sel(b"autorelease\0"));
         msg_void1(menu, sel(b"addItem:\0"), item);
     }
 
