@@ -1,6 +1,7 @@
 mod commands;
 mod config;
 mod export;
+mod jumplist;
 mod menu;
 mod scan;
 mod watcher;
@@ -42,10 +43,12 @@ pub(crate) fn display_path(p: &Path) -> String {
     s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
 }
 
-fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
+pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     let new_path = PathBuf::from(new_path_str);
     if !new_path.exists() {
         let recent = store_prune_recent(app);
+        let recent_folders = store_prune_recent_folders(app);
+        jumplist::update_jump_list(&recent, &recent_folders);
         let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
         rebuild_menu(app, &recent, &theme);
         return;
@@ -84,11 +87,14 @@ fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
     }
 
     let recent = store_add_recent(app, &new_path);
+    jumplist::notify_recent_doc(&new_path);
+    let recent_folders = store_get_recent_folders(app);
+    jumplist::update_jump_list(&recent, &recent_folders);
     let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
     rebuild_menu(app, &recent, &theme);
 }
 
-fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
+pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
     let folder_path = std::fs::canonicalize(&folder_path).unwrap_or(folder_path);
     let default_file = find_default_file(&folder_path);
     let file_path = default_file.clone().unwrap_or_default();
@@ -123,6 +129,10 @@ fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         s.debouncer = None;
         s.folder_debouncer = start_folder_watcher(&folder_path, app.clone());
     }
+
+    let recent_folders = store_add_recent_folder(app, &folder_path);
+    let recent_files = store_get_recent(app);
+    jumplist::update_jump_list(&recent_files, &recent_folders);
 
     let _ = app.emit("enter-folder-mode", ());
 
@@ -216,6 +226,19 @@ pub fn run() {
             } else {
                 store_prune_recent(app.handle())
             };
+            let recent_folders = if mode == AppMode::Folder {
+                store_prune_recent_folders(app.handle());
+                store_add_recent_folder(app.handle(), folder_path.as_ref().unwrap())
+            } else {
+                store_prune_recent_folders(app.handle())
+            };
+
+            jumplist::init_platform(app.handle());
+
+            if mode == AppMode::File {
+                jumplist::notify_recent_doc(&file_path);
+            }
+            jumplist::update_jump_list(&recent, &recent_folders);
 
             let menu = build_menu(app.handle(), &recent, &theme)?;
             app.set_menu(menu)?;
@@ -270,6 +293,8 @@ pub fn run() {
                     });
                 } else if id == "clear-recent" {
                     store_set_recent(handle, &[]);
+                    store_set_recent_folders(handle, &[]);
+                    jumplist::update_jump_list(&[], &[]);
                     let theme = handle.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
                     rebuild_menu(handle, &[], &theme);
                 } else if let Some(idx_str) = id.strip_prefix("recent-") {
