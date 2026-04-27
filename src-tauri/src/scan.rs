@@ -262,6 +262,33 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
+    fn scan_folder_skips_windows_hidden_non_dot_directories() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), "hidden_dir");
+        create_file(&hidden, "secret.md");
+        create_file(tmp.path(), "visible.md");
+
+        let entries = scan_folder(tmp.path());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "visible.md");
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn scan_folder_shows_windows_hidden_non_dot_directories_when_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), "hidden_dir");
+        create_file(&hidden, "secret.md");
+        create_file(tmp.path(), "visible.md");
+
+        let entries = scan_folder_with_opts(tmp.path(), true);
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+        assert!(names.contains(&"hidden_dir"));
+        assert!(names.contains(&"visible.md"));
+    }
+
+    #[test]
     fn scan_folder_prunes_folders_without_md_descendants() {
         let tmp = TempDir::new().unwrap();
         let empty_sub = create_subdir(tmp.path(), "empty");

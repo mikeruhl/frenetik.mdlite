@@ -362,7 +362,6 @@ pub fn run() {
                         (s.show_hidden_files, s.mode == AppMode::Folder)
                     };
                     store_set_show_hidden_files(handle, new_val);
-                    let _ = handle.emit("set-show-hidden-files", new_val);
                     if in_folder_mode {
                         let _ = handle.emit("rescan-folder", ());
                     }

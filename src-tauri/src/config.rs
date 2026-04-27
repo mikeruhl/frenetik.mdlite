@@ -134,7 +134,9 @@ pub(crate) fn store_prune_recent_folders(app: &tauri::AppHandle) -> Vec<String> 
 pub(crate) fn migrate_store_keys(app: &tauri::AppHandle) {
     let store = app.store(STORE_FILE).expect("store");
     if let Some(val) = store.get("show_dot_files") {
-        store.set("show_hidden_files", val.clone());
+        if store.get("show_hidden_files").is_none() {
+            store.set("show_hidden_files", val.clone());
+        }
         store.delete("show_dot_files");
         let _ = store.save();
     }
