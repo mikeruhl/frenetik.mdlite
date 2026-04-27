@@ -110,11 +110,36 @@ pub(crate) fn store_add_recent_folder(app: &tauri::AppHandle, path: &Path) -> Ve
     list
 }
 
+pub(crate) fn store_get_show_hidden_files(app: &tauri::AppHandle) -> bool {
+    let store = app.store(STORE_FILE).expect("store");
+    store
+        .get("show_hidden_files")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+pub(crate) fn store_set_show_hidden_files(app: &tauri::AppHandle, enabled: bool) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("show_hidden_files", serde_json::json!(enabled));
+    let _ = store.save();
+}
+
 pub(crate) fn store_prune_recent_folders(app: &tauri::AppHandle) -> Vec<String> {
     let list = store_get_recent_folders(app);
     let valid = prune_recent_list(list);
     store_set_recent_folders(app, &valid);
     valid
+}
+
+pub(crate) fn migrate_store_keys(app: &tauri::AppHandle) {
+    let store = app.store(STORE_FILE).expect("store");
+    if let Some(val) = store.get("show_dot_files") {
+        if store.get("show_hidden_files").is_none() {
+            store.set("show_hidden_files", val.clone());
+        }
+        store.delete("show_dot_files");
+        let _ = store.save();
+    }
 }
 
 pub(crate) fn migrate_legacy_config(app: &tauri::AppHandle) {

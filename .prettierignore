@@ -6,3 +6,5 @@ src-tauri/target
 pnpm-lock.yaml
 Cargo.lock
 .playwright-mcp
+.specify
+.claude

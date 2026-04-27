@@ -135,6 +135,11 @@ await listen("folder-changed", () => {
   folderChangedTimer = setTimeout(() => resetSidebarForRescan(), 500);
 });
 
+await listen("rescan-folder", () => {
+  if (!document.body.classList.contains("folder-mode")) return;
+  resetSidebarForRescan();
+});
+
 await listen("enter-file-mode", () => {
   clearTimeout(folderChangedTimer);
   exitFolderMode();
@@ -233,10 +238,6 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     openSearch();
     if (getSearchQuery()) highlightSearchMatches(getSearchQuery());
-  }
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "O") {
-    e.preventDefault();
-    toggleToc();
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+")) {
     e.preventDefault();

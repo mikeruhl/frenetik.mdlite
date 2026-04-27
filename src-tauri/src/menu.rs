@@ -23,12 +23,10 @@ pub(crate) fn build_menu(
     app: &tauri::AppHandle,
     recent: &[String],
     current_theme: &str,
+    print_header: bool,
+    show_hidden_files: bool,
+    show_outline: bool,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    let print_header = app
-        .try_state::<Mutex<AppState>>()
-        .map(|s| s.lock().unwrap().print_header)
-        .unwrap_or(true);
-
     let mut recent_sub = SubmenuBuilder::new(app, "Recent Files");
     if recent.is_empty() {
         let item = MenuItemBuilder::with_id("no-recent", "(No Recent Files)")
@@ -98,8 +96,12 @@ pub(crate) fn build_menu(
     let zoom_reset = MenuItemBuilder::with_id("zoom-reset", "Reset Zoom")
         .accelerator("CmdOrCtrl+0")
         .build(app)?;
-    let toggle_outline = MenuItemBuilder::with_id("toggle-outline", "Toggle Outline")
+    let toggle_outline = CheckMenuItemBuilder::with_id("toggle-outline", "Show Outline")
         .accelerator("CmdOrCtrl+Shift+O")
+        .checked(show_outline)
+        .build(app)?;
+    let show_hidden_files_item = CheckMenuItemBuilder::with_id("toggle-show-hidden-files", "Show Hidden Files")
+        .checked(show_hidden_files)
         .build(app)?;
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&nav_back)
@@ -111,6 +113,7 @@ pub(crate) fn build_menu(
         .item(&zoom_reset)
         .separator()
         .item(&toggle_outline)
+        .item(&show_hidden_files_item)
         .build()?;
 
     MenuBuilder::new(app)
@@ -121,7 +124,12 @@ pub(crate) fn build_menu(
 }
 
 pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &str) {
-    if let Ok(menu) = build_menu(app, recent, theme) {
+    let (print_header, show_hidden_files, show_outline) = {
+        let state = app.state::<Mutex<AppState>>();
+        let s = state.lock().unwrap();
+        (s.print_header, s.show_hidden_files, s.show_outline)
+    };
+    if let Ok(menu) = build_menu(app, recent, theme, print_header, show_hidden_files, show_outline) {
         let _ = app.set_menu(menu);
     }
 }

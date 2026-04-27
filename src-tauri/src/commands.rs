@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 use tauri::Manager;
 
+use crate::config::store_get_recent;
+use crate::menu::rebuild_menu;
 use crate::scan::{run_progressive_scan, SCAN_GENERATION};
 use crate::{display_path, AppMode, AppState};
 
@@ -47,17 +49,28 @@ pub(crate) fn cancel_folder_scan() {
 
 #[tauri::command]
 pub(crate) fn start_folder_scan(state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) -> Result<(), String> {
-    let folder_path = {
+    let (folder_path, show_hidden_files) = {
         let s = state.lock().unwrap();
-        s.folder_path.clone()
+        (s.folder_path.clone(), s.show_hidden_files)
     };
     match folder_path {
         Some(root) => {
-            run_progressive_scan(root, app);
+            run_progressive_scan(root, app, show_hidden_files);
             Ok(())
         }
         None => Err("Not in folder mode".to_string()),
     }
+}
+
+#[tauri::command]
+pub(crate) fn notify_outline_closed(state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) {
+    let theme = {
+        let mut s = state.lock().unwrap();
+        s.show_outline = false;
+        s.current_theme.clone()
+    };
+    let recent = store_get_recent(&app);
+    rebuild_menu(&app, &recent, &theme);
 }
 
 #[tauri::command]
