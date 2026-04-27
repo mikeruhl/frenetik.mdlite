@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { pushNavigation } from "./history.js";
 
 const tocTree = document.getElementById("toc-tree");
@@ -136,5 +137,8 @@ function highlightTocItem(id) {
 }
 
 export function bindTocEvents() {
-  tocClose.addEventListener("click", hideToc);
+  tocClose.addEventListener("click", () => {
+    hideToc();
+    invoke("notify_outline_closed");
+  });
 }

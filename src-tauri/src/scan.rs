@@ -6,6 +6,21 @@ use tauri::Emitter;
 
 use crate::display_path;
 
+#[cfg(unix)]
+fn is_hidden(entry: &std::fs::DirEntry) -> bool {
+    entry.file_name().to_string_lossy().starts_with('.')
+}
+
+#[cfg(windows)]
+fn is_hidden(entry: &std::fs::DirEntry) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+    entry
+        .metadata()
+        .map(|m| m.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0)
+        .unwrap_or(false)
+}
+
 #[derive(Serialize, Clone)]
 pub(crate) struct FolderEntry {
     pub(crate) name: String,
@@ -36,6 +51,11 @@ pub(crate) fn is_markdown_ext(ext: &std::ffi::OsStr) -> bool {
 
 #[cfg(test)]
 pub(crate) fn scan_folder(dir: &Path) -> Vec<FolderEntry> {
+    scan_folder_with_opts(dir, false)
+}
+
+#[cfg(test)]
+fn scan_folder_with_opts(dir: &Path, show_hidden_files: bool) -> Vec<FolderEntry> {
     let mut folders = Vec::new();
     let mut files = Vec::new();
 
@@ -50,12 +70,12 @@ pub(crate) fn scan_folder(dir: &Path) -> Vec<FolderEntry> {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
 
-        if name.starts_with('.') {
+        if !show_hidden_files && is_hidden(&entry) {
             continue;
         }
 
         if path.is_dir() {
-            let children = scan_folder(&path);
+            let children = scan_folder_with_opts(&path, show_hidden_files);
             if !children.is_empty() {
                 folders.push(FolderEntry {
                     name,
@@ -104,7 +124,7 @@ pub(crate) fn find_default_file(dir: &Path) -> Option<std::path::PathBuf> {
     None
 }
 
-pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHandle) {
+pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHandle, show_hidden_files: bool) {
     let gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     std::thread::spawn(move || {
         let mut queue: VecDeque<(std::path::PathBuf, Vec<DirAncestor>)> = VecDeque::new();
@@ -125,7 +145,7 @@ pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHand
             for entry in items {
                 let path = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
-                if name.starts_with('.') {
+                if !show_hidden_files && is_hidden(&entry) {
                     continue;
                 }
                 if path.is_dir() {
@@ -183,6 +203,17 @@ mod tests {
         sub
     }
 
+    fn create_hidden_subdir(dir: &Path, name: &str) -> PathBuf {
+        let sub = create_subdir(dir, name);
+        #[cfg(windows)]
+        {
+            let _ = std::process::Command::new("attrib")
+                .args(["+H", &sub.to_string_lossy()])
+                .status();
+        }
+        sub
+    }
+
     #[test]
     fn scan_folder_returns_only_md_files() {
         let tmp = TempDir::new().unwrap();
@@ -206,15 +237,28 @@ mod tests {
     }
 
     #[test]
-    fn scan_folder_skips_dot_directories() {
+    fn scan_folder_skips_hidden_directories() {
         let tmp = TempDir::new().unwrap();
-        let hidden = create_subdir(tmp.path(), ".git");
+        let hidden = create_hidden_subdir(tmp.path(), ".git");
         create_file(&hidden, "HEAD.md");
         create_file(tmp.path(), "visible.md");
 
         let entries = scan_folder(tmp.path());
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "visible.md");
+    }
+
+    #[test]
+    fn scan_folder_shows_hidden_directories_when_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), ".hidden");
+        create_file(&hidden, "secret.md");
+        create_file(tmp.path(), "visible.md");
+
+        let entries = scan_folder_with_opts(tmp.path(), true);
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+        assert!(names.contains(&".hidden"));
+        assert!(names.contains(&"visible.md"));
     }
 
     #[test]
