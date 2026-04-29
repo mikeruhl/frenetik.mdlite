@@ -35,6 +35,7 @@ pub(crate) struct AppState {
     pub(crate) print_header: bool,
     pub(crate) show_hidden_files: bool,
     pub(crate) show_outline: bool,
+    pub(crate) frontmatter_mode: String,
     pub(crate) debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) folder_debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) startup_error: Option<String>,
@@ -225,6 +226,7 @@ pub fn run() {
             let theme = store_get_theme(app.handle());
             let print_header = store_get_print_header(app.handle());
             let show_hidden_files = store_get_show_hidden_files(app.handle());
+            let frontmatter_mode = store_get_frontmatter(app.handle());
             let recent = if mode == AppMode::File {
                 store_prune_recent(app.handle());
                 store_add_recent(app.handle(), &file_path)
@@ -253,6 +255,7 @@ pub fn run() {
                 print_header,
                 show_hidden_files,
                 show_outline,
+                &frontmatter_mode,
             )?;
             app.set_menu(menu)?;
 
@@ -265,6 +268,7 @@ pub fn run() {
                 print_header,
                 show_hidden_files,
                 show_outline,
+                frontmatter_mode,
                 debouncer: None,
                 folder_debouncer: None,
                 startup_error,
@@ -365,6 +369,13 @@ pub fn run() {
                     if in_folder_mode {
                         let _ = handle.emit("rescan-folder", ());
                     }
+                } else if let Some(fm_mode) = id.strip_prefix("frontmatter-") {
+                    store_set_frontmatter(handle, fm_mode);
+                    handle.state::<Mutex<AppState>>().lock().unwrap().frontmatter_mode = fm_mode.to_string();
+                    let recent = store_get_recent(handle);
+                    let theme = handle.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
+                    rebuild_menu(handle, &recent, &theme);
+                    let _ = handle.emit("set-frontmatter", fm_mode);
                 } else if let Some(theme_id) = id.strip_prefix("theme-") {
                     store_set_theme(handle, theme_id);
                     handle.state::<Mutex<AppState>>().lock().unwrap().current_theme = theme_id.to_string();

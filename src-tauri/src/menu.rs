@@ -26,6 +26,7 @@ pub(crate) fn build_menu(
     print_header: bool,
     show_hidden_files: bool,
     show_outline: bool,
+    frontmatter_mode: &str,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let mut recent_sub = SubmenuBuilder::new(app, "Recent Files");
     if recent.is_empty() {
@@ -103,6 +104,16 @@ pub(crate) fn build_menu(
     let show_hidden_files_item = CheckMenuItemBuilder::with_id("toggle-show-hidden-files", "Show Hidden Files")
         .checked(show_hidden_files)
         .build(app)?;
+    let fm_hide = CheckMenuItemBuilder::with_id("frontmatter-hide", "Hide")
+        .checked(frontmatter_mode == "hide")
+        .build(app)?;
+    let fm_panel = CheckMenuItemBuilder::with_id("frontmatter-panel", "Show Panel")
+        .checked(frontmatter_mode == "panel")
+        .build(app)?;
+    let frontmatter_sub = SubmenuBuilder::new(app, "Frontmatter")
+        .item(&fm_hide)
+        .item(&fm_panel)
+        .build()?;
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&nav_back)
         .item(&nav_forward)
@@ -114,6 +125,8 @@ pub(crate) fn build_menu(
         .separator()
         .item(&toggle_outline)
         .item(&show_hidden_files_item)
+        .separator()
+        .item(&frontmatter_sub)
         .build()?;
 
     MenuBuilder::new(app)
@@ -124,12 +137,25 @@ pub(crate) fn build_menu(
 }
 
 pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &str) {
-    let (print_header, show_hidden_files, show_outline) = {
+    let (print_header, show_hidden_files, show_outline, frontmatter_mode) = {
         let state = app.state::<Mutex<AppState>>();
         let s = state.lock().unwrap();
-        (s.print_header, s.show_hidden_files, s.show_outline)
+        (
+            s.print_header,
+            s.show_hidden_files,
+            s.show_outline,
+            s.frontmatter_mode.clone(),
+        )
     };
-    if let Ok(menu) = build_menu(app, recent, theme, print_header, show_hidden_files, show_outline) {
+    if let Ok(menu) = build_menu(
+        app,
+        recent,
+        theme,
+        print_header,
+        show_hidden_files,
+        show_outline,
+        &frontmatter_mode,
+    ) {
         let _ = app.set_menu(menu);
     }
 }

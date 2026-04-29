@@ -7,6 +7,7 @@ import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
 import {
   parseMarkdown,
+  extractFrontmatter,
   renderMermaidBlocks,
   bindMermaidButtons,
   bindCopyButtons,
@@ -31,8 +32,29 @@ const store = new LazyStore("settings.json");
 
 const contentEl = document.getElementById("content");
 const mainContentEl = document.getElementById("main-content");
+const frontmatterPanelEl = document.getElementById("frontmatter-panel");
 
 let startupErrorMsg = null;
+let frontmatterMode = "hide";
+let lastRawMarkdown = "";
+
+function renderFrontmatterPanel(fields) {
+  if (!frontmatterPanelEl) return;
+  if (!fields || fields.length === 0 || frontmatterMode !== "panel") {
+    frontmatterPanelEl.style.display = "none";
+    frontmatterPanelEl.innerHTML = "";
+    return;
+  }
+  const rows = fields
+    .map((f) => `<tr><td class="fm-key">${escapeHtml(f.key)}</td><td class="fm-val">${escapeHtml(f.value)}</td></tr>`)
+    .join("");
+  frontmatterPanelEl.innerHTML = `<table>${rows}</table>`;
+  frontmatterPanelEl.style.display = "";
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
 function render(markdown) {
   if (startupErrorMsg) {
@@ -40,10 +62,14 @@ function render(markdown) {
     startupErrorEl.className = "startup-error";
     startupErrorEl.textContent = startupErrorMsg;
     contentEl.replaceChildren(startupErrorEl);
+    frontmatterPanelEl.style.display = "none";
     return;
   }
+  lastRawMarkdown = markdown;
+  const { body, fields } = extractFrontmatter(markdown);
+  renderFrontmatterPanel(fields);
   resetMermaidCounter();
-  contentEl.innerHTML = parseMarkdown(markdown);
+  contentEl.innerHTML = parseMarkdown(body);
   renderMermaidBlocks();
   bindMermaidButtons();
   bindCopyButtons();
@@ -174,6 +200,11 @@ await listen("set-print-header", (event) => {
   document.body.classList.toggle("print-header-enabled", event.payload);
 });
 
+await listen("set-frontmatter", (event) => {
+  frontmatterMode = event.payload;
+  if (lastRawMarkdown) render(lastRawMarkdown);
+});
+
 // --- Print header ---
 
 function updatePrintHeader() {
@@ -203,6 +234,8 @@ applyZoom(savedZoom);
 
 const printHeader = (await store.get("print_header")) ?? true;
 document.body.classList.toggle("print-header-enabled", printHeader);
+
+frontmatterMode = (await store.get("frontmatter")) ?? "hide";
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");
