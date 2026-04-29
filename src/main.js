@@ -32,24 +32,17 @@ const store = new LazyStore("settings.json");
 
 const contentEl = document.getElementById("content");
 const mainContentEl = document.getElementById("main-content");
-const frontmatterPanelEl = document.getElementById("frontmatter-panel");
 
 let startupErrorMsg = null;
 let showFrontmatter = false;
 let lastRawMarkdown = "";
 
 function renderFrontmatterPanel(fields) {
-  if (!frontmatterPanelEl) return;
-  if (!fields || fields.length === 0 || !showFrontmatter) {
-    frontmatterPanelEl.style.display = "none";
-    frontmatterPanelEl.innerHTML = "";
-    return;
-  }
+  if (!fields || fields.length === 0 || !showFrontmatter) return "";
   const rows = fields
     .map((f) => `<tr><td class="fm-key">${escapeHtml(f.key)}</td><td class="fm-val">${escapeHtml(f.value)}</td></tr>`)
     .join("");
-  frontmatterPanelEl.innerHTML = `<table>${rows}</table>`;
-  frontmatterPanelEl.style.display = "";
+  return `<div id="frontmatter-panel"><table>${rows}</table></div>`;
 }
 
 function escapeHtml(s) {
@@ -62,15 +55,14 @@ function render(markdown) {
     startupErrorEl.className = "startup-error";
     startupErrorEl.textContent = startupErrorMsg;
     contentEl.replaceChildren(startupErrorEl);
-    frontmatterPanelEl.style.display = "none";
     return;
   }
   lastRawMarkdown = markdown;
   const { body, fields } = extractFrontmatter(markdown);
   const hasFm = fields !== null && fields.length > 0;
-  renderFrontmatterPanel(fields);
+  const panelHtml = renderFrontmatterPanel(fields);
   resetMermaidCounter();
-  contentEl.innerHTML = parseMarkdown(body);
+  contentEl.innerHTML = panelHtml + parseMarkdown(body);
   renderMermaidBlocks();
   bindMermaidButtons();
   bindCopyButtons();

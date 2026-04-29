@@ -815,7 +815,7 @@ body.dark-sidebar .footnotes li:target {
 
 /* Frontmatter metadata panel */
 #frontmatter-panel {
-  margin: 12px 32px 0;
+  margin: 0 0 16px;
   padding: 8px 12px;
   background: #f6f8fa;
   border: 1px solid #d0d7de;
