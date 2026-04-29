@@ -124,6 +124,17 @@ pub(crate) fn store_set_show_hidden_files(app: &tauri::AppHandle, enabled: bool)
     let _ = store.save();
 }
 
+pub(crate) fn store_get_show_frontmatter(app: &tauri::AppHandle) -> bool {
+    let store = app.store(STORE_FILE).expect("store");
+    store.get("show_frontmatter").and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+pub(crate) fn store_set_show_frontmatter(app: &tauri::AppHandle, enabled: bool) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("show_frontmatter", serde_json::json!(enabled));
+    let _ = store.save();
+}
+
 pub(crate) fn store_prune_recent_folders(app: &tauri::AppHandle) -> Vec<String> {
     let list = store_get_recent_folders(app);
     let valid = prune_recent_list(list);

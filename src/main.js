@@ -7,6 +7,7 @@ import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
 import {
   parseMarkdown,
+  extractFrontmatter,
   renderMermaidBlocks,
   bindMermaidButtons,
   bindCopyButtons,
@@ -33,6 +34,20 @@ const contentEl = document.getElementById("content");
 const mainContentEl = document.getElementById("main-content");
 
 let startupErrorMsg = null;
+let showFrontmatter = false;
+let lastRawMarkdown = "";
+
+function renderFrontmatterPanel(fields) {
+  if (!fields || fields.length === 0 || !showFrontmatter) return "";
+  const rows = fields
+    .map((f) => `<tr><td class="fm-key">${escapeHtml(f.key)}</td><td class="fm-val">${escapeHtml(f.value)}</td></tr>`)
+    .join("");
+  return `<div id="frontmatter-panel"><table>${rows}</table></div>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
 function render(markdown) {
   if (startupErrorMsg) {
@@ -42,8 +57,12 @@ function render(markdown) {
     contentEl.replaceChildren(startupErrorEl);
     return;
   }
+  lastRawMarkdown = markdown;
+  const { body, raw, fields } = extractFrontmatter(markdown);
+  const hasFm = raw !== null;
+  const panelHtml = renderFrontmatterPanel(fields);
   resetMermaidCounter();
-  contentEl.innerHTML = parseMarkdown(markdown);
+  contentEl.innerHTML = panelHtml + parseMarkdown(body);
   renderMermaidBlocks();
   bindMermaidButtons();
   bindCopyButtons();
@@ -51,6 +70,7 @@ function render(markdown) {
     highlightSearchMatches(getSearchQuery());
   }
   refreshToc();
+  invoke("notify_has_frontmatter", { has: hasFm });
 }
 
 initSidebar(render);
@@ -174,6 +194,11 @@ await listen("set-print-header", (event) => {
   document.body.classList.toggle("print-header-enabled", event.payload);
 });
 
+await listen("set-frontmatter", (event) => {
+  showFrontmatter = event.payload;
+  if (lastRawMarkdown) render(lastRawMarkdown);
+});
+
 // --- Print header ---
 
 function updatePrintHeader() {
@@ -203,6 +228,8 @@ applyZoom(savedZoom);
 
 const printHeader = (await store.get("print_header")) ?? true;
 document.body.classList.toggle("print-header-enabled", printHeader);
+
+showFrontmatter = (await store.get("show_frontmatter")) ?? false;
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");

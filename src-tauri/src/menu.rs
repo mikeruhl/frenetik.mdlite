@@ -5,6 +5,14 @@ use tauri::Manager;
 
 use crate::AppState;
 
+pub(crate) struct MenuState {
+    pub(crate) print_header: bool,
+    pub(crate) show_hidden_files: bool,
+    pub(crate) show_outline: bool,
+    pub(crate) show_frontmatter: bool,
+    pub(crate) has_frontmatter: bool,
+}
+
 pub(crate) const THEMES: &[(&str, &str)] = &[
     ("github", "GitHub Light"),
     ("github-dark", "GitHub Dark"),
@@ -23,10 +31,15 @@ pub(crate) fn build_menu(
     app: &tauri::AppHandle,
     recent: &[String],
     current_theme: &str,
-    print_header: bool,
-    show_hidden_files: bool,
-    show_outline: bool,
+    state: &MenuState,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    let MenuState {
+        print_header,
+        show_hidden_files,
+        show_outline,
+        show_frontmatter,
+        has_frontmatter,
+    } = *state;
     let mut recent_sub = SubmenuBuilder::new(app, "Recent Files");
     if recent.is_empty() {
         let item = MenuItemBuilder::with_id("no-recent", "(No Recent Files)")
@@ -103,6 +116,10 @@ pub(crate) fn build_menu(
     let show_hidden_files_item = CheckMenuItemBuilder::with_id("toggle-show-hidden-files", "Show Hidden Files")
         .checked(show_hidden_files)
         .build(app)?;
+    let show_frontmatter_item = CheckMenuItemBuilder::with_id("toggle-show-frontmatter", "Show Frontmatter")
+        .checked(show_frontmatter)
+        .enabled(has_frontmatter)
+        .build(app)?;
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&nav_back)
         .item(&nav_forward)
@@ -114,6 +131,7 @@ pub(crate) fn build_menu(
         .separator()
         .item(&toggle_outline)
         .item(&show_hidden_files_item)
+        .item(&show_frontmatter_item)
         .build()?;
 
     MenuBuilder::new(app)
@@ -124,12 +142,18 @@ pub(crate) fn build_menu(
 }
 
 pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &str) {
-    let (print_header, show_hidden_files, show_outline) = {
+    let ms = {
         let state = app.state::<Mutex<AppState>>();
         let s = state.lock().unwrap();
-        (s.print_header, s.show_hidden_files, s.show_outline)
+        MenuState {
+            print_header: s.print_header,
+            show_hidden_files: s.show_hidden_files,
+            show_outline: s.show_outline,
+            show_frontmatter: s.show_frontmatter,
+            has_frontmatter: s.has_frontmatter,
+        }
     };
-    if let Ok(menu) = build_menu(app, recent, theme, print_header, show_hidden_files, show_outline) {
+    if let Ok(menu) = build_menu(app, recent, theme, &ms) {
         let _ = app.set_menu(menu);
     }
 }

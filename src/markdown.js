@@ -12,6 +12,7 @@ import "katex/dist/katex.min.css";
 let mermaidInstance = null;
 let mermaidCounter = 0;
 const usedIds = new Set();
+const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
 async function getMermaid() {
   if (!mermaidInstance) {
@@ -187,6 +188,22 @@ export function bindMermaidButtons() {
 export function resetMermaidCounter() {
   mermaidCounter = 0;
   usedIds.clear();
+}
+
+export function extractFrontmatter(markdown) {
+  const match = markdown.match(FRONTMATTER_RE);
+  if (!match) return { body: markdown, raw: null, fields: null };
+  const raw = match[1];
+  const fields = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const idx = line.indexOf(":");
+    if (idx > 0) {
+      const key = line.slice(0, idx).trim();
+      const val = line.slice(idx + 1).trim();
+      fields.push({ key, value: val });
+    }
+  }
+  return { body: markdown.slice(match[0].length), raw, fields };
 }
 
 export function parseMarkdown(markdown) {

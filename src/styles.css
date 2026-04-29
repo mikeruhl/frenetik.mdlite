@@ -813,6 +813,55 @@ body.dark-sidebar .footnotes li:target {
   background: #2d333b;
 }
 
+/* Frontmatter metadata panel */
+#frontmatter-panel {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  color: #656d76;
+}
+
+#frontmatter-panel table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#frontmatter-panel td {
+  padding: 2px 8px 2px 0;
+  vertical-align: top;
+  border: none;
+}
+
+#frontmatter-panel .fm-key {
+  font-weight: 600;
+  color: #1f2328;
+  white-space: nowrap;
+  width: 1%;
+}
+
+#frontmatter-panel .fm-val {
+  color: #656d76;
+  word-break: break-word;
+}
+
+body.dark-sidebar #frontmatter-panel {
+  background: #161b22;
+  border-color: #30363d;
+  color: #8b949e;
+}
+
+body.dark-sidebar #frontmatter-panel .fm-key {
+  color: #e6edf3;
+}
+
+body.dark-sidebar #frontmatter-panel .fm-val {
+  color: #8b949e;
+}
+
 /* Print header (hidden on screen, visible in print when enabled) */
 #print-header {
   display: none;
@@ -835,6 +884,7 @@ body.dark-sidebar .footnotes li:target {
   #search-bar,
   #toc-panel,
   #attribution,
+  #frontmatter-panel,
   .mermaid-expand,
   .copy-code-btn {
     display: none !important;
