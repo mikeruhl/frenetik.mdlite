@@ -35,12 +35,12 @@ const mainContentEl = document.getElementById("main-content");
 const frontmatterPanelEl = document.getElementById("frontmatter-panel");
 
 let startupErrorMsg = null;
-let frontmatterMode = "hide";
+let showFrontmatter = false;
 let lastRawMarkdown = "";
 
 function renderFrontmatterPanel(fields) {
   if (!frontmatterPanelEl) return;
-  if (!fields || fields.length === 0 || frontmatterMode !== "panel") {
+  if (!fields || fields.length === 0 || !showFrontmatter) {
     frontmatterPanelEl.style.display = "none";
     frontmatterPanelEl.innerHTML = "";
     return;
@@ -67,6 +67,7 @@ function render(markdown) {
   }
   lastRawMarkdown = markdown;
   const { body, fields } = extractFrontmatter(markdown);
+  const hasFm = fields !== null && fields.length > 0;
   renderFrontmatterPanel(fields);
   resetMermaidCounter();
   contentEl.innerHTML = parseMarkdown(body);
@@ -77,6 +78,7 @@ function render(markdown) {
     highlightSearchMatches(getSearchQuery());
   }
   refreshToc();
+  invoke("notify_has_frontmatter", { has: hasFm });
 }
 
 initSidebar(render);
@@ -201,7 +203,7 @@ await listen("set-print-header", (event) => {
 });
 
 await listen("set-frontmatter", (event) => {
-  frontmatterMode = event.payload;
+  showFrontmatter = event.payload;
   if (lastRawMarkdown) render(lastRawMarkdown);
 });
 
@@ -235,7 +237,7 @@ applyZoom(savedZoom);
 const printHeader = (await store.get("print_header")) ?? true;
 document.body.classList.toggle("print-header-enabled", printHeader);
 
-frontmatterMode = (await store.get("frontmatter")) ?? "hide";
+showFrontmatter = (await store.get("show_frontmatter")) ?? false;
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");
