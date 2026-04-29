@@ -250,16 +250,14 @@ pub fn run() {
             jumplist::update_jump_list(&recent, &recent_folders);
 
             let show_outline = false;
-            let menu = build_menu(
-                app.handle(),
-                &recent,
-                &theme,
+            let menu_state = MenuState {
                 print_header,
                 show_hidden_files,
                 show_outline,
                 show_frontmatter,
-                false,
-            )?;
+                has_frontmatter: false,
+            };
+            let menu = build_menu(app.handle(), &recent, &theme, &menu_state)?;
             app.set_menu(menu)?;
 
             let folder_path_for_watch = folder_path.clone();
