@@ -58,8 +58,8 @@ function render(markdown) {
     return;
   }
   lastRawMarkdown = markdown;
-  const { body, fields } = extractFrontmatter(markdown);
-  const hasFm = fields !== null && fields.length > 0;
+  const { body, raw, fields } = extractFrontmatter(markdown);
+  const hasFm = raw !== null;
   const panelHtml = renderFrontmatterPanel(fields);
   resetMermaidCounter();
   contentEl.innerHTML = panelHtml + parseMarkdown(body);
