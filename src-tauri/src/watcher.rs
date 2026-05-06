@@ -1,14 +1,23 @@
 use notify::RecommendedWatcher;
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, Debouncer};
+use serde::Serialize;
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::Emitter;
 use tauri::Manager;
 
-use crate::scan::is_markdown_ext;
+use crate::scan::{compute_path_chain, is_markdown_ext, DirAncestor};
 use crate::AppState;
+
+#[derive(Serialize, Clone)]
+pub(crate) struct FolderChangeEntry {
+    path: String,
+    name: String,
+    exists: bool,
+    path_chain: Vec<DirAncestor>,
+}
 
 pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Option<Debouncer<RecommendedWatcher>> {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -55,23 +64,66 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
         for result in rx {
             match result {
                 Ok(events) => {
-                    let current = app.state::<Mutex<AppState>>().lock().unwrap().file_path.clone();
+                    let (current, folder_root) = {
+                        let mutex = app.state::<Mutex<AppState>>();
+                        let state = mutex.lock().unwrap();
+                        (state.file_path.clone(), state.folder_path.clone())
+                    };
+
                     let current_touched = events.iter().any(|e| e.path == current);
-                    let markdown_file_changed = events
-                        .iter()
-                        .any(|e| e.path != current && e.path.extension().is_some_and(is_markdown_ext));
                     if current_touched {
-                        match std::fs::read_to_string(&current) {
-                            Ok(content) => {
-                                let _ = app.emit("file-changed", content);
-                            }
-                            Err(_) => {
-                                let _ = app.emit("folder-changed", ());
-                            }
+                        if let Ok(content) = std::fs::read_to_string(&current) {
+                            let _ = app.emit("file-changed", content);
                         }
                     }
-                    if markdown_file_changed {
-                        let _ = app.emit("folder-changed", ());
+
+                    let mut changes: Vec<FolderChangeEntry> = Vec::new();
+
+                    if current_touched && !current.is_file() {
+                        changes.push(FolderChangeEntry {
+                            path: crate::display_path(&current),
+                            name: current
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default(),
+                            exists: false,
+                            path_chain: vec![],
+                        });
+                    }
+
+                    for event in &events {
+                        if event.path == current {
+                            continue;
+                        }
+                        if !event.path.extension().is_some_and(is_markdown_ext) {
+                            continue;
+                        }
+                        let exists = event.path.is_file();
+                        let path_chain = if exists {
+                            folder_root
+                                .as_ref()
+                                .map(|root| compute_path_chain(root, &event.path))
+                                .unwrap_or_default()
+                        } else {
+                            vec![]
+                        };
+                        changes.push(FolderChangeEntry {
+                            path: crate::display_path(&event.path),
+                            name: event
+                                .path
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default(),
+                            exists,
+                            path_chain,
+                        });
+                    }
+
+                    let mut seen = std::collections::HashSet::new();
+                    changes.retain(|c| seen.insert(c.path.clone()));
+
+                    if !changes.is_empty() {
+                        let _ = app.emit("folder-changed", changes);
                     }
                 }
                 Err(e) => eprintln!("Folder watch error: {:?}", e),

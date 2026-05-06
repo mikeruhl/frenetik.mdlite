@@ -44,6 +44,28 @@ struct FolderScanFiles {
 
 pub(crate) static SCAN_GENERATION: AtomicU64 = AtomicU64::new(0);
 
+pub(crate) fn compute_path_chain(root: &Path, file: &Path) -> Vec<DirAncestor> {
+    let parent = match file.parent() {
+        Some(p) => p,
+        None => return vec![],
+    };
+    let relative = match parent.strip_prefix(root) {
+        Ok(r) => r,
+        Err(_) => return vec![],
+    };
+    let mut chain = Vec::new();
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        let name = component.as_os_str().to_string_lossy().to_string();
+        current = current.join(&name);
+        chain.push(DirAncestor {
+            name,
+            path: crate::display_path(&current),
+        });
+    }
+    chain
+}
+
 pub(crate) fn is_markdown_ext(ext: &std::ffi::OsStr) -> bool {
     let s = ext.to_string_lossy().to_lowercase();
     s == "md" || s == "markdown" || s == "mdx"
@@ -515,5 +537,42 @@ mod tests {
     fn display_path_handles_unix_path() {
         let p = Path::new("/home/user/file.md");
         assert_eq!(display_path(p), "/home/user/file.md");
+    }
+
+    #[test]
+    fn compute_path_chain_nested() {
+        let tmp = TempDir::new().unwrap();
+        let sub1 = create_subdir(tmp.path(), "sub1");
+        let sub2 = create_subdir(&sub1, "sub2");
+        create_file(&sub2, "readme.md");
+        let file = sub2.join("readme.md");
+
+        let chain = compute_path_chain(tmp.path(), &file);
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].name, "sub1");
+        assert_eq!(chain[0].path, display_path(&sub1));
+        assert_eq!(chain[1].name, "sub2");
+        assert_eq!(chain[1].path, display_path(&sub2));
+    }
+
+    #[test]
+    fn compute_path_chain_root_file() {
+        let tmp = TempDir::new().unwrap();
+        create_file(tmp.path(), "readme.md");
+        let file = tmp.path().join("readme.md");
+
+        let chain = compute_path_chain(tmp.path(), &file);
+        assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn compute_path_chain_outside_root() {
+        let tmp1 = TempDir::new().unwrap();
+        let tmp2 = TempDir::new().unwrap();
+        create_file(tmp2.path(), "readme.md");
+        let file = tmp2.path().join("readme.md");
+
+        let chain = compute_path_chain(tmp1.path(), &file);
+        assert!(chain.is_empty());
     }
 }
