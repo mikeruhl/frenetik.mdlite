@@ -23,6 +23,7 @@ import {
   enterFolderMode,
   exitFolderMode,
   resetSidebarForRescan,
+  applyFolderChanges,
   initFolderStartup,
   getCurrentFilePath,
   navigateToFile,
@@ -149,10 +150,10 @@ await listen("folder-scan-complete", () => {
 });
 
 let folderChangedTimer;
-await listen("folder-changed", () => {
+await listen("folder-changed", (event) => {
   if (!document.body.classList.contains("folder-mode")) return;
   clearTimeout(folderChangedTimer);
-  folderChangedTimer = setTimeout(() => resetSidebarForRescan(), 500);
+  folderChangedTimer = setTimeout(() => applyFolderChanges(event.payload), 500);
 });
 
 await listen("rescan-folder", () => {

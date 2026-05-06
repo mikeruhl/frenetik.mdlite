@@ -85,6 +85,7 @@ function createFolderNode(container, name, dirPath, depth) {
     item.classList.toggle("expanded", !expanded);
   });
 
+  item.dataset.path = dirPath;
   insertFolderSorted(container, item, childrenDiv, name);
   const nodeInfo = { container: childrenDiv, depth: depth + 1 };
   folderNodeMap.set(dirPath, nodeInfo);
@@ -108,26 +109,62 @@ function ensureDirChain(pathChain) {
   return { container, depth };
 }
 
+function createFileElement(name, path, depth) {
+  const item = document.createElement("div");
+  item.className = "tree-item tree-file";
+  item.style.paddingLeft = 28 + depth * 16 + "px";
+  item.dataset.path = path;
+
+  const label = document.createElement("span");
+  label.className = "tree-label";
+  label.textContent = name;
+  item.appendChild(label);
+
+  item.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    await selectFolderFile(path);
+  });
+
+  return item;
+}
+
+function insertFileSorted(container, fileItem, name) {
+  const children = Array.from(container.children);
+  for (const child of children) {
+    if (!child.classList.contains("tree-file")) continue;
+    const childName = child.querySelector(".tree-label").textContent;
+    if (name.localeCompare(childName, undefined, { sensitivity: "base" }) < 0) {
+      container.insertBefore(fileItem, child);
+      return;
+    }
+  }
+  container.appendChild(fileItem);
+}
+
+function findFileElement(path) {
+  return Array.from(sidebarTreeEl.querySelectorAll(".tree-file")).find((el) => el.dataset.path === path) || null;
+}
+
+function pruneEmptyAncestors(container) {
+  while (container && container !== sidebarTreeEl) {
+    if (container.querySelector(".tree-file, .tree-folder")) break;
+    const folderItem = container.previousElementSibling;
+    const parent = container.parentElement;
+    container.remove();
+    if (folderItem && folderItem.classList.contains("tree-folder")) {
+      const folderPath = folderItem.dataset.path;
+      if (folderPath) folderNodeMap.delete(folderPath);
+      folderItem.remove();
+    }
+    container = parent;
+  }
+}
+
 export function handleScanFiles(pathChain, files) {
   const { container, depth } = ensureDirChain(pathChain);
   for (const file of files) {
-    const item = document.createElement("div");
-    item.className = "tree-item tree-file";
-    item.style.paddingLeft = 28 + depth * 16 + "px";
-    item.dataset.path = file.path;
-
-    const label = document.createElement("span");
-    label.className = "tree-label";
-    label.textContent = file.name;
-    item.appendChild(label);
-
-    item.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await selectFolderFile(file.path);
-    });
-
+    const item = createFileElement(file.name, file.path, depth);
     container.appendChild(item);
-
     if (file.path === currentFilePath) {
       item.classList.add("active");
     }
@@ -137,7 +174,6 @@ export function handleScanFiles(pathChain, files) {
 export function handleScanComplete() {
   removeScanningIndicator();
   sidebarTreeEl.querySelectorAll(".folder-scan-spinner").forEach((el) => el.remove());
-  folderNodeMap.clear();
   if (currentFilePath) {
     const stillExists = Array.from(sidebarTreeEl.querySelectorAll(".tree-file")).some(
       (el) => el.dataset.path === currentFilePath
@@ -227,4 +263,36 @@ export function initFolderStartup(modeInfo) {
   folderNodeMap.clear();
   showScanningIndicator();
   invoke("start_folder_scan").catch((e) => console.error("Folder scan failed:", e));
+}
+
+export function applyFolderChanges(changes) {
+  for (const change of changes) {
+    const fileEl = findFileElement(change.path);
+
+    if (fileEl && change.exists) {
+      continue;
+    }
+
+    if (fileEl && !change.exists) {
+      const parentContainer = fileEl.parentElement;
+      fileEl.remove();
+      if (change.path === currentFilePath) {
+        currentFilePath = null;
+        renderFn("");
+      }
+      pruneEmptyAncestors(parentContainer);
+      continue;
+    }
+
+    if (!fileEl && change.exists) {
+      const { container, depth } = ensureDirChain(change.path_chain);
+      const item = createFileElement(change.name, change.path, depth);
+      insertFileSorted(container, item, change.name);
+      if (change.path === currentFilePath) {
+        item.classList.add("active");
+      }
+      continue;
+    }
+  }
+  sidebarTreeEl.querySelectorAll(".folder-scan-spinner").forEach((el) => el.remove());
 }
