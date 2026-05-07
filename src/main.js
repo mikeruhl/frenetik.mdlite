@@ -200,6 +200,65 @@ await listen("set-frontmatter", (event) => {
   if (lastRawMarkdown) render(lastRawMarkdown);
 });
 
+// --- About / Update modal ---
+
+const aboutOverlay = document.getElementById("about-overlay");
+const aboutVersionNumber = document.getElementById("about-version-number");
+const aboutUpdateResult = document.getElementById("about-update-result");
+const aboutCheckBtn = document.getElementById("about-check-updates");
+
+function showAboutModal() {
+  aboutVersionNumber.textContent = __APP_VERSION__;
+  aboutUpdateResult.innerHTML = "";
+  aboutCheckBtn.disabled = false;
+  aboutOverlay.classList.remove("about-hidden");
+}
+
+function hideAboutModal() {
+  aboutOverlay.classList.add("about-hidden");
+}
+
+await listen("show-about", () => {
+  showAboutModal();
+});
+
+await listen("show-update-check", async () => {
+  showAboutModal();
+  await checkForUpdates();
+});
+
+async function checkForUpdates() {
+  aboutCheckBtn.disabled = true;
+  aboutUpdateResult.innerHTML = "Checking...";
+  aboutUpdateResult.className = "";
+  try {
+    const result = await invoke("check_for_updates");
+    if (result.update_available) {
+      aboutUpdateResult.className = "update-available";
+      aboutUpdateResult.innerHTML =
+        `v${result.latest_version} is available! ` + `<a href="#" id="about-download-link">Download update</a>`;
+      document.getElementById("about-download-link").addEventListener("click", (e) => {
+        e.preventDefault();
+        openUrl(result.release_url);
+      });
+    } else {
+      aboutUpdateResult.innerHTML = "You're on the latest version.";
+    }
+  } catch (err) {
+    aboutUpdateResult.className = "update-error";
+    aboutUpdateResult.textContent = String(err);
+  }
+  aboutCheckBtn.disabled = false;
+}
+
+aboutCheckBtn.addEventListener("click", checkForUpdates);
+
+document.getElementById("about-close").addEventListener("click", hideAboutModal);
+
+aboutOverlay.addEventListener("click", (e) => {
+  if (e.target === aboutOverlay) hideAboutModal();
+});
+
 // --- Print header ---
 
 function updatePrintHeader() {
@@ -262,6 +321,10 @@ bindSearchEvents();
 bindTocEvents();
 
 document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !aboutOverlay.classList.contains("about-hidden")) {
+    hideAboutModal();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === "f") {
     e.preventDefault();
     openSearch();

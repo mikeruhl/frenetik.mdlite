@@ -4,6 +4,7 @@ mod export;
 mod jumplist;
 mod menu;
 mod scan;
+mod updater;
 mod watcher;
 
 use notify::RecommendedWatcher;
@@ -163,7 +164,8 @@ pub fn run() {
             cancel_folder_scan,
             notify_outline_closed,
             notify_has_frontmatter,
-            export::export_pdf
+            export::export_pdf,
+            updater::check_for_updates
         ])
         .setup(|app| {
             migrate_legacy_config(app.handle());
@@ -380,6 +382,10 @@ pub fn run() {
                     };
                     store_set_show_frontmatter(handle, new_val);
                     let _ = handle.emit("set-frontmatter", new_val);
+                } else if id == "about" {
+                    let _ = handle.emit("show-about", ());
+                } else if id == "check-updates" {
+                    let _ = handle.emit("show-update-check", ());
                 } else if let Some(theme_id) = id.strip_prefix("theme-") {
                     store_set_theme(handle, theme_id);
                     handle.state::<Mutex<AppState>>().lock().unwrap().current_theme = theme_id.to_string();
