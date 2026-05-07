@@ -39,6 +39,23 @@
         <div id="toc-tree"></div>
       </aside>
     </div>
+    <div id="about-overlay" class="about-hidden">
+      <div id="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
+        <div id="about-modal-header">
+          <span id="about-modal-title">About mdlite</span>
+          <button id="about-close" aria-label="Close">&#x2715;</button>
+        </div>
+        <div id="about-modal-body">
+          <div id="about-version">Version <span id="about-version-number"></span></div>
+          <div id="about-tagline">A lightweight markdown previewer</div>
+          <hr />
+          <div id="about-update-section">
+            <button id="about-check-updates">Check for Updates</button>
+            <div id="about-update-result"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

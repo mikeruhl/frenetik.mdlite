@@ -134,10 +134,17 @@ pub(crate) fn build_menu(
         .item(&show_frontmatter_item)
         .build()?;
 
+    let help_menu = SubmenuBuilder::new(app, "Help")
+        .text("check-updates", "Check for Updates...")
+        .separator()
+        .text("about", "About mdlite")
+        .build()?;
+
     MenuBuilder::new(app)
         .item(&file_menu)
         .item(&view_menu)
         .item(&theme_sub.build()?)
+        .item(&help_menu)
         .build()
 }
 

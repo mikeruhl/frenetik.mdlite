@@ -25,6 +25,7 @@ export default [
         getComputedStyle: "readonly",
         navigator: "readonly",
         requestAnimationFrame: "readonly",
+        __APP_VERSION__: "readonly",
       },
     },
     rules: {
