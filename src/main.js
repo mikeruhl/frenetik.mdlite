@@ -207,15 +207,23 @@ const aboutVersionNumber = document.getElementById("about-version-number");
 const aboutUpdateResult = document.getElementById("about-update-result");
 const aboutCheckBtn = document.getElementById("about-check-updates");
 
+let previouslyFocusedElement = null;
+
 function showAboutModal() {
+  previouslyFocusedElement = document.activeElement;
   aboutVersionNumber.textContent = __APP_VERSION__;
-  aboutUpdateResult.innerHTML = "";
+  aboutUpdateResult.textContent = "";
   aboutCheckBtn.disabled = false;
   aboutOverlay.classList.remove("about-hidden");
+  document.getElementById("about-close").focus();
 }
 
 function hideAboutModal() {
   aboutOverlay.classList.add("about-hidden");
+  if (previouslyFocusedElement) {
+    previouslyFocusedElement.focus();
+    previouslyFocusedElement = null;
+  }
 }
 
 await listen("show-about", () => {
@@ -229,20 +237,27 @@ await listen("show-update-check", async () => {
 
 async function checkForUpdates() {
   aboutCheckBtn.disabled = true;
-  aboutUpdateResult.innerHTML = "Checking...";
+  aboutUpdateResult.textContent = "Checking...";
   aboutUpdateResult.className = "";
   try {
     const result = await invoke("check_for_updates");
     if (result.update_available) {
       aboutUpdateResult.className = "update-available";
-      aboutUpdateResult.innerHTML =
-        `v${result.latest_version} is available! ` + `<a href="#" id="about-download-link">Download update</a>`;
+      aboutUpdateResult.textContent = "";
+      aboutUpdateResult.append(
+        `v${result.latest_version} is available! `,
+        Object.assign(document.createElement("a"), {
+          href: "#",
+          id: "about-download-link",
+          textContent: "Download update",
+        })
+      );
       document.getElementById("about-download-link").addEventListener("click", (e) => {
         e.preventDefault();
         openUrl(result.release_url);
       });
     } else {
-      aboutUpdateResult.innerHTML = "You're on the latest version.";
+      aboutUpdateResult.textContent = "You're on the latest version.";
     }
   } catch (err) {
     aboutUpdateResult.className = "update-error";

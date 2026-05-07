@@ -24,6 +24,7 @@ pub(crate) async fn check_for_updates() -> Result<UpdateResult, String> {
 
     let client = reqwest::Client::builder()
         .user_agent("mdlite-updater")
+        .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -32,6 +33,8 @@ pub(crate) async fn check_for_updates() -> Result<UpdateResult, String> {
         .send()
         .await
         .map_err(|e| format!("Network error: {}", e))?
+        .error_for_status()
+        .map_err(|e| format!("GitHub API error: {}", e))?
         .json()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
