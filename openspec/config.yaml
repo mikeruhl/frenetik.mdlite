@@ -1,20 +1,41 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Tech stack: Tauri 2.x (Rust backend) + Vite (frontend bundler). No Electron.
+  Frontend: Vanilla JavaScript. No frameworks (React, Vue, etc.).
+  Markdown: marked library with extensions (highlight.js, KaTeX, mermaid, marked-alert, marked-emoji, marked-footnote).
+  Sanitization: DOMPurify for all rendered HTML.
+  Package manager: pnpm. No npm or yarn lock files.
+  Node: >=20.17. Rust: Stable toolchain, no nightly-only features.
+  Commit format: conventional commits (feat:, fix:, refactor:, docs:, chore:).
+  All changes go through pull requests. Direct pushes to main are prohibited.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Every new dependency requires justification for why a smaller or built-in alternative is insufficient
+    - UI additions must render correctly in all 11 bundled themes (light, dark, dimmed, high-contrast, auto, colorblind variants, Splendor, Retro, Air, Modest)
+    - Include a "Non-goals" section
+  design:
+    - Functions and modules must have a single, well-defined responsibility
+    - Keyboard shortcuts must follow platform conventions (Ctrl on Windows/Linux, Cmd on macOS)
+    - New UI elements must match existing visual patterns (spacing, font sizes, icon style)
+    - Error states must use existing notification or dialog patterns, not silent failures
+    - Mermaid diagram rendering may be deferred but must not block initial markdown display
+  spec:
+    - All user-facing strings must be sanitized (DOMPurify for HTML, path validation for file system access)
+    - Application binary size must stay under 15 MB (release build)
+    - Cold startup to first render must complete in under 2 seconds
+    - Markdown rendering for files up to 10,000 lines must complete in under 500 ms
+    - Memory usage must remain under 150 MB for typical single-file viewing
+    - Frontend dependency additions that increase the Vite bundle by more than 50 KB require explicit justification
+  tasks:
+    - Rust code must compile with zero warnings (cargo clippy -- -D warnings)
+    - JavaScript must pass ESLint with the project configuration; no lint suppressions without inline justification
+    - Dead code, unused imports, and commented-out blocks must be removed
+    - Rust backend changes must include unit tests for new public functions and integration tests for Tauri command handlers
+    - Frontend changes must be validated in the running application before being considered complete
+    - Regressions in existing features must be checked when modifying shared modules (main.js, lib.rs, commands.rs)
+    - CI pipelines (ci.yml, security.yml, CodeQL) must pass on every PR
+    - Manual test plans must be included in PR descriptions for UI changes not covered by automated tests
+    - Cross-platform builds (Windows, macOS, Linux) must be validated via the release workflow before tagging a release
+    - File watcher and live-reload behavior must remain unaffected by unrelated feature changes
