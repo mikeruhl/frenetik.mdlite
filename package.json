@@ -45,7 +45,7 @@
     "marked-footnote": "^1.4.0",
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.8",
-    "mermaid": "^11.14.0"
+    "mermaid": "^11.15.0"
   },
   "pnpm": {
     "overrides": {
