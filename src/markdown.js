@@ -10,17 +10,32 @@ import DOMPurify from "dompurify";
 import "katex/dist/katex.min.css";
 
 let mermaidInstance = null;
+let mermaidTheme = "default";
 let mermaidCounter = 0;
 const usedIds = new Set();
 const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
+function appThemeToMermaid(themeId) {
+  return themeId.includes("dark") ? "dark" : "default";
+}
+
 async function getMermaid() {
   if (!mermaidInstance) {
     const { default: mermaid } = await import("mermaid");
-    mermaid.initialize({ startOnLoad: false, theme: "default" });
+    mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
     mermaidInstance = mermaid;
   }
   return mermaidInstance;
+}
+
+export async function setMermaidTheme(themeId) {
+  const next = appThemeToMermaid(themeId);
+  if (next === mermaidTheme && mermaidInstance) return;
+  mermaidTheme = next;
+  if (mermaidInstance) {
+    mermaidInstance.initialize({ startOnLoad: false, theme: mermaidTheme });
+    await renderMermaidBlocks();
+  }
 }
 
 async function openMermaidWindow(svgContent) {
@@ -111,6 +126,27 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
+function sanitizeMermaidSvg(svg) {
+  const doc = new DOMParser().parseFromString(svg, "text/html");
+  doc.querySelectorAll("script, iframe, object, embed").forEach((el) => el.remove());
+  const svgEl = doc.querySelector("svg");
+  if (!svgEl) return "";
+  for (const el of [svgEl, ...svgEl.querySelectorAll("*")]) {
+    for (const attr of [...el.attributes]) {
+      if (attr.name.startsWith("on")) {
+        el.removeAttribute(attr.name);
+      } else if (attr.name === "href" || attr.name === "xlink:href") {
+        // eslint-disable-next-line no-control-regex -- intentional: strip control chars browsers normalize from URLs
+        const scheme = attr.value.replace(/[\x00-\x20]+/g, "").toLowerCase();
+        if (scheme.startsWith("javascript:") || scheme.startsWith("data:") || scheme.startsWith("vbscript:")) {
+          el.removeAttribute(attr.name);
+        }
+      }
+    }
+  }
+  return svgEl.outerHTML;
+}
+
 const contentEl = document.getElementById("content");
 
 export async function renderMermaidBlocks() {
@@ -123,7 +159,7 @@ export async function renderMermaidBlocks() {
     const target = block.querySelector(".mermaid-rendered");
     try {
       const { svg } = await mermaid.render("mermaid-svg-" + block.dataset.mermaidIdx + "-" + Date.now(), code);
-      target.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+      target.innerHTML = sanitizeMermaidSvg(svg);
     } catch (e) {
       const pre = document.createElement("pre");
       pre.className = "mermaid-error";
@@ -178,7 +214,7 @@ export function bindMermaidButtons() {
       const rendered = block.querySelector(".mermaid-rendered");
       const svg = rendered.innerHTML;
       if (svg && !svg.includes("mermaid-error")) {
-        const sanitized = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+        const sanitized = sanitizeMermaidSvg(svg);
         await openMermaidWindow(sanitized);
       }
     });
