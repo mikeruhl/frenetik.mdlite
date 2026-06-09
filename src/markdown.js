@@ -129,7 +129,9 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
 function sanitizeMermaidSvg(svg) {
   const doc = new DOMParser().parseFromString(svg, "text/html");
   doc.querySelectorAll("script, iframe, object, embed").forEach((el) => el.remove());
-  for (const el of doc.querySelectorAll("svg *")) {
+  const svgEl = doc.querySelector("svg");
+  if (!svgEl) return "";
+  for (const el of [svgEl, ...svgEl.querySelectorAll("*")]) {
     for (const attr of [...el.attributes]) {
       if (attr.name.startsWith("on")) {
         el.removeAttribute(attr.name);
@@ -142,8 +144,7 @@ function sanitizeMermaidSvg(svg) {
       }
     }
   }
-  const svgEl = doc.querySelector("svg");
-  return svgEl ? svgEl.outerHTML : "";
+  return svgEl.outerHTML;
 }
 
 const contentEl = document.getElementById("content");

@@ -100,7 +100,8 @@
       const parser = new DOMParser();
       const doc = parser.parseFromString(svg, "text/html");
       doc.querySelectorAll("script, iframe, object, embed").forEach(el => el.remove());
-      for (const el of doc.querySelectorAll("svg *")) {
+      const svgEl = doc.querySelector("svg");
+      for (const el of svgEl ? [svgEl, ...svgEl.querySelectorAll("*")] : []) {
         for (const attr of [...el.attributes]) {
           if (attr.name.startsWith("on")) {
             el.removeAttribute(attr.name);
@@ -112,7 +113,6 @@
           }
         }
       }
-      const svgEl = doc.querySelector("svg");
       diagram.innerHTML = svgEl ? svgEl.outerHTML : "";
 
       let scale = 1;
