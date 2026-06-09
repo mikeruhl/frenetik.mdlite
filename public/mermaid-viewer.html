@@ -95,20 +95,20 @@
       const diagram = document.getElementById("diagram");
       const zoomLevel = document.getElementById("zoom-level");
 
-      // Sanitize SVG: parse into DOM, strip dangerous elements and attributes
+      // Sanitize SVG: parse as HTML so mermaid's foreignObject labels (HTML, with
+      // unclosed <br>) survive, then strip dangerous elements and attributes.
       const parser = new DOMParser();
-      const doc = parser.parseFromString(svg, "image/svg+xml");
-      doc.querySelectorAll("script, foreignObject").forEach(el => el.remove());
-      const allEls = doc.querySelectorAll("*");
-      for (const el of allEls) {
+      const doc = parser.parseFromString(svg, "text/html");
+      doc.querySelectorAll("script").forEach(el => el.remove());
+      for (const el of doc.querySelectorAll("svg *")) {
         for (const attr of [...el.attributes]) {
           if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
           if (attr.name === "href" && attr.value.trim().toLowerCase().startsWith("javascript")) el.removeAttribute(attr.name);
           if (attr.name === "xlink:href" && attr.value.trim().toLowerCase().startsWith("javascript")) el.removeAttribute(attr.name);
         }
       }
-      const sanitizedSvg = doc.documentElement.outerHTML;
-      diagram.innerHTML = sanitizedSvg;
+      const svgEl = doc.querySelector("svg");
+      diagram.innerHTML = svgEl ? svgEl.outerHTML : "";
 
       let scale = 1;
       let panX = 0;

@@ -10,17 +10,32 @@ import DOMPurify from "dompurify";
 import "katex/dist/katex.min.css";
 
 let mermaidInstance = null;
+let mermaidTheme = "default";
 let mermaidCounter = 0;
 const usedIds = new Set();
 const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
+function appThemeToMermaid(themeId) {
+  return themeId.includes("dark") ? "dark" : "default";
+}
+
 async function getMermaid() {
   if (!mermaidInstance) {
     const { default: mermaid } = await import("mermaid");
-    mermaid.initialize({ startOnLoad: false, theme: "default" });
+    mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
     mermaidInstance = mermaid;
   }
   return mermaidInstance;
+}
+
+export async function setMermaidTheme(themeId) {
+  const next = appThemeToMermaid(themeId);
+  if (next === mermaidTheme && mermaidInstance) return;
+  mermaidTheme = next;
+  if (mermaidInstance) {
+    mermaidInstance.initialize({ startOnLoad: false, theme: mermaidTheme });
+    await renderMermaidBlocks();
+  }
 }
 
 async function openMermaidWindow(svgContent) {
@@ -123,7 +138,7 @@ export async function renderMermaidBlocks() {
     const target = block.querySelector(".mermaid-rendered");
     try {
       const { svg } = await mermaid.render("mermaid-svg-" + block.dataset.mermaidIdx + "-" + Date.now(), code);
-      target.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+      target.innerHTML = svg;
     } catch (e) {
       const pre = document.createElement("pre");
       pre.className = "mermaid-error";
@@ -178,8 +193,7 @@ export function bindMermaidButtons() {
       const rendered = block.querySelector(".mermaid-rendered");
       const svg = rendered.innerHTML;
       if (svg && !svg.includes("mermaid-error")) {
-        const sanitized = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
-        await openMermaidWindow(sanitized);
+        await openMermaidWindow(svg);
       }
     });
   });
