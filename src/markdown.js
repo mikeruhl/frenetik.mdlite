@@ -136,7 +136,9 @@ function sanitizeMermaidSvg(svg) {
       } else if (attr.name === "href" || attr.name === "xlink:href") {
         // eslint-disable-next-line no-control-regex -- intentional: strip control chars browsers normalize from URLs
         const scheme = attr.value.replace(/[\x00-\x20]+/g, "").toLowerCase();
-        if (scheme.startsWith("javascript:")) el.removeAttribute(attr.name);
+        if (scheme.startsWith("javascript:") || scheme.startsWith("data:") || scheme.startsWith("vbscript:")) {
+          el.removeAttribute(attr.name);
+        }
       }
     }
   }
