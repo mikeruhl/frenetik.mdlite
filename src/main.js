@@ -124,7 +124,7 @@ A lightweight markdown previewer.
 
 await listen("set-theme", (event) => {
   applyTheme(event.payload);
-  setMermaidTheme(event.payload);
+  setMermaidTheme(event.payload).catch((e) => console.error("Mermaid theme update failed:", e));
 });
 
 await listen("set-zoom", (event) => {
@@ -299,7 +299,7 @@ window.addEventListener("beforeprint", updatePrintHeader);
 
 const savedTheme = (await store.get("theme")) ?? "github";
 applyTheme(savedTheme);
-setMermaidTheme(savedTheme);
+setMermaidTheme(savedTheme).catch((e) => console.error("Mermaid theme init failed:", e));
 
 const savedZoom = (await store.get("zoom")) ?? 100;
 applyZoom(savedZoom);

@@ -11,6 +11,7 @@ export default [
         console: "readonly",
         window: "readonly",
         document: "readonly",
+        DOMParser: "readonly",
         localStorage: "readonly",
         btoa: "readonly",
         atob: "readonly",

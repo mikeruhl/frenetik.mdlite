@@ -126,6 +126,25 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
+function sanitizeMermaidSvg(svg) {
+  const doc = new DOMParser().parseFromString(svg, "text/html");
+  doc.querySelectorAll("script, iframe, object, embed").forEach((el) => el.remove());
+  for (const el of doc.querySelectorAll("svg *")) {
+    for (const attr of [...el.attributes]) {
+      if (attr.name.startsWith("on")) {
+        el.removeAttribute(attr.name);
+      } else if (
+        (attr.name === "href" || attr.name === "xlink:href") &&
+        attr.value.trim().toLowerCase().startsWith("javascript")
+      ) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  }
+  const svgEl = doc.querySelector("svg");
+  return svgEl ? svgEl.outerHTML : "";
+}
+
 const contentEl = document.getElementById("content");
 
 export async function renderMermaidBlocks() {
@@ -138,7 +157,7 @@ export async function renderMermaidBlocks() {
     const target = block.querySelector(".mermaid-rendered");
     try {
       const { svg } = await mermaid.render("mermaid-svg-" + block.dataset.mermaidIdx + "-" + Date.now(), code);
-      target.innerHTML = svg;
+      target.innerHTML = sanitizeMermaidSvg(svg);
     } catch (e) {
       const pre = document.createElement("pre");
       pre.className = "mermaid-error";
@@ -193,7 +212,8 @@ export function bindMermaidButtons() {
       const rendered = block.querySelector(".mermaid-rendered");
       const svg = rendered.innerHTML;
       if (svg && !svg.includes("mermaid-error")) {
-        await openMermaidWindow(svg);
+        const sanitized = sanitizeMermaidSvg(svg);
+        await openMermaidWindow(sanitized);
       }
     });
   });
