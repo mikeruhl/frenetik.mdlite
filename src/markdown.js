@@ -133,11 +133,10 @@ function sanitizeMermaidSvg(svg) {
     for (const attr of [...el.attributes]) {
       if (attr.name.startsWith("on")) {
         el.removeAttribute(attr.name);
-      } else if (
-        (attr.name === "href" || attr.name === "xlink:href") &&
-        attr.value.trim().toLowerCase().startsWith("javascript")
-      ) {
-        el.removeAttribute(attr.name);
+      } else if (attr.name === "href" || attr.name === "xlink:href") {
+        // eslint-disable-next-line no-control-regex -- intentional: strip control chars browsers normalize from URLs
+        const scheme = attr.value.replace(/[\x00-\x20]+/g, "").toLowerCase();
+        if (scheme.startsWith("javascript:")) el.removeAttribute(attr.name);
       }
     }
   }
