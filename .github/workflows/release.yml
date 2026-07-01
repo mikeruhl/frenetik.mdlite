@@ -28,8 +28,33 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-  build:
+  create-release:
     needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create draft release
+        id: create-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '')
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `mdlite ${tag}`,
+              body: 'See the assets below for downloadable binaries.',
+              draft: true,
+              prerelease: false,
+            })
+            return data.id
+
+  build:
+    needs: create-release
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -89,9 +114,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "mdlite ${{ github.ref_name }}"
-          releaseBody: "See the assets below for downloadable binaries."
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: --target ${{ matrix.target }}
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs: [create-release, build]
+    steps:
+      - name: Publish release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ needs.create-release.outputs.release_id }},
+              draft: false,
+            })
+
+  cleanup-failed-release:
+    runs-on: ubuntu-latest
+    needs: [create-release, build]
+    if: always() && needs.create-release.result == 'success' && needs.build.result != 'success'
+    steps:
+      - name: Delete draft release for failed build
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.deleteRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ needs.create-release.outputs.release_id }},
+            })
