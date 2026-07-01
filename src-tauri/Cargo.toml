@@ -29,11 +29,13 @@ tauri-plugin-store = "2"
 reqwest = { version = "0.13", features = ["json"] }
 semver = "1"
 
+# Pinned to match tauri/wry's webview stack (webview2-com 0.38 / windows 0.61).
+# Newer majors resolve to a second ICoreWebView2 type and break the Windows build.
 [target.'cfg(windows)'.dependencies]
-webview2-com = "0.39"
-windows-core = "0.62"
+webview2-com = "0.38"
+windows-core = "0.61"
 windows-implement = "0.60"
-windows = { version = "0.62", features = [
+windows = { version = "0.61", features = [
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",
     "Win32_UI_Shell_PropertiesSystem",
