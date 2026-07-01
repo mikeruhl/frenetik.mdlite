@@ -8,6 +8,7 @@ overrides:
   uuid: '>=14.0.0'
   brace-expansion: '>=5.0.6'
   markdown-it: '>=14.2.0'
+  js-yaml: ^4.2.0
 
 importers:
 
@@ -950,8 +951,8 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
-  js-yaml@4.1.1:
-    resolution: {integrity: sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==}
+  js-yaml@4.3.0:
+    resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
     hasBin: true
 
   json-buffer@3.0.1:
@@ -2307,7 +2308,7 @@ snapshots:
 
   isexe@2.0.0: {}
 
-  js-yaml@4.1.1:
+  js-yaml@4.3.0:
     dependencies:
       argparse: 2.0.1
 
@@ -2442,7 +2443,7 @@ snapshots:
       commander: 14.0.3
       deep-extend: 0.6.0
       ignore: 7.0.5
-      js-yaml: 4.1.1
+      js-yaml: 4.3.0
       jsonc-parser: 3.3.1
       jsonpointer: 5.0.1
       markdown-it: 14.2.0
