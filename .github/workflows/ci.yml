@@ -98,3 +98,28 @@ jobs:
 
       - name: Build
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
+
+  build-windows:
+    needs: [lint, test]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Build
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --no-bundle
