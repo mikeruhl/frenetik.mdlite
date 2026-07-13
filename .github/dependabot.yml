@@ -10,6 +10,18 @@ updates:
     ignore:
       - dependency-name: "rand"
         versions: ["< 0.8.0"]
+      # Windows webview stack is pinned to tauri/wry's versions (webview2-com
+      # 0.38 / windows 0.61). A minor/major bump pulls a second
+      # webview2-com-sys/ICoreWebView2 into the graph and breaks the Windows
+      # build (see #67). Allow patch updates only until tauri/wry advance.
+      - dependency-name: "webview2-com"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "windows"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "windows-core"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "windows-implement"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /
