@@ -2,9 +2,10 @@ use serde::Serialize;
 use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tauri::Emitter;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
 
-use crate::display_path;
+use crate::{display_path, AppState};
 
 #[cfg(unix)]
 fn is_hidden(entry: &std::fs::DirEntry) -> bool {
@@ -124,6 +125,40 @@ fn scan_folder_with_opts(dir: &Path, show_hidden_files: bool) -> Vec<FolderEntry
     folders
 }
 
+/// Recursively collects every markdown file path beneath `root`. A synchronous
+/// reference implementation used only by tests; production code populates the
+/// same registry incrementally inside `run_progressive_scan`'s existing walk
+/// instead of performing a second full traversal.
+#[cfg(test)]
+fn collect_markdown_files(root: &Path, show_hidden_files: bool) -> std::collections::HashSet<std::path::PathBuf> {
+    let mut result = std::collections::HashSet::new();
+    let mut queue: VecDeque<std::path::PathBuf> = VecDeque::new();
+    queue.push_back(root.to_path_buf());
+
+    while let Some(dir) = queue.pop_front() {
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in rd.flatten() {
+            let path = entry.path();
+            if !show_hidden_files && is_hidden(&entry) {
+                continue;
+            }
+            if path.is_dir() {
+                queue.push_back(path);
+            } else if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if is_markdown_ext(ext) {
+                        result.insert(path);
+                    }
+                }
+            }
+        }
+    }
+
+    result
+}
+
 pub(crate) fn find_default_file(dir: &Path) -> Option<std::path::PathBuf> {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -146,9 +181,69 @@ pub(crate) fn find_default_file(dir: &Path) -> Option<std::path::PathBuf> {
     None
 }
 
+struct DirScanResult {
+    /// Subdirectories to recurse into: (name, path).
+    subdirs: Vec<(String, std::path::PathBuf)>,
+    /// Markdown files found directly in this directory: (name, path).
+    markdown_files: Vec<(String, std::path::PathBuf)>,
+}
+
+/// Scans a single directory (non-recursive) for subdirectories and markdown
+/// files. Pure and side-effect-free so it can be exercised directly by tests,
+/// unlike `run_progressive_scan` which needs a live Tauri app/state to run.
+/// This is the actual production file-discovery logic - `run_progressive_scan`
+/// calls it directly, it isn't a separate test-only reference implementation.
+fn scan_directory_entries(dir: &Path, show_hidden_files: bool) -> DirScanResult {
+    let mut subdirs = Vec::new();
+    let mut markdown_files = Vec::new();
+
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return DirScanResult {
+            subdirs,
+            markdown_files,
+        };
+    };
+    let mut items: Vec<_> = rd.flatten().collect();
+    items.sort_by_key(|e| e.file_name());
+
+    for entry in items {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !show_hidden_files && is_hidden(&entry) {
+            continue;
+        }
+        if path.is_dir() {
+            subdirs.push((name, path));
+        } else if path.is_file() {
+            if let Some(ext) = path.extension() {
+                if is_markdown_ext(ext) {
+                    markdown_files.push((name, path));
+                }
+            }
+        }
+    }
+
+    DirScanResult {
+        subdirs,
+        markdown_files,
+    }
+}
+
 pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHandle, show_hidden_files: bool) {
     let gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     std::thread::spawn(move || {
+        {
+            // The generation check must happen while holding the lock: otherwise a
+            // newer scan (or folder switch) can bump SCAN_GENERATION and clear+start
+            // repopulating in the gap between this check and acquiring the lock,
+            // and this now-stale clear would wipe out its work.
+            let state = app.state::<Mutex<AppState>>();
+            let mut state = state.lock().unwrap();
+            if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
+                state.folder_files.clear();
+            }
+        }
+
         let mut queue: VecDeque<(std::path::PathBuf, Vec<DirAncestor>)> = VecDeque::new();
         queue.push_back((root, Vec::new()));
 
@@ -157,48 +252,62 @@ pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHand
                 return;
             }
 
-            let Ok(rd) = std::fs::read_dir(&dir) else {
-                continue;
-            };
-            let mut items: Vec<_> = rd.flatten().collect();
-            items.sort_by_key(|e| e.file_name());
+            let scanned = scan_directory_entries(&dir, show_hidden_files);
 
-            let mut files = Vec::new();
-            for entry in items {
-                let path = entry.path();
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !show_hidden_files && is_hidden(&entry) {
-                    continue;
-                }
-                if path.is_dir() {
-                    let mut child_chain = chain.clone();
-                    child_chain.push(DirAncestor {
-                        name: name.clone(),
-                        path: display_path(&path),
-                    });
-                    queue.push_back((path, child_chain));
-                } else if path.is_file() {
-                    if let Some(ext) = path.extension() {
-                        if is_markdown_ext(ext) {
-                            files.push(FolderEntry {
-                                name,
-                                path: display_path(&path),
-                                is_folder: false,
-                                children: None,
-                            });
-                        }
-                    }
-                }
+            for (name, path) in scanned.subdirs {
+                let mut child_chain = chain.clone();
+                child_chain.push(DirAncestor {
+                    name,
+                    path: display_path(&path),
+                });
+                queue.push_back((path, child_chain));
+            }
+
+            let mut files = Vec::with_capacity(scanned.markdown_files.len());
+            let mut file_paths = Vec::with_capacity(scanned.markdown_files.len());
+            for (name, path) in scanned.markdown_files {
+                files.push(FolderEntry {
+                    name,
+                    path: display_path(&path),
+                    is_folder: false,
+                    children: None,
+                });
+                file_paths.push(path);
             }
 
             if !files.is_empty() && SCAN_GENERATION.load(Ordering::Relaxed) == gen {
-                let _ = app.emit(
-                    "folder-scan-files",
-                    FolderScanFiles {
-                        path_chain: chain,
-                        files,
-                    },
-                );
+                // Re-verify each path still exists right before registering/emitting it,
+                // shrinking (though not eliminating) the window for a concurrent delete
+                // between read_dir and here to leave a stale registry/DOM entry behind.
+                let mut still_present_files = Vec::with_capacity(files.len());
+                let mut still_present_paths = Vec::with_capacity(file_paths.len());
+                for (file, path) in files.into_iter().zip(file_paths) {
+                    if path.is_file() {
+                        still_present_paths.push(path);
+                        still_present_files.push(file);
+                    }
+                }
+
+                if !still_present_files.is_empty() {
+                    // The generation check, the registry insert, and the emit must all
+                    // happen under one lock: a newer scan's clear (also lock-guarded)
+                    // otherwise could land between the insert and the emit, letting this
+                    // now-stale batch reach the frontend after the registry moved on.
+                    let state = app.state::<Mutex<AppState>>();
+                    let mut state = state.lock().unwrap();
+                    if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
+                        for path in still_present_paths {
+                            state.folder_files.insert(path);
+                        }
+                        let _ = app.emit(
+                            "folder-scan-files",
+                            FolderScanFiles {
+                                path_chain: chain,
+                                files: still_present_files,
+                            },
+                        );
+                    }
+                }
             }
         }
 
@@ -563,6 +672,111 @@ mod tests {
 
         let chain = compute_path_chain(tmp.path(), &file);
         assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn collect_markdown_files_nested_structure() {
+        let tmp = TempDir::new().unwrap();
+        let docs = create_subdir(tmp.path(), "docs");
+        let deep = create_subdir(&docs, "api");
+        create_file(&deep, "reference.md");
+        create_file(tmp.path(), "README.md");
+        create_file(tmp.path(), "image.png");
+
+        let files = collect_markdown_files(tmp.path(), false);
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&tmp.path().join("README.md")));
+        assert!(files.contains(&deep.join("reference.md")));
+    }
+
+    #[test]
+    fn collect_markdown_files_skips_hidden_directories() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), ".git");
+        create_file(&hidden, "HEAD.md");
+        create_file(tmp.path(), "visible.md");
+
+        let files = collect_markdown_files(tmp.path(), false);
+        assert_eq!(files.len(), 1);
+        assert!(files.contains(&tmp.path().join("visible.md")));
+    }
+
+    #[test]
+    fn collect_markdown_files_includes_hidden_when_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), ".hidden");
+        create_file(&hidden, "secret.md");
+        create_file(tmp.path(), "visible.md");
+
+        let files = collect_markdown_files(tmp.path(), true);
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&hidden.join("secret.md")));
+    }
+
+    #[test]
+    fn collect_markdown_files_empty_dir_returns_empty_set() {
+        let tmp = TempDir::new().unwrap();
+        let files = collect_markdown_files(tmp.path(), false);
+        assert!(files.is_empty());
+    }
+
+    // scan_directory_entries is the actual production file-discovery logic
+    // run_progressive_scan calls - unlike collect_markdown_files above, these
+    // tests exercise the real code path used for registry population.
+
+    #[test]
+    fn scan_directory_entries_finds_markdown_files_and_subdirs() {
+        let tmp = TempDir::new().unwrap();
+        create_file(tmp.path(), "readme.md");
+        create_file(tmp.path(), "image.png");
+        let sub = create_subdir(tmp.path(), "docs");
+
+        let result = scan_directory_entries(tmp.path(), false);
+
+        assert_eq!(result.markdown_files.len(), 1);
+        assert_eq!(result.markdown_files[0].0, "readme.md");
+        assert_eq!(result.markdown_files[0].1, tmp.path().join("readme.md"));
+
+        assert_eq!(result.subdirs.len(), 1);
+        assert_eq!(result.subdirs[0].0, "docs");
+        assert_eq!(result.subdirs[0].1, sub);
+    }
+
+    #[test]
+    fn scan_directory_entries_is_not_recursive() {
+        let tmp = TempDir::new().unwrap();
+        let sub = create_subdir(tmp.path(), "docs");
+        create_file(&sub, "nested.md");
+
+        let result = scan_directory_entries(tmp.path(), false);
+
+        assert!(result.markdown_files.is_empty());
+        assert_eq!(result.subdirs.len(), 1);
+    }
+
+    #[test]
+    fn scan_directory_entries_skips_hidden_unless_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), ".git");
+        create_file(&hidden, "HEAD.md");
+        create_file(tmp.path(), "visible.md");
+
+        let result = scan_directory_entries(tmp.path(), false);
+        assert_eq!(result.subdirs.len(), 0);
+        assert_eq!(result.markdown_files.len(), 1);
+
+        let result_shown = scan_directory_entries(tmp.path(), true);
+        assert_eq!(result_shown.subdirs.len(), 1);
+    }
+
+    #[test]
+    fn scan_directory_entries_nonexistent_dir_returns_empty() {
+        let tmp = TempDir::new().unwrap();
+        let missing = tmp.path().join("does-not-exist");
+
+        let result = scan_directory_entries(&missing, false);
+        assert!(result.subdirs.is_empty());
+        assert!(result.markdown_files.is_empty());
     }
 
     #[test]

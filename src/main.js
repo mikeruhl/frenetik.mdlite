@@ -138,6 +138,8 @@ await listen("file-changed", (event) => {
 
 await listen("enter-folder-mode", async () => {
   startupErrorMsg = null;
+  clearTimeout(folderChangedTimer);
+  pendingFolderChanges = [];
   await enterFolderMode();
 });
 
@@ -152,19 +154,28 @@ await listen("folder-scan-complete", () => {
 });
 
 let folderChangedTimer;
+let pendingFolderChanges = [];
 await listen("folder-changed", (event) => {
   if (!document.body.classList.contains("folder-mode")) return;
+  pendingFolderChanges.push(...event.payload);
   clearTimeout(folderChangedTimer);
-  folderChangedTimer = setTimeout(() => applyFolderChanges(event.payload), 500);
+  folderChangedTimer = setTimeout(() => {
+    const changes = pendingFolderChanges;
+    pendingFolderChanges = [];
+    applyFolderChanges(changes);
+  }, 500);
 });
 
 await listen("rescan-folder", () => {
   if (!document.body.classList.contains("folder-mode")) return;
+  clearTimeout(folderChangedTimer);
+  pendingFolderChanges = [];
   resetSidebarForRescan();
 });
 
 await listen("enter-file-mode", () => {
   clearTimeout(folderChangedTimer);
+  pendingFolderChanges = [];
   exitFolderMode();
 });
 
