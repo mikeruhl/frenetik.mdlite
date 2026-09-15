@@ -112,6 +112,11 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                     let mut changes: Vec<FolderChangeEntry> = Vec::new();
 
                     if current_touched && !current.is_file() {
+                        {
+                            let mutex = app.state::<Mutex<AppState>>();
+                            let mut state = mutex.lock().unwrap();
+                            state.folder_files.remove(&current);
+                        }
                         changes.push(FolderChangeEntry {
                             path: crate::display_path(&current),
                             name: current
