@@ -110,102 +110,30 @@ pub(crate) fn start_folder_watcher(
             match result {
                 Ok(events) => {
                     // This watcher's root may have been superseded by a folder switch
-                    // (switch_to_folder/switch_file bump FOLDER_GEN before replacing this
-                    // debouncer). Events already queued before that replacement can still
-                    // arrive here; discard the whole batch rather than let a stale watcher
-                    // mutate the new folder's registry.
-                    if folder_watcher_is_stale(folder_gen) {
-                        continue;
-                    }
-
-                    let (current, folder_root) = {
+                    // (switch_to_folder/switch_file bump FOLDER_GEN and clear folder_files
+                    // under a single AppState lock before replacing this debouncer). The
+                    // staleness check and every folder_files read/mutation below happen
+                    // under one lock acquisition so a switch can't land in between and have
+                    // this stale batch repopulate the new folder's registry/nav.
+                    let (current, current_touched, changes) = {
                         let mutex = app.state::<Mutex<AppState>>();
-                        let state = mutex.lock().unwrap();
-                        (state.file_path.clone(), state.folder_path.clone())
-                    };
+                        let mut state = mutex.lock().unwrap();
 
-                    let current_touched = events.iter().any(|e| e.path == current);
-                    if current_touched {
-                        if let Ok(content) = std::fs::read_to_string(&current) {
-                            let _ = app.emit("file-changed", content);
+                        if folder_watcher_is_stale(folder_gen) {
+                            continue;
                         }
-                    }
 
-                    let mut changes: Vec<FolderChangeEntry> = Vec::new();
+                        let current = state.file_path.clone();
+                        let folder_root = state.folder_path.clone();
+                        let current_touched = events.iter().any(|e| e.path == current);
 
-                    if current_touched && !current.is_file() {
-                        {
-                            let mutex = app.state::<Mutex<AppState>>();
-                            let mut state = mutex.lock().unwrap();
+                        let mut changes: Vec<FolderChangeEntry> = Vec::new();
+
+                        if current_touched && !current.is_file() {
                             state.folder_files.remove(&current);
-                        }
-                        changes.push(FolderChangeEntry {
-                            path: crate::display_path(&current),
-                            name: current
-                                .file_name()
-                                .map(|n| n.to_string_lossy().to_string())
-                                .unwrap_or_default(),
-                            exists: false,
-                            path_chain: vec![],
-                        });
-                    }
-
-                    for event in &events {
-                        if event.path == current {
-                            continue;
-                        }
-
-                        if event.path.is_file() && event.path.extension().is_some_and(is_markdown_ext) {
-                            let path_chain = folder_root
-                                .as_ref()
-                                .map(|root| compute_path_chain(root, &event.path))
-                                .unwrap_or_default();
-
-                            {
-                                let mutex = app.state::<Mutex<AppState>>();
-                                let mut state = mutex.lock().unwrap();
-                                state.folder_files.insert(event.path.clone());
-                            }
-
                             changes.push(FolderChangeEntry {
-                                path: crate::display_path(&event.path),
-                                name: event
-                                    .path
-                                    .file_name()
-                                    .map(|n| n.to_string_lossy().to_string())
-                                    .unwrap_or_default(),
-                                exists: true,
-                                path_chain,
-                            });
-                            continue;
-                        }
-
-                        // Not currently an existing file - a deleted markdown file, a deleted
-                        // directory (including one with a markdown-looking name like `docs.md`),
-                        // or an unrelated path that still exists. `removed_folder_change_entries`
-                        // self-matches (a path is its own prefix), so a single deleted file is
-                        // handled the same way as a deleted directory's tracked descendants; an
-                        // existing, irrelevant path or one with no tracked descendants is a no-op.
-                        if event.path.exists() {
-                            continue;
-                        }
-
-                        let removed_changes = {
-                            let mutex = app.state::<Mutex<AppState>>();
-                            let mut state = mutex.lock().unwrap();
-                            removed_folder_change_entries(&event.path, &mut state.folder_files)
-                        };
-                        changes.extend(removed_changes);
-
-                        // Safety net: if the deleted path itself looks like a markdown file,
-                        // always emit its own removal directly, even if the registry didn't
-                        // have it tracked (e.g. deleted before the scan ever registered it).
-                        // Deduped below against any matching entry the expansion already found.
-                        if event.path.extension().is_some_and(is_markdown_ext) {
-                            changes.push(FolderChangeEntry {
-                                path: crate::display_path(&event.path),
-                                name: event
-                                    .path
+                                path: crate::display_path(&current),
+                                name: current
                                     .file_name()
                                     .map(|n| n.to_string_lossy().to_string())
                                     .unwrap_or_default(),
@@ -213,8 +141,74 @@ pub(crate) fn start_folder_watcher(
                                 path_chain: vec![],
                             });
                         }
+
+                        for event in &events {
+                            if event.path == current {
+                                continue;
+                            }
+
+                            if event.path.is_file() && event.path.extension().is_some_and(is_markdown_ext) {
+                                let path_chain = folder_root
+                                    .as_ref()
+                                    .map(|root| compute_path_chain(root, &event.path))
+                                    .unwrap_or_default();
+
+                                state.folder_files.insert(event.path.clone());
+
+                                changes.push(FolderChangeEntry {
+                                    path: crate::display_path(&event.path),
+                                    name: event
+                                        .path
+                                        .file_name()
+                                        .map(|n| n.to_string_lossy().to_string())
+                                        .unwrap_or_default(),
+                                    exists: true,
+                                    path_chain,
+                                });
+                                continue;
+                            }
+
+                            // Not currently an existing file - a deleted markdown file, a deleted
+                            // directory (including one with a markdown-looking name like `docs.md`),
+                            // or an unrelated path that still exists. `removed_folder_change_entries`
+                            // self-matches (a path is its own prefix), so a single deleted file is
+                            // handled the same way as a deleted directory's tracked descendants; an
+                            // existing, irrelevant path or one with no tracked descendants is a no-op.
+                            if event.path.exists() {
+                                continue;
+                            }
+
+                            let removed_changes = removed_folder_change_entries(&event.path, &mut state.folder_files);
+                            changes.extend(removed_changes);
+
+                            // Safety net: if the deleted path itself looks like a markdown file,
+                            // always emit its own removal directly, even if the registry didn't
+                            // have it tracked (e.g. deleted before the scan ever registered it).
+                            // Deduped below against any matching entry the expansion already found.
+                            if event.path.extension().is_some_and(is_markdown_ext) {
+                                changes.push(FolderChangeEntry {
+                                    path: crate::display_path(&event.path),
+                                    name: event
+                                        .path
+                                        .file_name()
+                                        .map(|n| n.to_string_lossy().to_string())
+                                        .unwrap_or_default(),
+                                    exists: false,
+                                    path_chain: vec![],
+                                });
+                            }
+                        }
+
+                        (current, current_touched, changes)
+                    };
+
+                    if current_touched {
+                        if let Ok(content) = std::fs::read_to_string(&current) {
+                            let _ = app.emit("file-changed", content);
+                        }
                     }
 
+                    let mut changes = changes;
                     let mut seen = std::collections::HashSet::new();
                     changes.retain(|c| seen.insert(c.path.clone()));
 
