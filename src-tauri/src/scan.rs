@@ -289,23 +289,16 @@ pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHand
                 }
 
                 if !still_present_files.is_empty() {
-                    // Same atomicity requirement as the clear above: the generation
-                    // check and the registry insert must happen under one lock so a
-                    // newer scan can't clear in between, which would otherwise let
-                    // this now-stale batch pollute the newer scan's registry/tree.
-                    let should_emit = {
-                        let state = app.state::<Mutex<AppState>>();
-                        let mut state = state.lock().unwrap();
-                        if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
-                            for path in still_present_paths {
-                                state.folder_files.insert(path);
-                            }
-                            true
-                        } else {
-                            false
+                    // The generation check, the registry insert, and the emit must all
+                    // happen under one lock: a newer scan's clear (also lock-guarded)
+                    // otherwise could land between the insert and the emit, letting this
+                    // now-stale batch reach the frontend after the registry moved on.
+                    let state = app.state::<Mutex<AppState>>();
+                    let mut state = state.lock().unwrap();
+                    if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
+                        for path in still_present_paths {
+                            state.folder_files.insert(path);
                         }
-                    };
-                    if should_emit {
                         let _ = app.emit(
                             "folder-scan-files",
                             FolderScanFiles {

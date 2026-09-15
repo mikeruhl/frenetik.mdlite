@@ -11,6 +11,7 @@ use notify::RecommendedWatcher;
 use notify_debouncer_mini::Debouncer;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_cli::CliExt;
@@ -19,7 +20,7 @@ use tauri_plugin_dialog::DialogExt;
 use commands::*;
 use config::*;
 use menu::*;
-use scan::find_default_file;
+use scan::{find_default_file, SCAN_GENERATION};
 use watcher::*;
 
 #[derive(Clone, PartialEq)]
@@ -67,6 +68,9 @@ pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         let old_dir = s.file_path.parent().map(|p| p.to_path_buf());
         let new_dir = new_path.parent().map(|p| p.to_path_buf());
         let was_other = s.mode != AppMode::File;
+        // Bump the generation before clearing so any in-flight folder scan or folder
+        // watcher (still tagged with the old generation) stops touching this state.
+        SCAN_GENERATION.fetch_add(1, Ordering::Relaxed);
         s.file_path = new_path.clone();
         s.mode = AppMode::File;
         s.folder_path = None;
@@ -107,15 +111,20 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
     let default_file = find_default_file(&folder_path);
     let file_path = default_file.clone().unwrap_or_default();
 
-    {
+    let folder_gen = {
         let state = app.state::<Mutex<AppState>>();
         let mut s = state.lock().unwrap();
+        // Bump the generation before clearing so any in-flight scan or watcher from
+        // the previous folder (still tagged with the old generation) stops touching
+        // this state instead of repopulating it after the switch.
+        let folder_gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
         s.mode = AppMode::Folder;
         s.folder_path = Some(folder_path.clone());
         s.folder_files.clear();
         s.file_path = file_path.clone();
         s.startup_error = None;
-    }
+        folder_gen
+    };
 
     let folder_name = folder_path
         .file_name()
@@ -136,7 +145,7 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         let state = app.state::<Mutex<AppState>>();
         let mut s = state.lock().unwrap();
         s.debouncer = None;
-        s.folder_debouncer = start_folder_watcher(&folder_path, app.clone());
+        s.folder_debouncer = start_folder_watcher(&folder_path, app.clone(), folder_gen);
     }
 
     let recent_folders = store_add_recent_folder(app, &folder_path);
@@ -285,8 +294,9 @@ pub fn run() {
 
             if mode == AppMode::Folder {
                 if let Some(ref fp) = folder_path_for_watch {
+                    let folder_gen = SCAN_GENERATION.load(Ordering::Relaxed);
                     app.state::<Mutex<AppState>>().lock().unwrap().folder_debouncer =
-                        start_folder_watcher(fp, app.handle().clone());
+                        start_folder_watcher(fp, app.handle().clone(), folder_gen);
                 }
             } else if !file_path.as_os_str().is_empty() {
                 let watch_dir = file_path.parent().unwrap_or(&file_path).to_path_buf();

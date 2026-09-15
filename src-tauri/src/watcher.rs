@@ -4,12 +4,13 @@ use notify_debouncer_mini::{new_debouncer, Debouncer};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::Emitter;
 use tauri::Manager;
 
-use crate::scan::{compute_path_chain, is_markdown_ext, DirAncestor};
+use crate::scan::{compute_path_chain, is_markdown_ext, DirAncestor, SCAN_GENERATION};
 use crate::AppState;
 
 #[derive(Serialize, Clone)]
@@ -81,7 +82,11 @@ pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Option<D
     Some(debouncer)
 }
 
-pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) -> Option<Debouncer<RecommendedWatcher>> {
+pub(crate) fn start_folder_watcher(
+    folder_root: &Path,
+    app: tauri::AppHandle,
+    folder_gen: u64,
+) -> Option<Debouncer<RecommendedWatcher>> {
     let (tx, rx) = std::sync::mpsc::channel();
     let Ok(mut debouncer) = new_debouncer(Duration::from_millis(300), tx) else {
         eprintln!("Failed to create folder watcher");
@@ -96,6 +101,15 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
         for result in rx {
             match result {
                 Ok(events) => {
+                    // This watcher's root may have been superseded by a folder switch
+                    // (switch_to_folder/switch_file bump SCAN_GENERATION before replacing
+                    // this debouncer). Events already queued before that replacement can
+                    // still arrive here; discard the whole batch rather than let a stale
+                    // watcher mutate the new folder's registry.
+                    if SCAN_GENERATION.load(Ordering::Relaxed) != folder_gen {
+                        continue;
+                    }
+
                     let (current, folder_root) = {
                         let mutex = app.state::<Mutex<AppState>>();
                         let state = mutex.lock().unwrap();
