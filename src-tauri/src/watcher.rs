@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::Emitter;
 use tauri::Manager;
 
-use crate::scan::{compute_path_chain, is_markdown_ext, DirAncestor, SCAN_GENERATION};
+use crate::scan::{compute_path_chain, is_markdown_ext, DirAncestor, FOLDER_GEN};
 use crate::AppState;
 
 #[derive(Serialize, Clone)]
@@ -82,6 +82,14 @@ pub(crate) fn start_watcher(watch_dir: &Path, app: tauri::AppHandle) -> Option<D
     Some(debouncer)
 }
 
+/// Whether a folder watcher batch tagged with `folder_gen` should be discarded because the
+/// watched target has moved on since the watcher was created. Only `FOLDER_GEN` (a real
+/// folder/file switch) invalidates a watcher - a scan restart for the same folder only bumps
+/// `SCAN_GENERATION`, which this deliberately ignores.
+fn folder_watcher_is_stale(folder_gen: u64) -> bool {
+    FOLDER_GEN.load(Ordering::Relaxed) != folder_gen
+}
+
 pub(crate) fn start_folder_watcher(
     folder_root: &Path,
     app: tauri::AppHandle,
@@ -102,11 +110,11 @@ pub(crate) fn start_folder_watcher(
             match result {
                 Ok(events) => {
                     // This watcher's root may have been superseded by a folder switch
-                    // (switch_to_folder/switch_file bump SCAN_GENERATION before replacing
-                    // this debouncer). Events already queued before that replacement can
-                    // still arrive here; discard the whole batch rather than let a stale
-                    // watcher mutate the new folder's registry.
-                    if SCAN_GENERATION.load(Ordering::Relaxed) != folder_gen {
+                    // (switch_to_folder/switch_file bump FOLDER_GEN before replacing this
+                    // debouncer). Events already queued before that replacement can still
+                    // arrive here; discard the whole batch rather than let a stale watcher
+                    // mutate the new folder's registry.
+                    if folder_watcher_is_stale(folder_gen) {
                         continue;
                     }
 
@@ -225,6 +233,38 @@ pub(crate) fn start_folder_watcher(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // FOLDER_GEN and SCAN_GENERATION are process-global statics shared across the whole test
+    // binary. No other test in this crate touches them, but the two tests below both do, and
+    // cargo runs tests in parallel by default - so they share this lock to stay serialized
+    // against each other and avoid a read-modify-read race on the same generation value.
+    static GEN_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn folder_watcher_guard_ignores_scan_generation_bumps() {
+        let _guard = GEN_TEST_LOCK.lock().unwrap();
+        let folder_gen = FOLDER_GEN.load(Ordering::Relaxed);
+        assert!(!folder_watcher_is_stale(folder_gen));
+
+        // A scan restart (initial scan, manual rescan) for the same folder only bumps
+        // SCAN_GENERATION - this must not be mistaken for a folder/file switch.
+        crate::scan::SCAN_GENERATION.fetch_add(1, Ordering::Relaxed);
+        assert!(
+            !folder_watcher_is_stale(folder_gen),
+            "a scan restart must not invalidate the folder watcher"
+        );
+    }
+
+    #[test]
+    fn folder_watcher_guard_trips_on_folder_gen_bump() {
+        let _guard = GEN_TEST_LOCK.lock().unwrap();
+        let folder_gen = FOLDER_GEN.load(Ordering::Relaxed);
+        FOLDER_GEN.fetch_add(1, Ordering::Relaxed);
+        assert!(
+            folder_watcher_is_stale(folder_gen),
+            "a real folder/file switch must invalidate the folder watcher"
+        );
+    }
 
     #[test]
     fn removed_folder_change_entries_expands_tracked_descendants() {

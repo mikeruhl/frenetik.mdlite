@@ -20,7 +20,7 @@ use tauri_plugin_dialog::DialogExt;
 use commands::*;
 use config::*;
 use menu::*;
-use scan::{find_default_file, SCAN_GENERATION};
+use scan::{find_default_file, FOLDER_GEN, SCAN_GENERATION};
 use watcher::*;
 
 #[derive(Clone, PartialEq)]
@@ -71,6 +71,7 @@ pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         // Bump the generation before clearing so any in-flight folder scan or folder
         // watcher (still tagged with the old generation) stops touching this state.
         SCAN_GENERATION.fetch_add(1, Ordering::Relaxed);
+        FOLDER_GEN.fetch_add(1, Ordering::Relaxed);
         s.file_path = new_path.clone();
         s.mode = AppMode::File;
         s.folder_path = None;
@@ -117,7 +118,11 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         // Bump the generation before clearing so any in-flight scan or watcher from
         // the previous folder (still tagged with the old generation) stops touching
         // this state instead of repopulating it after the switch.
-        let folder_gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+        SCAN_GENERATION.fetch_add(1, Ordering::Relaxed);
+        // FOLDER_GEN identifies the watched target itself; the watcher created below is
+        // tagged with this value so a later scan restart (which only bumps
+        // SCAN_GENERATION) doesn't invalidate it - only a real folder/file switch does.
+        let folder_gen = FOLDER_GEN.fetch_add(1, Ordering::Relaxed) + 1;
         s.mode = AppMode::Folder;
         s.folder_path = Some(folder_path.clone());
         s.folder_files.clear();
@@ -294,7 +299,7 @@ pub fn run() {
 
             if mode == AppMode::Folder {
                 if let Some(ref fp) = folder_path_for_watch {
-                    let folder_gen = SCAN_GENERATION.load(Ordering::Relaxed);
+                    let folder_gen = FOLDER_GEN.load(Ordering::Relaxed);
                     app.state::<Mutex<AppState>>().lock().unwrap().folder_debouncer =
                         start_folder_watcher(fp, app.handle().clone(), folder_gen);
                 }
