@@ -184,6 +184,11 @@ pub(crate) fn find_default_file(dir: &Path) -> Option<std::path::PathBuf> {
 pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHandle, show_hidden_files: bool) {
     let gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     std::thread::spawn(move || {
+        if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
+            let state = app.state::<Mutex<AppState>>();
+            state.lock().unwrap().folder_files.clear();
+        }
+
         let mut queue: VecDeque<(std::path::PathBuf, Vec<DirAncestor>)> = VecDeque::new();
         queue.push_back((root, Vec::new()));
 
@@ -229,20 +234,34 @@ pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHand
             }
 
             if !files.is_empty() && SCAN_GENERATION.load(Ordering::Relaxed) == gen {
-                {
-                    let state = app.state::<Mutex<AppState>>();
-                    let mut state = state.lock().unwrap();
-                    for path in file_paths {
-                        state.folder_files.insert(path);
+                // Re-verify each path still exists right before registering/emitting it,
+                // shrinking (though not eliminating) the window for a concurrent delete
+                // between read_dir and here to leave a stale registry/DOM entry behind.
+                let mut still_present_files = Vec::with_capacity(files.len());
+                let mut still_present_paths = Vec::with_capacity(file_paths.len());
+                for (file, path) in files.into_iter().zip(file_paths) {
+                    if path.is_file() {
+                        still_present_paths.push(path);
+                        still_present_files.push(file);
                     }
                 }
-                let _ = app.emit(
-                    "folder-scan-files",
-                    FolderScanFiles {
-                        path_chain: chain,
-                        files,
-                    },
-                );
+
+                if !still_present_files.is_empty() {
+                    {
+                        let state = app.state::<Mutex<AppState>>();
+                        let mut state = state.lock().unwrap();
+                        for path in still_present_paths {
+                            state.folder_files.insert(path);
+                        }
+                    }
+                    let _ = app.emit(
+                        "folder-scan-files",
+                        FolderScanFiles {
+                            path_chain: chain,
+                            files: still_present_files,
+                        },
+                    );
+                }
             }
         }
 

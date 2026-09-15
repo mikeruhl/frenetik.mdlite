@@ -169,6 +169,23 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                             removed_folder_change_entries(&event.path, &mut state.folder_files)
                         };
                         changes.extend(removed_changes);
+
+                        // Safety net: if the deleted path itself looks like a markdown file,
+                        // always emit its own removal directly, even if the registry didn't
+                        // have it tracked (e.g. deleted before the scan ever registered it).
+                        // Deduped below against any matching entry the expansion already found.
+                        if event.path.extension().is_some_and(is_markdown_ext) {
+                            changes.push(FolderChangeEntry {
+                                path: crate::display_path(&event.path),
+                                name: event
+                                    .path
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_default(),
+                                exists: false,
+                                path_chain: vec![],
+                            });
+                        }
                     }
 
                     let mut seen = std::collections::HashSet::new();
