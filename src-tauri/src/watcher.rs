@@ -128,25 +128,16 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                             continue;
                         }
 
-                        if event.path.extension().is_some_and(is_markdown_ext) {
-                            let exists = event.path.is_file();
-                            let path_chain = if exists {
-                                folder_root
-                                    .as_ref()
-                                    .map(|root| compute_path_chain(root, &event.path))
-                                    .unwrap_or_default()
-                            } else {
-                                vec![]
-                            };
+                        if event.path.is_file() && event.path.extension().is_some_and(is_markdown_ext) {
+                            let path_chain = folder_root
+                                .as_ref()
+                                .map(|root| compute_path_chain(root, &event.path))
+                                .unwrap_or_default();
 
                             {
                                 let mutex = app.state::<Mutex<AppState>>();
                                 let mut state = mutex.lock().unwrap();
-                                if exists {
-                                    state.folder_files.insert(event.path.clone());
-                                } else {
-                                    state.folder_files.remove(&event.path);
-                                }
+                                state.folder_files.insert(event.path.clone());
                             }
 
                             changes.push(FolderChangeEntry {
@@ -156,16 +147,18 @@ pub(crate) fn start_folder_watcher(folder_root: &Path, app: tauri::AppHandle) ->
                                     .file_name()
                                     .map(|n| n.to_string_lossy().to_string())
                                     .unwrap_or_default(),
-                                exists,
+                                exists: true,
                                 path_chain,
                             });
                             continue;
                         }
 
-                        // Non-markdown path (or one with no extension, like a directory).
-                        // If it still exists, it's irrelevant to the nav tree. If it's
-                        // gone, it may be a deleted directory - expand it into removals
-                        // for every markdown file the registry tracked beneath it.
+                        // Not currently an existing file - a deleted markdown file, a deleted
+                        // directory (including one with a markdown-looking name like `docs.md`),
+                        // or an unrelated path that still exists. `removed_folder_change_entries`
+                        // self-matches (a path is its own prefix), so a single deleted file is
+                        // handled the same way as a deleted directory's tracked descendants; an
+                        // existing, irrelevant path or one with no tracked descendants is a no-op.
                         if event.path.exists() {
                             continue;
                         }
@@ -199,12 +192,13 @@ mod tests {
 
     #[test]
     fn removed_folder_change_entries_expands_tracked_descendants() {
+        let root = PathBuf::from("root");
         let mut registry: HashSet<PathBuf> = HashSet::new();
-        registry.insert(PathBuf::from(r"C:\root\docs\a.md"));
-        registry.insert(PathBuf::from(r"C:\root\docs\sub\b.md"));
-        registry.insert(PathBuf::from(r"C:\root\other.md"));
+        registry.insert(root.join("docs").join("a.md"));
+        registry.insert(root.join("docs").join("sub").join("b.md"));
+        registry.insert(root.join("other.md"));
 
-        let removed_dir = PathBuf::from(r"C:\root\docs");
+        let removed_dir = root.join("docs");
         let mut entries = removed_folder_change_entries(&removed_dir, &mut registry);
         entries.sort_by(|a, b| a.path.cmp(&b.path));
 
@@ -215,15 +209,16 @@ mod tests {
         assert!(entries.iter().any(|e| e.path.ends_with("b.md")));
 
         assert_eq!(registry.len(), 1);
-        assert!(registry.contains(&PathBuf::from(r"C:\root\other.md")));
+        assert!(registry.contains(&root.join("other.md")));
     }
 
     #[test]
     fn removed_folder_change_entries_noop_when_no_descendants_tracked() {
+        let root = PathBuf::from("root");
         let mut registry: HashSet<PathBuf> = HashSet::new();
-        registry.insert(PathBuf::from(r"C:\root\other.md"));
+        registry.insert(root.join("other.md"));
 
-        let removed_dir = PathBuf::from(r"C:\root\unrelated");
+        let removed_dir = root.join("unrelated");
         let entries = removed_folder_change_entries(&removed_dir, &mut registry);
 
         assert!(entries.is_empty());
@@ -232,13 +227,29 @@ mod tests {
 
     #[test]
     fn removed_folder_change_entries_does_not_match_sibling_with_shared_prefix() {
+        let root = PathBuf::from("root");
         let mut registry: HashSet<PathBuf> = HashSet::new();
-        registry.insert(PathBuf::from(r"C:\root\docs-extra\c.md"));
+        registry.insert(root.join("docs-extra").join("c.md"));
 
-        let removed_dir = PathBuf::from(r"C:\root\docs");
+        let removed_dir = root.join("docs");
         let entries = removed_folder_change_entries(&removed_dir, &mut registry);
 
         assert!(entries.is_empty());
         assert_eq!(registry.len(), 1);
+    }
+
+    #[test]
+    fn directory_named_with_markdown_extension_is_not_a_file() {
+        // Guards the precondition the watcher relies on: a directory literally
+        // named `docs.md` must be routed through the descendant-expansion path
+        // (event.path.is_file() == false), not treated as a single markdown file
+        // just because its extension matches.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir_with_md_name = tmp.path().join("docs.md");
+        std::fs::create_dir(&dir_with_md_name).unwrap();
+
+        assert!(dir_with_md_name.extension().is_some_and(is_markdown_ext));
+        assert!(!dir_with_md_name.is_file());
+        assert!(dir_with_md_name.is_dir());
     }
 }

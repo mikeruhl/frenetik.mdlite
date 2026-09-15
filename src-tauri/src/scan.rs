@@ -1,6 +1,6 @@
 use serde::Serialize;
-use std::collections::{HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::collections::VecDeque;
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -125,13 +125,14 @@ fn scan_folder_with_opts(dir: &Path, show_hidden_files: bool) -> Vec<FolderEntry
     folders
 }
 
-/// Recursively collects every markdown file path beneath `root`. Used to seed
-/// the folder-watcher's descendant registry so a directory deletion can be
-/// expanded into per-file removals even when the OS reports only one event
-/// for the deleted directory itself.
-pub(crate) fn collect_markdown_files(root: &Path, show_hidden_files: bool) -> HashSet<PathBuf> {
-    let mut result = HashSet::new();
-    let mut queue: VecDeque<PathBuf> = VecDeque::new();
+/// Recursively collects every markdown file path beneath `root`. A synchronous
+/// reference implementation used only by tests; production code populates the
+/// same registry incrementally inside `run_progressive_scan`'s existing walk
+/// instead of performing a second full traversal.
+#[cfg(test)]
+fn collect_markdown_files(root: &Path, show_hidden_files: bool) -> std::collections::HashSet<std::path::PathBuf> {
+    let mut result = std::collections::HashSet::new();
+    let mut queue: VecDeque<std::path::PathBuf> = VecDeque::new();
     queue.push_back(root.to_path_buf());
 
     while let Some(dir) = queue.pop_front() {
@@ -183,12 +184,6 @@ pub(crate) fn find_default_file(dir: &Path) -> Option<std::path::PathBuf> {
 pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHandle, show_hidden_files: bool) {
     let gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     std::thread::spawn(move || {
-        let markdown_files = collect_markdown_files(&root, show_hidden_files);
-        if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
-            let state = app.state::<Mutex<AppState>>();
-            state.lock().unwrap().folder_files = markdown_files;
-        }
-
         let mut queue: VecDeque<(std::path::PathBuf, Vec<DirAncestor>)> = VecDeque::new();
         queue.push_back((root, Vec::new()));
 
@@ -204,6 +199,7 @@ pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHand
             items.sort_by_key(|e| e.file_name());
 
             let mut files = Vec::new();
+            let mut file_paths = Vec::new();
             for entry in items {
                 let path = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
@@ -226,12 +222,20 @@ pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHand
                                 is_folder: false,
                                 children: None,
                             });
+                            file_paths.push(path);
                         }
                     }
                 }
             }
 
             if !files.is_empty() && SCAN_GENERATION.load(Ordering::Relaxed) == gen {
+                {
+                    let state = app.state::<Mutex<AppState>>();
+                    let mut state = state.lock().unwrap();
+                    for path in file_paths {
+                        state.folder_files.insert(path);
+                    }
+                }
                 let _ = app.emit(
                     "folder-scan-files",
                     FolderScanFiles {
