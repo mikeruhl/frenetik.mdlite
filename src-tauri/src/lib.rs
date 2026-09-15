@@ -9,6 +9,7 @@ mod watcher;
 
 use notify::RecommendedWatcher;
 use notify_debouncer_mini::Debouncer;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -32,6 +33,7 @@ pub(crate) struct AppState {
     pub(crate) mode: AppMode,
     pub(crate) file_path: PathBuf,
     pub(crate) folder_path: Option<PathBuf>,
+    pub(crate) folder_files: HashSet<PathBuf>,
     pub(crate) current_theme: String,
     pub(crate) print_header: bool,
     pub(crate) show_hidden_files: bool,
@@ -68,6 +70,7 @@ pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         s.file_path = new_path.clone();
         s.mode = AppMode::File;
         s.folder_path = None;
+        s.folder_files.clear();
         s.folder_debouncer = None;
         s.startup_error = None;
         (old_dir != new_dir || was_other, was_other)
@@ -109,6 +112,7 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         let mut s = state.lock().unwrap();
         s.mode = AppMode::Folder;
         s.folder_path = Some(folder_path.clone());
+        s.folder_files.clear();
         s.file_path = file_path.clone();
         s.startup_error = None;
     }
@@ -267,6 +271,7 @@ pub fn run() {
                 mode: mode.clone(),
                 file_path: file_path.clone(),
                 folder_path,
+                folder_files: HashSet::new(),
                 current_theme: theme,
                 print_header,
                 show_hidden_files,

@@ -1,10 +1,11 @@
 use serde::Serialize;
-use std::collections::VecDeque;
-use std::path::Path;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use tauri::Emitter;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
 
-use crate::display_path;
+use crate::{display_path, AppState};
 
 #[cfg(unix)]
 fn is_hidden(entry: &std::fs::DirEntry) -> bool {
@@ -124,6 +125,39 @@ fn scan_folder_with_opts(dir: &Path, show_hidden_files: bool) -> Vec<FolderEntry
     folders
 }
 
+/// Recursively collects every markdown file path beneath `root`. Used to seed
+/// the folder-watcher's descendant registry so a directory deletion can be
+/// expanded into per-file removals even when the OS reports only one event
+/// for the deleted directory itself.
+pub(crate) fn collect_markdown_files(root: &Path, show_hidden_files: bool) -> HashSet<PathBuf> {
+    let mut result = HashSet::new();
+    let mut queue: VecDeque<PathBuf> = VecDeque::new();
+    queue.push_back(root.to_path_buf());
+
+    while let Some(dir) = queue.pop_front() {
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in rd.flatten() {
+            let path = entry.path();
+            if !show_hidden_files && is_hidden(&entry) {
+                continue;
+            }
+            if path.is_dir() {
+                queue.push_back(path);
+            } else if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if is_markdown_ext(ext) {
+                        result.insert(path);
+                    }
+                }
+            }
+        }
+    }
+
+    result
+}
+
 pub(crate) fn find_default_file(dir: &Path) -> Option<std::path::PathBuf> {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -149,6 +183,12 @@ pub(crate) fn find_default_file(dir: &Path) -> Option<std::path::PathBuf> {
 pub(crate) fn run_progressive_scan(root: std::path::PathBuf, app: tauri::AppHandle, show_hidden_files: bool) {
     let gen = SCAN_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     std::thread::spawn(move || {
+        let markdown_files = collect_markdown_files(&root, show_hidden_files);
+        if SCAN_GENERATION.load(Ordering::Relaxed) == gen {
+            let state = app.state::<Mutex<AppState>>();
+            state.lock().unwrap().folder_files = markdown_files;
+        }
+
         let mut queue: VecDeque<(std::path::PathBuf, Vec<DirAncestor>)> = VecDeque::new();
         queue.push_back((root, Vec::new()));
 
@@ -563,6 +603,52 @@ mod tests {
 
         let chain = compute_path_chain(tmp.path(), &file);
         assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn collect_markdown_files_nested_structure() {
+        let tmp = TempDir::new().unwrap();
+        let docs = create_subdir(tmp.path(), "docs");
+        let deep = create_subdir(&docs, "api");
+        create_file(&deep, "reference.md");
+        create_file(tmp.path(), "README.md");
+        create_file(tmp.path(), "image.png");
+
+        let files = collect_markdown_files(tmp.path(), false);
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&tmp.path().join("README.md")));
+        assert!(files.contains(&deep.join("reference.md")));
+    }
+
+    #[test]
+    fn collect_markdown_files_skips_hidden_directories() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), ".git");
+        create_file(&hidden, "HEAD.md");
+        create_file(tmp.path(), "visible.md");
+
+        let files = collect_markdown_files(tmp.path(), false);
+        assert_eq!(files.len(), 1);
+        assert!(files.contains(&tmp.path().join("visible.md")));
+    }
+
+    #[test]
+    fn collect_markdown_files_includes_hidden_when_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let hidden = create_hidden_subdir(tmp.path(), ".hidden");
+        create_file(&hidden, "secret.md");
+        create_file(tmp.path(), "visible.md");
+
+        let files = collect_markdown_files(tmp.path(), true);
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&hidden.join("secret.md")));
+    }
+
+    #[test]
+    fn collect_markdown_files_empty_dir_returns_empty_set() {
+        let tmp = TempDir::new().unwrap();
+        let files = collect_markdown_files(tmp.path(), false);
+        assert!(files.is_empty());
     }
 
     #[test]
