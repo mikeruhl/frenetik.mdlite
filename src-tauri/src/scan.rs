@@ -43,7 +43,19 @@ struct FolderScanFiles {
     files: Vec<FolderEntry>,
 }
 
+/// Gates progressive-scan staleness only (aborting/discarding results from a scan superseded by a
+/// newer one for the same folder). Bumped by `run_progressive_scan` on every scan start and by
+/// `cancel_folder_scan`. Must NOT be used to gate folder-watcher liveness - use `FOLDER_GEN` for
+/// that, since a scan restart (initial scan, manual rescan) is not a folder/file switch and must
+/// not invalidate an already-running watcher.
 pub(crate) static SCAN_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// Identifies the current watched folder/file target. Bumped only when that target itself changes:
+/// `switch_to_folder`, `switch_file`, and the app-startup watcher wiring. The folder watcher's
+/// per-batch guard compares against the value captured at its creation, so a scan restart for the
+/// same folder (which only bumps `SCAN_GENERATION`) never trips it - only an actual folder/file
+/// switch does.
+pub(crate) static FOLDER_GEN: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) fn compute_path_chain(root: &Path, file: &Path) -> Vec<DirAncestor> {
     let parent = match file.parent() {
