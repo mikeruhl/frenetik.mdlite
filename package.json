@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=20.17"
+    "node": ">=20.17",
+    "pnpm": ">=12"
   },
   "scripts": {
     "dev": "vite",
@@ -46,14 +47,6 @@
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.12",
     "mermaid": "^11.17.2"
-  },
-  "pnpm": {
-    "overrides": {
-      "uuid": ">=14.0.0",
-      "brace-expansion": ">=5.0.9",
-      "markdown-it": ">=14.2.0",
-      "js-yaml": "^4.3.2"
-    }
   },
   "lint-staged": {
     "*.js": [
