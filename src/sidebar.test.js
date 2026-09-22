@@ -72,6 +72,17 @@ describe("new-file marker on collapsed folders", () => {
     expect(marked("/root/a/b")).toBe(true);
   });
 
+  // Guards against "fixing" the scan/watcher race by marking in the
+  // already-present branch: the backend sends exists:true for edits too.
+  it("does not mark when an existing file is merely modified", async () => {
+    const sidebar = await loadSidebar();
+    sidebar.handleScanFiles([dir("docs", "/root/docs")], [{ name: "e.md", path: "/root/docs/e.md" }]);
+
+    sidebar.applyFolderChanges([added("/root/docs/e.md", "e.md", [dir("docs", "/root/docs")])]);
+
+    expect(marked("/root/docs")).toBe(false);
+  });
+
   it("hides the decorative marker from assistive technologies", async () => {
     const sidebar = await loadSidebar();
     sidebar.applyFolderChanges([added("/root/docs/new.md", "new.md", [dir("docs", "/root/docs")])]);
