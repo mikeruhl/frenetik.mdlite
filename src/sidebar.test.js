@@ -72,6 +72,15 @@ describe("new-file marker on collapsed folders", () => {
     expect(marked("/root/a/b")).toBe(true);
   });
 
+  it("hides the decorative marker from assistive technologies", async () => {
+    const sidebar = await loadSidebar();
+    sidebar.applyFolderChanges([added("/root/docs/new.md", "new.md", [dir("docs", "/root/docs")])]);
+
+    const dot = folderEl("/root/docs").querySelector(".tree-new-dot");
+
+    expect(dot.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("never marks folders discovered by the initial scan", async () => {
     const sidebar = await loadSidebar();
 

@@ -75,6 +75,7 @@ function createFolderNode(container, name, dirPath, depth) {
 
   const newDot = document.createElement("span");
   newDot.className = "tree-new-dot";
+  newDot.setAttribute("aria-hidden", "true");
   newDot.textContent = "\u2022";
   item.appendChild(newDot);
 
