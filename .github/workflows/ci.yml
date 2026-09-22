@@ -50,6 +50,26 @@ jobs:
       - name: Check Prettier formatting
         run: pnpm format:check
 
+  test-js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run JS tests
+        run: pnpm test
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -70,7 +90,7 @@ jobs:
         run: cargo test
 
   build:
-    needs: [lint, test]
+    needs: [lint, test, test-js]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -100,7 +120,7 @@ jobs:
         run: pnpm tauri build --target x86_64-unknown-linux-gnu
 
   build-windows:
-    needs: [lint, test]
+    needs: [lint, test, test-js]
     runs-on: windows-latest
     timeout-minutes: 30
     steps:

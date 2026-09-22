@@ -137,7 +137,9 @@ body.toc-visible #attribution {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.15s, visibility 0.15s;
+  transition:
+    opacity 0.15s,
+    visibility 0.15s;
   z-index: 1;
 }
 
@@ -498,6 +500,24 @@ body.dark-sidebar .sidebar-spinner-sm {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+}
+
+.tree-new-dot {
+  display: none;
+  margin-left: auto;
+  padding-right: 10px;
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: #0366d6;
+}
+
+.tree-item.has-new .tree-new-dot {
+  display: block;
+}
+
+body.dark-sidebar .tree-new-dot {
+  color: #4daafc;
 }
 
 .startup-error {
