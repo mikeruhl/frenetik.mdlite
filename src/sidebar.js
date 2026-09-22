@@ -73,6 +73,11 @@ function createFolderNode(container, name, dirPath, depth) {
   spinner.innerHTML = '<div class="sidebar-spinner-sm"></div>';
   item.appendChild(spinner);
 
+  const newDot = document.createElement("span");
+  newDot.className = "tree-new-dot";
+  newDot.textContent = "\u2022";
+  item.appendChild(newDot);
+
   const childrenDiv = document.createElement("div");
   childrenDiv.className = "tree-children";
   childrenDiv.style.display = "none";
@@ -83,11 +88,12 @@ function createFolderNode(container, name, dirPath, depth) {
     childrenDiv.style.display = expanded ? "none" : "block";
     toggle.textContent = expanded ? "\u25b8" : "\u25be";
     item.classList.toggle("expanded", !expanded);
+    if (!expanded) item.classList.remove("has-new");
   });
 
   item.dataset.path = dirPath;
   insertFolderSorted(container, item, childrenDiv, name);
-  const nodeInfo = { container: childrenDiv, depth: depth + 1 };
+  const nodeInfo = { container: childrenDiv, depth: depth + 1, item };
   folderNodeMap.set(dirPath, nodeInfo);
   return nodeInfo;
 }
@@ -107,6 +113,16 @@ function ensureDirChain(pathChain) {
     }
   }
   return { container, depth };
+}
+
+// Expanded ancestors are skipped: their contents are already on screen.
+function markNewInCollapsedAncestors(pathChain) {
+  for (const ancestor of pathChain) {
+    const node = folderNodeMap.get(ancestor.path);
+    if (node && node.item && node.container.style.display === "none") {
+      node.item.classList.add("has-new");
+    }
+  }
 }
 
 function createFileElement(name, path, depth) {
@@ -288,6 +304,7 @@ export function applyFolderChanges(changes) {
       const { container, depth } = ensureDirChain(change.path_chain);
       const item = createFileElement(change.name, change.path, depth);
       insertFileSorted(container, item, change.name);
+      markNewInCollapsedAncestors(change.path_chain);
       if (change.path === currentFilePath) {
         item.classList.add("active");
       }
