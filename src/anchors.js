@@ -105,6 +105,7 @@ export function createAnchorLinks({ contentEl, scrollRoot, questions, onActivate
     }
     onResolved(new Set(resolved.keys()));
     activeAnchor = null;
+    if (!resolved.size) onActivate([]);
     if (scrollRoot) requestAnimationFrame(syncActive);
   }
 

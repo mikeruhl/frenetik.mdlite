@@ -6,7 +6,7 @@ import { parseMarkdown } from "./markdown.js";
 import { initialState, toPayload, missingRequired, isDirty } from "./answers.js";
 import { createAnchorLinks, flash } from "./anchors.js";
 
-const OTHER = "__other__";
+const OTHER = "";
 
 const panelEl = document.getElementById("interactive-panel");
 const titleEl = document.getElementById("interactive-title");
@@ -187,10 +187,16 @@ function activateQuestions(ids) {
   if (fieldsets.length && !editing) fieldsets[0].scrollIntoView({ block: "nearest" });
 }
 
+function setCollapsed(collapsed) {
+  document.body.classList.toggle("interactive-collapsed", collapsed);
+  collapseBtn.title = collapsed ? "Show questions" : "Hide questions";
+  collapseBtn.setAttribute("aria-label", collapseBtn.title);
+}
+
 function goToQuestion(id) {
   const fieldset = fieldsetFor(id);
   if (!fieldset) return;
-  document.body.classList.remove("interactive-collapsed");
+  setCollapsed(false);
   fieldset.scrollIntoView({ behavior: "smooth", block: "center" });
   flash(fieldset);
   fieldset.querySelector("input:not([disabled]), textarea")?.focus({ preventScroll: true });
@@ -225,11 +231,7 @@ export async function initInteractive({ contentEl, scrollRoot }) {
 
   submitBtn.addEventListener("click", submit);
   cancelBtn.addEventListener("click", cancel);
-  collapseBtn.addEventListener("click", () => {
-    const collapsed = document.body.classList.toggle("interactive-collapsed");
-    collapseBtn.title = collapsed ? "Show questions" : "Hide questions";
-    collapseBtn.setAttribute("aria-label", collapseBtn.title);
-  });
+  collapseBtn.addEventListener("click", () => setCollapsed(!document.body.classList.contains("interactive-collapsed")));
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();

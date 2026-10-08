@@ -54,4 +54,18 @@ describe("answer state", () => {
     state.notes.text = "x";
     expect(isDirty(questions, state, baseline)).toBe(true);
   });
+
+  it("handles question ids that collide with Object.prototype", () => {
+    const special = [
+      { id: "__proto__", type: "text", required: true },
+      { id: "toString", type: "text", required: true },
+    ];
+    const state = initialState(special);
+    expect(missingRequired(special, toPayload(special, state))).toEqual(["__proto__", "toString"]);
+    state.__proto__.text = "a";
+    state.toString.text = "b";
+    const payload = toPayload(special, state);
+    expect(missingRequired(special, payload)).toEqual([]);
+    expect(JSON.parse(JSON.stringify(payload))).toEqual({ ["__proto__"]: { text: "a" }, toString: { text: "b" } });
+  });
 });

@@ -1,5 +1,5 @@
 export function initialState(questions) {
-  const state = {};
+  const state = Object.create(null);
   for (const q of questions) {
     const entry = { selected: [], otherChosen: false, other: "", text: "" };
     if (q.type === "single" && typeof q.default === "string") entry.selected = [q.default];
@@ -26,7 +26,7 @@ function answerFor(q, entry) {
 
 /** Builds the `submit_answers` payload, omitting unanswered questions. */
 export function toPayload(questions, state) {
-  const payload = {};
+  const payload = Object.create(null);
   for (const q of questions) {
     const answer = answerFor(q, state[q.id]);
     if (answer) payload[q.id] = answer;
@@ -35,7 +35,7 @@ export function toPayload(questions, state) {
 }
 
 export function missingRequired(questions, payload) {
-  return questions.filter((q) => q.required && !(q.id in payload)).map((q) => q.id);
+  return questions.filter((q) => q.required && !Object.hasOwn(payload, q.id)).map((q) => q.id);
 }
 
 export function isDirty(questions, state, baseline) {
