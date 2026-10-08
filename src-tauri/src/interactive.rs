@@ -147,9 +147,11 @@ pub(crate) struct InteractiveSession {
 }
 
 const NO_EXIT_CODE: i32 = i32::MIN;
+const PENDING_EXIT_CODE: i32 = i32::MIN + 1;
 
 /// Guarantees a session emits at most one result, whichever exit path reaches it first, and remembers
-/// that result's exit code. Tauri's event loop always ends with code 0, so `run` exits with this code.
+/// the exit code of the result actually delivered. Tauri's event loop always ends with code 0, so `run`
+/// exits with this code.
 pub(crate) struct ResultGate(AtomicI32);
 
 impl ResultGate {
@@ -157,18 +159,23 @@ impl ResultGate {
         Self(AtomicI32::new(NO_EXIT_CODE))
     }
 
-    pub(crate) fn claim(&self, exit_code: i32) -> bool {
+    /// Reserves the right to emit the result; `commit` records its exit code once delivered.
+    pub(crate) fn claim(&self) -> bool {
         self.0
-            .compare_exchange(NO_EXIT_CODE, exit_code, Ordering::SeqCst, Ordering::SeqCst)
+            .compare_exchange(NO_EXIT_CODE, PENDING_EXIT_CODE, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
     }
 
+    pub(crate) fn commit(&self, exit_code: i32) {
+        self.0.store(exit_code, Ordering::SeqCst);
+    }
+
     pub(crate) fn is_claimed(&self) -> bool {
-        self.exit_code().is_some()
+        self.0.load(Ordering::SeqCst) != NO_EXIT_CODE
     }
 
     pub(crate) fn exit_code(&self) -> Option<i32> {
-        Some(self.0.load(Ordering::SeqCst)).filter(|&c| c != NO_EXIT_CODE)
+        Some(self.0.load(Ordering::SeqCst)).filter(|&c| c != NO_EXIT_CODE && c != PENDING_EXIT_CODE)
     }
 }
 
@@ -403,29 +410,42 @@ fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     })
 }
 
-/// Writes the result to the optional output file (atomically) and then as one JSON line to `out`.
-pub(crate) fn deliver(result: &InteractiveResult, output: Option<&Path>, out: &mut impl Write) -> Result<(), String> {
-    let json = serde_json::to_string(result).map_err(|e| format!("Cannot serialize result: {e}"))?;
-    let file_result = output
-        .map(|path| write_atomic(path, json.as_bytes()).map_err(|e| format!("Cannot write {}: {e}", path.display())));
-    let _ = writeln!(out, "{json}");
+/// Writes the result to the optional output file (atomically) and then as one JSON line to `out`,
+/// returning the delivered exit code. When the file cannot be written, an error result goes to `out`
+/// instead.
+pub(crate) fn deliver(result: &InteractiveResult, output: Option<&Path>, out: &mut impl Write) -> i32 {
+    let serialize = |r: &InteractiveResult| serde_json::to_string(r).expect("result serializes");
+    let json = serialize(result);
+    let file_error = output.and_then(|path| {
+        write_atomic(path, json.as_bytes())
+            .err()
+            .map(|e| format!("Cannot write {}: {e}", path.display()))
+    });
+    let (line, code) = match file_error {
+        Some(msg) => {
+            eprintln!("{msg}");
+            let failure = InteractiveResult::error(msg);
+            (serialize(&failure), failure.exit_code())
+        }
+        None => (json, result.exit_code()),
+    };
+    let _ = writeln!(out, "{line}");
     let _ = out.flush();
-    file_result.unwrap_or(Ok(()))
+    code
 }
 
 /// Emits the session result once and returns the exit code, or `None` when a result was already
 /// emitted.
 pub(crate) fn emit_once(result: &InteractiveResult, output: Option<&Path>) -> Option<i32> {
-    if !RESULT_GATE.claim(result.exit_code()) {
+    if !RESULT_GATE.claim() {
         return None;
     }
     if let Some(msg) = &result.error {
         eprintln!("{msg}");
     }
-    if let Err(e) = deliver(result, output, &mut std::io::stdout()) {
-        eprintln!("{e}");
-    }
-    Some(result.exit_code())
+    let code = deliver(result, output, &mut std::io::stdout());
+    RESULT_GATE.commit(code);
+    Some(code)
 }
 
 /// Emits the result once and exits the app with the matching code.
@@ -440,6 +460,26 @@ pub(crate) fn fail_startup(message: String, output: Option<&Path>) -> ! {
     let result = InteractiveResult::error(message);
     let code = emit_once(&result, output).unwrap_or(1);
     std::process::exit(code);
+}
+
+/// Detects an interactive request in raw arguments the CLI parser rejected, returning the `--output`
+/// path if one was given, so the caller still receives an error result.
+pub(crate) fn interactive_request_in_argv<S: AsRef<str>>(args: &[S]) -> Option<Option<PathBuf>> {
+    let mut requested = false;
+    let mut output = None;
+    let mut iter = args.iter().skip(1).map(AsRef::as_ref);
+    while let Some(arg) = iter.next() {
+        if arg == "--interactive" || arg.starts_with("--interactive=") {
+            requested = true;
+        } else if let Some(value) = arg.strip_prefix("--output=") {
+            requested = true;
+            output = Some(value);
+        } else if arg == "--output" {
+            requested = true;
+            output = iter.next().filter(|v| !v.starts_with("--"));
+        }
+    }
+    requested.then(|| output.filter(|v| !v.is_empty()).map(PathBuf::from))
 }
 
 #[cfg(test)]
@@ -817,7 +857,7 @@ mod tests {
         let path = dir.path().join("answers.json");
         let mut out = Vec::new();
         let result = InteractiveResult::submitted("doc.md".into(), BTreeMap::new());
-        deliver(&result, Some(&path), &mut out).unwrap();
+        assert_eq!(deliver(&result, Some(&path), &mut out), 0);
         let stdout = String::from_utf8(out).unwrap();
         assert_eq!(stdout.lines().count(), 1);
         let file = std::fs::read_to_string(&path).unwrap();
@@ -829,17 +869,23 @@ mod tests {
     #[test]
     fn deliver_without_output_writes_stdout_only() {
         let mut out = Vec::new();
-        deliver(&InteractiveResult::cancelled(), None, &mut out).unwrap();
+        assert_eq!(deliver(&InteractiveResult::cancelled(), None, &mut out), 2);
         let parsed: serde_json::Value = serde_json::from_slice(&out).unwrap();
         assert_eq!(parsed["status"], "cancelled");
     }
 
     #[test]
-    fn deliver_reports_unwritable_file_but_still_writes_stdout() {
+    fn deliver_reports_unwritable_file_as_error_result() {
         let mut out = Vec::new();
         let missing = Path::new("no-such-dir-xyz").join("answers.json");
-        assert!(deliver(&InteractiveResult::cancelled(), Some(&missing), &mut out).is_err());
-        assert!(!out.is_empty());
+        let result = InteractiveResult::submitted("doc.md".into(), BTreeMap::new());
+        assert_eq!(deliver(&result, Some(&missing), &mut out), 1);
+        let stdout = String::from_utf8(out).unwrap();
+        assert_eq!(stdout.lines().count(), 1);
+        let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(parsed["status"], "error");
+        assert!(parsed["error"].as_str().unwrap().contains("Cannot write"));
+        assert!(parsed.get("answers").is_none());
     }
 
     #[test]
@@ -847,10 +893,39 @@ mod tests {
         let gate = ResultGate::new();
         assert!(!gate.is_claimed());
         assert_eq!(gate.exit_code(), None);
-        assert!(gate.claim(2));
-        assert!(!gate.claim(0));
+        assert!(gate.claim());
         assert!(gate.is_claimed());
-        assert_eq!(gate.exit_code(), Some(2));
+        assert_eq!(gate.exit_code(), None);
+        assert!(!gate.claim());
+        gate.commit(1);
+        assert!(!gate.claim());
+        assert_eq!(gate.exit_code(), Some(1));
+    }
+
+    #[test]
+    fn argv_interactive_detection() {
+        assert_eq!(interactive_request_in_argv(&["mdlite", "doc.md"]), None);
+        assert_eq!(interactive_request_in_argv(&["--interactive", "doc.md"]), None);
+        assert_eq!(
+            interactive_request_in_argv(&["mdlite", "--bogus", "--interactive"]),
+            Some(None)
+        );
+        assert_eq!(
+            interactive_request_in_argv(&["mdlite", "--interactive=q.json"]),
+            Some(None)
+        );
+        assert_eq!(
+            interactive_request_in_argv(&["mdlite", "--output", "--interactive"]),
+            Some(None)
+        );
+        assert_eq!(
+            interactive_request_in_argv(&["mdlite", "--output", "a.json", "--bogus"]),
+            Some(Some(PathBuf::from("a.json")))
+        );
+        assert_eq!(
+            interactive_request_in_argv(&["mdlite", "--output=b.json"]),
+            Some(Some(PathBuf::from("b.json")))
+        );
     }
 
     #[test]

@@ -199,6 +199,20 @@ fn parse_interactive_args(
     })
 }
 
+fn report_cli_error(message: String) -> ! {
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(output) = interactive::interactive_request_in_argv(&args) {
+        interactive::fail_startup(message, output.as_deref());
+    }
+    eprintln!("{message}");
+    std::process::exit(1);
+}
+
+fn interactive_dirty(app: &tauri::AppHandle) -> bool {
+    app.try_state::<Mutex<AppState>>()
+        .is_some_and(|state| state.lock().unwrap().interactive.as_ref().is_some_and(|i| i.dirty))
+}
+
 /// Closing an interactive window cancels directly when nothing was entered, so a frontend that failed
 /// to load can never trap the window open. With answers entered, the frontend asks for confirmation.
 fn handle_interactive_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
@@ -259,7 +273,7 @@ pub fn run() {
             migrate_legacy_config(app.handle());
             migrate_store_keys(app.handle());
 
-            let matches = app.cli().matches().expect("Failed to parse CLI arguments");
+            let matches = app.cli().matches().unwrap_or_else(|e| report_cli_error(e.to_string()));
             if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
                 println!("{help}");
                 std::process::exit(0);
@@ -528,9 +542,17 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run_return(|app, event| {
-            if let RunEvent::ExitRequested { code: None, .. } = event {
+            if let RunEvent::ExitRequested { code: None, api, .. } = event {
+                if RESULT_GATE.is_claimed() {
+                    return;
+                }
                 if let Some(output) = interactive_output(app) {
-                    interactive::emit_once(&InteractiveResult::cancelled(), output.as_deref());
+                    if interactive_dirty(app) {
+                        api.prevent_exit();
+                        let _ = app.emit("interactive-close-requested", ());
+                    } else {
+                        interactive::emit_once(&InteractiveResult::cancelled(), output.as_deref());
+                    }
                 }
             }
         });

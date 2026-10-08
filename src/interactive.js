@@ -23,6 +23,7 @@ let baseline = {};
 let links = null;
 let busy = false;
 let reportedDirty = false;
+let confirming = false;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -167,14 +168,20 @@ async function submit() {
 }
 
 async function cancel() {
+  if (confirming) return;
   if (isDirty(questions, state, baseline)) {
-    const discard = await ask("Discard your answers and cancel?", {
-      title: "mdlite",
-      kind: "warning",
-      okLabel: "Discard",
-      cancelLabel: "Keep editing",
-    });
-    if (!discard) return;
+    confirming = true;
+    try {
+      const discard = await ask("Discard your answers and cancel?", {
+        title: "mdlite",
+        kind: "warning",
+        okLabel: "Discard",
+        cancelLabel: "Keep editing",
+      });
+      if (!discard) return;
+    } finally {
+      confirming = false;
+    }
   }
   await invoke("cancel_interactive");
 }
