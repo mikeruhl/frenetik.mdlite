@@ -76,6 +76,17 @@ pub(crate) fn notify_outline_closed(state: tauri::State<'_, Mutex<AppState>>, ap
 }
 
 #[tauri::command]
+pub(crate) fn set_outline_visible(visible: bool, state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) {
+    let theme = {
+        let mut s = state.lock().unwrap();
+        s.show_outline = visible;
+        s.current_theme.clone()
+    };
+    let recent = store_get_recent(&app);
+    rebuild_menu(&app, &recent, &theme);
+}
+
+#[tauri::command]
 pub(crate) fn notify_has_frontmatter(has: bool, state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) {
     let theme = {
         let mut s = state.lock().unwrap();

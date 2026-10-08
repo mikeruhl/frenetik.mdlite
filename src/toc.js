@@ -141,4 +141,13 @@ export function bindTocEvents() {
     hideToc();
     invoke("notify_outline_closed");
   });
+
+  // The menu accelerator does not fire while the webview has focus, so the shortcut is handled here too.
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyO") {
+      e.preventDefault();
+      toggleToc();
+      invoke("set_outline_visible", { visible });
+    }
+  });
 }

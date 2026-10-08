@@ -239,6 +239,7 @@ pub fn run() {
             start_folder_scan,
             cancel_folder_scan,
             notify_outline_closed,
+            set_outline_visible,
             notify_has_frontmatter,
             export::export_pdf,
             updater::check_for_updates,

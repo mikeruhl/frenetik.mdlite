@@ -82,9 +82,11 @@
 - [x] 7.2 Manual run in the app: submit, cancel (clean and dirty), invalid questions, unwritable output, live reload
       during session, anchor jumps both ways, scroll sync while typing. Dirty-close dialog (Keep editing, Discard)
       confirmed manually on the release build.
-- [ ] 7.3 Regression check: default file mode, folder mode, watcher live reload, recent files, themes, outline.
+- [x] 7.3 Regression check: default file mode, folder mode, watcher live reload, recent files, themes, outline.
       Done on the release build: file mode render and live reload, folder tree and new-file marker, normal close
-      exits 0 with empty stdout, recent files still recorded. Remaining: outline toggle in normal file mode.
+      exits 0 with empty stdout, recent files still recorded. The check found that `Ctrl+Shift+O` did not toggle the
+      outline while the webview had focus (only the menu accelerator existed); fixed with a keydown handler that
+      syncs the menu state, and confirmed manually.
 - [x] 7.4 Release build on Windows: confirm stdout-only delivery when piped from Git Bash and `--output` delivery
       when launched from PowerShell
 - [x] 7.5 End-to-end from Claude Code: agent followed `SKILL.md`, launched mdlite in the background, and acted on
