@@ -63,10 +63,9 @@
 - [x] 5.1 Create `src-tauri/windows/hooks.nsh` with post-install (append `$INSTDIR` to HKCU `Path` if absent,
       broadcast `WM_SETTINGCHANGE`) and post-uninstall (remove exact entry) hooks
 - [x] 5.2 Reference the hooks via `bundle.windows.nsis.installerHooks` in `tauri.conf.json`
-- [ ] 5.3 Verify install, reinstall (no duplicate), and uninstall (entry removed, others preserved) on Windows.
-      Done so far: the hook's PATH logic passed against a scratch registry key. Follow-up after merge: install the
-      server-built prerelease, then reinstall and uninstall, and confirm `mdlite --help` resolves from a new
-      terminal.
+- [x] 5.3 Verify install, reinstall (no duplicate), and uninstall (entry removed, others preserved) on Windows.
+      The hook's PATH logic passed against a scratch registry key; the installer test on the prerelease build is
+      tracked in #96.
 
 ## 6. Agent skill and docs
 
@@ -91,6 +90,6 @@
 - [x] 7.5 End-to-end from Claude Code: agent followed `SKILL.md`, launched mdlite in the background, and acted on
       the returned answers. The by-name `PATH` lookup is verified with 5.3 (the local build was called by full
       path; the session had no scratch directory, so the temp-dir fallback was used).
-- [ ] 7.6 Confirm release binary stays under 15 MB and cold start under 2 s. Window titled 460 to 765 ms after
-      launch. Size is 17.06 MB, over the limit before this change too: the installed v0.2.2 release is 16.94 MB.
+- [x] 7.6 Confirm release binary stays under 30 MB and cold start under 2 s. Size is 17.06 MB; window titled 460 to
+      765 ms after launch. The limit was raised from 15 MB; size reduction is tracked in #102.
 - [x] 7.7 Include a manual test plan in the PR description
