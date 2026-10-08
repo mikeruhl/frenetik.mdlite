@@ -13,6 +13,23 @@
       <nav id="sidebar">
         <div id="sidebar-header"></div>
         <div id="sidebar-tree"></div>
+        <section id="interactive-panel" aria-label="Questions" hidden>
+          <div id="interactive-header">
+            <span id="interactive-title"></span>
+            <button id="interactive-collapse" type="button" title="Hide questions" aria-label="Hide questions">
+              &#x25C0;
+            </button>
+          </div>
+          <div id="interactive-questions"></div>
+          <div id="interactive-footer">
+            <div id="interactive-error" role="alert" hidden></div>
+            <div id="interactive-status" aria-live="polite"></div>
+            <div id="interactive-actions">
+              <button id="interactive-cancel" type="button">Cancel</button>
+              <button id="interactive-submit" type="button" title="Submit (Ctrl+Enter)">Submit</button>
+            </div>
+          </div>
+        </section>
       </nav>
       <div id="main-content">
         <div id="search-bar" class="search-hidden">

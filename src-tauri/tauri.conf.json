@@ -39,7 +39,12 @@
         "mimeType": "text/markdown",
         "contentTypes": ["net.daringfireball.markdown"]
       }
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
   },
   "plugins": {
     "cli": {
@@ -51,6 +56,16 @@
           "takesValue": true,
           "required": false,
           "description": "Path to a markdown file or folder to preview"
+        },
+        {
+          "name": "interactive",
+          "takesValue": true,
+          "description": "Questions JSON file; opens the document in interactive mode and prints the answers as JSON on exit"
+        },
+        {
+          "name": "output",
+          "takesValue": true,
+          "description": "Also write the interactive result JSON to this file"
         }
       ]
     }

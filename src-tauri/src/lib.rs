@@ -1,6 +1,7 @@
 mod commands;
 mod config;
 mod export;
+mod interactive;
 mod jumplist;
 mod menu;
 mod scan;
@@ -13,12 +14,13 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_cli::CliExt;
 use tauri_plugin_dialog::DialogExt;
 
 use commands::*;
 use config::*;
+use interactive::{InteractiveResult, InteractiveSession, RESULT_GATE};
 use menu::*;
 use scan::{find_default_file, FOLDER_GEN, SCAN_GENERATION};
 use watcher::*;
@@ -44,6 +46,7 @@ pub(crate) struct AppState {
     pub(crate) debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) folder_debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) startup_error: Option<String>,
+    pub(crate) interactive: Option<InteractiveSession>,
 }
 
 pub(crate) fn display_path(p: &Path) -> String {
@@ -166,9 +169,64 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
     }
 }
 
+/// Output path of the active interactive session, or `None` when not in interactive mode.
+fn interactive_output(app: &tauri::AppHandle) -> Option<Option<PathBuf>> {
+    let state = app.try_state::<Mutex<AppState>>()?;
+    let s = state.lock().unwrap();
+    s.interactive.as_ref().map(|i| i.output.clone())
+}
+
+fn parse_interactive_args(
+    path_arg: Option<&str>,
+    questions_arg: &str,
+    output_arg: Option<&str>,
+) -> Result<InteractiveSession, String> {
+    let output = output_arg.map(PathBuf::from);
+    if let Some(ref out) = output {
+        interactive::check_output_path(out)?;
+    }
+    let doc_arg = path_arg.ok_or("--interactive requires a markdown document path")?;
+    let document = std::fs::canonicalize(doc_arg).map_err(|_| format!("File not found: {doc_arg}"))?;
+    if !document.is_file() {
+        return Err(format!("--interactive requires a file, not a folder: {doc_arg}"));
+    }
+    let questions = interactive::load_questions(Path::new(questions_arg))?;
+    Ok(InteractiveSession {
+        document,
+        questions,
+        output,
+        dirty: false,
+    })
+}
+
+/// Closing an interactive window cancels directly when nothing was entered, so a frontend that failed
+/// to load can never trap the window open. With answers entered, the frontend asks for confirmation.
+fn handle_interactive_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
+    let session = window.app_handle().try_state::<Mutex<AppState>>().and_then(|state| {
+        state
+            .lock()
+            .unwrap()
+            .interactive
+            .as_ref()
+            .map(|i| (i.output.clone(), i.dirty))
+    });
+    let Some((output, dirty)) = session else {
+        return;
+    };
+    if RESULT_GATE.is_claimed() {
+        return;
+    }
+    api.prevent_close();
+    if dirty {
+        let _ = window.emit("interactive-close-requested", ());
+    } else {
+        interactive::finish_session(window.app_handle(), &InteractiveResult::cancelled(), output.as_deref());
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let exit_code = tauri::Builder::default()
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -183,20 +241,49 @@ pub fn run() {
             notify_outline_closed,
             notify_has_frontmatter,
             export::export_pdf,
-            updater::check_for_updates
+            updater::check_for_updates,
+            get_interactive_session,
+            submit_answers,
+            cancel_interactive,
+            set_interactive_dirty
         ])
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    handle_interactive_close(window, api);
+                }
+            }
+        })
         .setup(|app| {
             migrate_legacy_config(app.handle());
             migrate_store_keys(app.handle());
 
             let matches = app.cli().matches().expect("Failed to parse CLI arguments");
-            let path_arg = matches
-                .args
-                .get("path")
-                .and_then(|a| a.value.as_str())
-                .filter(|s| !s.is_empty());
+            if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
+                println!("{help}");
+                std::process::exit(0);
+            }
+            let arg_str = |name: &str| {
+                matches
+                    .args
+                    .get(name)
+                    .and_then(|a| a.value.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+            };
+            let path_arg = arg_str("path");
+            let path_arg = path_arg.as_deref();
+            let output_arg = arg_str("output");
 
-            let (mode, file_path, folder_path, startup_error) = if let Some(arg) = path_arg {
+            let interactive_session = arg_str("interactive").map(|questions_arg| {
+                parse_interactive_args(path_arg, &questions_arg, output_arg.as_deref())
+                    .unwrap_or_else(|msg| interactive::fail_startup(msg, output_arg.as_deref().map(Path::new)))
+            });
+            let is_interactive = interactive_session.is_some();
+
+            let (mode, file_path, folder_path, startup_error) = if let Some(ref session) = interactive_session {
+                (AppMode::File, session.document.clone(), None, None)
+            } else if let Some(arg) = path_arg {
                 match std::fs::canonicalize(arg) {
                     Ok(input_path) => {
                         if input_path.is_dir() {
@@ -238,8 +325,17 @@ pub fn run() {
                         let _ = w.set_size(tauri::LogicalSize::new(1100.0, 700.0));
                     }
                     AppMode::File => {
-                        let filename = file_path.file_name().unwrap_or_default().to_string_lossy();
-                        let _ = w.set_title(&format!("mdlite — {}", filename));
+                        if let Some(ref session) = interactive_session {
+                            let title = session.questions.title.clone().unwrap_or_else(|| {
+                                file_path.file_name().unwrap_or_default().to_string_lossy().to_string()
+                            });
+                            let _ = w.set_title(&format!("mdlite — {} — awaiting answers", title));
+                            let _ = w.set_size(tauri::LogicalSize::new(1200.0, 800.0));
+                            let _ = w.set_focus();
+                        } else {
+                            let filename = file_path.file_name().unwrap_or_default().to_string_lossy();
+                            let _ = w.set_title(&format!("mdlite — {}", filename));
+                        }
                     }
                     AppMode::Empty => {}
                 }
@@ -249,13 +345,17 @@ pub fn run() {
             let print_header = store_get_print_header(app.handle());
             let show_hidden_files = store_get_show_hidden_files(app.handle());
             let show_frontmatter = store_get_show_frontmatter(app.handle());
-            let recent = if mode == AppMode::File {
+            let recent = if is_interactive {
+                store_get_recent(app.handle())
+            } else if mode == AppMode::File {
                 store_prune_recent(app.handle());
                 store_add_recent(app.handle(), &file_path)
             } else {
                 store_prune_recent(app.handle())
             };
-            let recent_folders = if mode == AppMode::Folder {
+            let recent_folders = if is_interactive {
+                store_get_recent_folders(app.handle())
+            } else if mode == AppMode::Folder {
                 store_prune_recent_folders(app.handle());
                 store_add_recent_folder(app.handle(), folder_path.as_ref().unwrap())
             } else {
@@ -264,10 +364,12 @@ pub fn run() {
 
             jumplist::init_platform(app.handle());
 
-            if mode == AppMode::File {
-                jumplist::notify_recent_doc(&file_path);
+            if !is_interactive {
+                if mode == AppMode::File {
+                    jumplist::notify_recent_doc(&file_path);
+                }
+                jumplist::update_jump_list(&recent, &recent_folders);
             }
-            jumplist::update_jump_list(&recent, &recent_folders);
 
             let show_outline = false;
             let menu_state = MenuState {
@@ -295,6 +397,7 @@ pub fn run() {
                 debouncer: None,
                 folder_debouncer: None,
                 startup_error,
+                interactive: interactive_session,
             }));
 
             if mode == AppMode::Folder {
@@ -311,6 +414,10 @@ pub fn run() {
 
             app.on_menu_event(|handle, event| {
                 let id: &str = &event.id().0;
+                let switches_document = id == "open-file" || id == "open-folder" || id.starts_with("recent-");
+                if switches_document && interactive_output(handle).is_some() {
+                    return;
+                }
                 if id == "open-file" {
                     let handle = handle.clone();
                     handle
@@ -417,6 +524,14 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run_return(|app, event| {
+            if let RunEvent::ExitRequested { code: None, .. } = event {
+                if let Some(output) = interactive_output(app) {
+                    interactive::emit_once(&InteractiveResult::cancelled(), output.as_deref());
+                }
+            }
+        });
+    std::process::exit(RESULT_GATE.exit_code().unwrap_or(exit_code));
 }

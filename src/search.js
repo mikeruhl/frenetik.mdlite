@@ -39,7 +39,10 @@ export function highlightSearchMatches(query) {
     return;
   }
 
-  const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      node.parentElement.closest("[data-ui-chrome]") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
   const textNodes = [];
   while (walker.nextNode()) textNodes.push(walker.currentNode);
 

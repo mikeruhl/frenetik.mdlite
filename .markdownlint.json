@@ -6,7 +6,7 @@
     "tables": false
   },
   "MD033": {
-    "allowed_elements": ["img", "br", "details", "summary"]
+    "allowed_elements": ["img", "br", "details", "summary", "a"]
   },
   "MD041": false
 }
