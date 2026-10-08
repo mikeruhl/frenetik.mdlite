@@ -1,5 +1,8 @@
 overrides:
   uuid: ">=14.0.0"
   brace-expansion: ">=5.0.9"
-  markdown-it: ">=14.2.0"
+  markdown-it: ^14.3.1
   js-yaml: ^4.3.2
+  smol-toml: ">=1.9.0"
+  source-map-js: ">=1.2.2"
+  katex: ">=0.18.2"
