@@ -45,6 +45,8 @@ mdlite "<absolute path to file or folder>"
   binary.
 - On Windows, use a drive letter with forward slashes (`C:/Users/...`).
 - Still give the path in your reply, and say it is open in mdlite.
+- After you update a file that is already open, tell the user to review the changes in the open window. mdlite
+  reloads on its own; never ask them to refresh or reopen.
 - The process exits when the user closes the window. Ignore that notification unless the exit code is 127.
 - Exit 127: tell the user once that mdlite is not on `PATH` (setup:
   <https://github.com/mikeruhl/frenetik.mdlite#command-line>, install:

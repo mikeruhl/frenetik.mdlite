@@ -31,7 +31,8 @@ files the user edits themselves, non-markdown files, or a file or folder already
 #### Scenario: File updated after opening
 
 - **WHEN** the agent rewrites a file it already opened this session
-- **THEN** it does not launch mdlite again, because live reload shows the change
+- **THEN** it does not launch mdlite again, because live reload shows the change, and it tells the user to review
+  the changes in the open window rather than to refresh or reopen it
 
 ### Requirement: Several temporary files open as one folder
 
