@@ -17,7 +17,8 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 2. This flow requires a shell tool that runs a long-lived command in the background and notifies you when it
    exits (Claude Code: Bash with `run_in_background: true`). In **one** such call, write both files with quoted
    heredocs and launch mdlite. Call `mdlite` from `PATH` only; do not search the filesystem for it. If it is
-   missing, point the user to the "Install > Command line" section of the mdlite README.
+   not found (exit 127), stop and tell the user mdlite must be installed and on `PATH`, pointing to the
+   "Install > Command line" section of the mdlite README.
 
    ```bash
    d="<scratch>/mdlite/<slug>"; mkdir -p "$d"; rm -f "$d/answers.json"
@@ -83,4 +84,4 @@ optional questions are omitted; never assume them.
 | `cancelled` | 2    | Do not proceed. Ask how to continue.       |
 | `error`     | 1    | Read `error`, fix the files, and relaunch. |
 
-A missing result with a non-zero exit means `cancelled`. For follow-ups, use a new folder.
+A missing or empty result with any other non-zero exit means `cancelled`. For follow-ups, use a new folder.
