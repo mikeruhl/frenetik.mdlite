@@ -153,7 +153,9 @@ export function applyTheme(themeId) {
   hljsStyleEl.textContent = isDark ? hljsDarkCss : hljsLightCss;
 
   requestAnimationFrame(() => {
-    const bg = getComputedStyle(contentEl).backgroundColor;
+    const { backgroundColor: bg, color: fg } = getComputedStyle(contentEl);
     document.body.style.backgroundColor = bg || "";
+    document.body.style.setProperty("--theme-bg", bg || "");
+    document.body.style.setProperty("--theme-fg", fg || "");
   });
 }

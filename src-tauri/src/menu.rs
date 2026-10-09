@@ -62,8 +62,7 @@ pub(crate) fn build_menu(
         recent_sub = recent_sub.separator().text("clear-recent", "Clear Recent Files");
     }
 
-    let copy_path_item = MenuItemBuilder::with_id("copy-file-path", "Copy File Path")
-        .accelerator("Shift+Alt+C")
+    let copy_path_item = MenuItemBuilder::with_id("copy-file-path", "Copy File Path\tShift+Alt+C")
         .enabled(has_file)
         .build(app)?;
 
