@@ -17,8 +17,11 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 2. This flow requires a shell tool that runs a long-lived command in the background and notifies you when it
    exits (Claude Code: Bash with `run_in_background: true`). In **one** such call, write both files with quoted
    heredocs and launch mdlite. Call `mdlite` from `PATH` only; do not search the filesystem for it. If it is
-   not found (exit 127), stop and tell the user mdlite must be installed and on `PATH`, pointing to the
-   "Install > Command line" section of the mdlite README.
+   not found (exit 127), stop and tell the user:
+   - mdlite is not on `PATH`. If it is installed, add it to `PATH` (setup per OS:
+     <https://github.com/mikeruhl/frenetik.mdlite#command-line>), then restart the agent session, which does
+     not see `PATH` changes made after it started. Verify with `mdlite --help`.
+   - Otherwise install it from <https://github.com/mikeruhl/frenetik.mdlite/releases>.
 
    ```bash
    d="<scratch>/mdlite/<slug>"; mkdir -p "$d"; rm -f "$d/answers.json"

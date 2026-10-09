@@ -15,6 +15,7 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 - **Folder view** — open a directory and browse all markdown files in a sidebar tree
 - **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
 - **Interactive mode** — agents present a decision document with questions and receive the answers as JSON
+- **Agent skill** — a Claude Code plugin and cross-agent skill that teaches agents to use interactive mode
 - **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
 - **Math/LaTeX** — inline (`$...$`) and block (`$$...$$`) math via KaTeX
 - **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
@@ -128,6 +129,10 @@ The questions schema, answer format, and agent workflow are documented in the ag
 
 ### Agent skill
 
+The `mdlite-decision` skill tells an agent when a decision deserves a rendered document (comparison tables,
+diagrams, code, several options with tradeoffs) and how to write it, launch interactive mode, and act on the
+answers. mdlite itself must be installed and on `PATH` (see [Command line](#command-line)).
+
 **Claude Code.** Install the plugin from this repository's marketplace. Updates arrive through the plugin
 manager whenever `main` changes.
 
@@ -141,8 +146,9 @@ Run `/plugin marketplace update mdlite` to pull updates on demand, or enable aut
 
 **Other agents.** The skill follows the open [Agent Skills](https://agentskills.io) format, which Codex, Gemini
 CLI, GitHub Copilot, Cursor, and others read. The workflow assumes a shell tool that runs a command in the
-background and notifies the agent when it exits; it works in any agent that provides one. Install it with the [`skills`](https://github.com/vercel-labs/skills)
-CLI, which detects installed agents and places the skill in each one's skills directory:
+background and notifies the agent when it exits; it works in any agent that provides one. Install it with the
+[`skills`](https://github.com/vercel-labs/skills) CLI, which detects installed agents and places the skill in
+each one's skills directory:
 
 ```bash
 npx skills add mikeruhl/frenetik.mdlite --skill mdlite-decision
@@ -166,8 +172,8 @@ Run the same command again to update. To install manually, copy the
 ### Steps
 
 ```bash
-git clone https://github.com/<owner>/mdlite.git
-cd mdlite
+git clone https://github.com/mikeruhl/frenetik.mdlite.git
+cd frenetik.mdlite
 pnpm install
 pnpm tauri build
 ```
