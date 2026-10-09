@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Mutex;
@@ -204,15 +204,21 @@ fn id_error(field: &str, value: &str) -> String {
 
 /// Reads and validates a questions file against schema v1.
 pub(crate) fn load_questions(path: &Path) -> Result<QuestionSet, String> {
-    let meta = std::fs::metadata(path).map_err(|e| format!("Cannot read questions file {}: {e}", path.display()))?;
-    if meta.len() > MAX_QUESTIONS_FILE_BYTES {
+    let read_error = |e: std::io::Error| format!("Cannot read questions file {}: {e}", path.display());
+    let file = std::fs::File::open(path).map_err(read_error)?;
+    if !file.metadata().map_err(read_error)?.is_file() {
+        return Err(format!("Questions file {} is not a regular file", path.display()));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_QUESTIONS_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(read_error)?;
+    if bytes.len() as u64 > MAX_QUESTIONS_FILE_BYTES {
         return Err(format!(
-            "Questions file is {} bytes; the limit is {MAX_QUESTIONS_FILE_BYTES}",
-            meta.len()
+            "Questions file exceeds the limit of {MAX_QUESTIONS_FILE_BYTES} bytes"
         ));
     }
-    let text =
-        std::fs::read_to_string(path).map_err(|e| format!("Cannot read questions file {}: {e}", path.display()))?;
+    let text = String::from_utf8(bytes).map_err(|e| format!("Cannot read questions file {}: {e}", path.display()))?;
     parse_questions(&text)
 }
 
