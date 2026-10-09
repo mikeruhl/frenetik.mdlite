@@ -144,8 +144,29 @@ pub(crate) struct InteractiveSession {
     pub(crate) document: PathBuf,
     pub(crate) questions: QuestionSet,
     pub(crate) output: Option<PathBuf>,
-    /// Set by the frontend once the user has entered answers; closing then needs confirmation.
-    pub(crate) dirty: bool,
+    /// Set once the frontend listens for close requests; from then on it decides whether to close.
+    pub(crate) frontend_ready: bool,
+}
+
+/// What to do when the user closes the window or quits during an interactive session.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum CloseAction {
+    /// A result was already delivered; let the close proceed.
+    Allow,
+    /// The frontend never became ready, so cancel directly rather than trap the window open.
+    Cancel,
+    /// Hold the close and let the frontend confirm or cancel.
+    AskFrontend,
+}
+
+pub(crate) fn close_action(result_claimed: bool, frontend_ready: bool) -> CloseAction {
+    if result_claimed {
+        CloseAction::Allow
+    } else if frontend_ready {
+        CloseAction::AskFrontend
+    } else {
+        CloseAction::Cancel
+    }
 }
 
 const NO_EXIT_CODE: i32 = i32::MIN;
@@ -994,6 +1015,22 @@ mod tests {
         gate.commit(1);
         assert!(!gate.claim());
         assert_eq!(gate.exit_code(), Some(1));
+    }
+
+    #[test]
+    fn close_cancels_before_frontend_is_ready() {
+        assert_eq!(close_action(false, false), CloseAction::Cancel);
+    }
+
+    #[test]
+    fn close_defers_to_frontend_once_ready() {
+        assert_eq!(close_action(false, true), CloseAction::AskFrontend);
+    }
+
+    #[test]
+    fn close_proceeds_after_result_delivered() {
+        assert_eq!(close_action(true, false), CloseAction::Allow);
+        assert_eq!(close_action(true, true), CloseAction::Allow);
     }
 
     #[test]

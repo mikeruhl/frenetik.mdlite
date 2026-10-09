@@ -22,7 +22,6 @@ let state = {};
 let baseline = {};
 let links = null;
 let busy = false;
-let reportedDirty = false;
 let confirming = false;
 
 function el(tag, className, text) {
@@ -145,11 +144,6 @@ function update() {
   statusEl.textContent = missing.length
     ? `${missing.length} required question${missing.length === 1 ? "" : "s"} remaining`
     : "";
-  const dirty = isDirty(questions, state, baseline);
-  if (dirty !== reportedDirty) {
-    reportedDirty = dirty;
-    invoke("set_interactive_dirty", { dirty });
-  }
 }
 
 function showError(message) {
@@ -250,6 +244,7 @@ export async function initInteractive({ contentEl, scrollRoot }) {
     }
   });
   await listen("interactive-close-requested", cancel);
+  await invoke("register_interactive_ready");
 
   panelEl.hidden = false;
   document.body.classList.add("interactive-mode");

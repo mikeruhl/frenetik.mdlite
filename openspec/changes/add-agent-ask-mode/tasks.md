@@ -19,10 +19,10 @@
 - [x] 2.5 Store the interactive session in managed state; skip recent files, recent folders, and jump list updates
       in interactive mode; set window size 1200x800, title, and focus
 - [x] 2.6 Switch `run()` to `.build(ctx)?.run_return(...)`; route `CloseRequested` and `ExitRequested` to
-      `cancelled` when no result was emitted; cancel directly when nothing was entered, and ask the frontend to
-      confirm when answers are dirty (`set_interactive_dirty`)
+      `cancelled` when no result was emitted; cancel directly before the frontend registers as ready
+      (`register_interactive_ready`), and afterwards let the frontend decide, confirming when answers are dirty
 - [x] 2.7 Add Tauri commands `get_interactive_session`, `submit_answers`, `cancel_interactive`, and
-      `set_interactive_dirty`; register in `invoke_handler`
+      `register_interactive_ready`; register in `invoke_handler`
 - [x] 2.8 Tests for the command handlers (session fetch, valid submit, rejected submit). Note: covered through the
       extracted handler logic (`session_view`, `prepare_submission`); the repo has no Tauri mock runtime, and
       `submit_answers` exits the process. Exercised end to end against the built binary in 7.2.

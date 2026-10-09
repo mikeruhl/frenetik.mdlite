@@ -20,7 +20,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use commands::*;
 use config::*;
-use interactive::{InteractiveResult, InteractiveSession, RESULT_GATE};
+use interactive::{CloseAction, InteractiveResult, InteractiveSession, RESULT_GATE};
 use menu::*;
 use scan::{find_default_file, FOLDER_GEN, SCAN_GENERATION};
 use watcher::*;
@@ -174,9 +174,14 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
 
 /// Output path of the active interactive session, or `None` when not in interactive mode.
 fn interactive_output(app: &tauri::AppHandle) -> Option<Option<PathBuf>> {
+    interactive_close_state(app).map(|(output, _)| output)
+}
+
+/// Output path and frontend readiness of the active interactive session.
+fn interactive_close_state(app: &tauri::AppHandle) -> Option<(Option<PathBuf>, bool)> {
     let state = app.try_state::<Mutex<AppState>>()?;
     let s = state.lock().unwrap();
-    s.interactive.as_ref().map(|i| i.output.clone())
+    s.interactive.as_ref().map(|i| (i.output.clone(), i.frontend_ready))
 }
 
 fn parse_interactive_args(
@@ -205,7 +210,7 @@ fn parse_interactive_args(
         document,
         questions,
         output,
-        dirty: false,
+        frontend_ready: false,
     })
 }
 
@@ -219,33 +224,22 @@ fn report_cli_error(message: String) -> ! {
     std::process::exit(1);
 }
 
-fn interactive_dirty(app: &tauri::AppHandle) -> bool {
-    app.try_state::<Mutex<AppState>>()
-        .is_some_and(|state| state.lock().unwrap().interactive.as_ref().is_some_and(|i| i.dirty))
-}
-
-/// Closing an interactive window cancels directly when nothing was entered, so a frontend that failed
-/// to load can never trap the window open. With answers entered, the frontend asks for confirmation.
+/// Once the frontend is ready it owns the close decision, confirming first if answers were entered.
+/// Before that, closing cancels directly so a frontend that failed to load can never trap the window open.
 fn handle_interactive_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
-    let session = window.app_handle().try_state::<Mutex<AppState>>().and_then(|state| {
-        state
-            .lock()
-            .unwrap()
-            .interactive
-            .as_ref()
-            .map(|i| (i.output.clone(), i.dirty))
-    });
-    let Some((output, dirty)) = session else {
+    let Some((output, ready)) = interactive_close_state(window.app_handle()) else {
         return;
     };
-    if RESULT_GATE.is_claimed() {
-        return;
-    }
-    api.prevent_close();
-    if dirty {
-        let _ = window.emit("interactive-close-requested", ());
-    } else {
-        interactive::finish_session(window.app_handle(), &InteractiveResult::cancelled(), output.as_deref());
+    match interactive::close_action(RESULT_GATE.is_claimed(), ready) {
+        CloseAction::Allow => {}
+        CloseAction::AskFrontend => {
+            api.prevent_close();
+            let _ = window.emit("interactive-close-requested", ());
+        }
+        CloseAction::Cancel => {
+            api.prevent_close();
+            interactive::finish_session(window.app_handle(), &InteractiveResult::cancelled(), output.as_deref());
+        }
     }
 }
 
@@ -271,7 +265,7 @@ pub fn run() {
             get_interactive_session,
             submit_answers,
             cancel_interactive,
-            set_interactive_dirty
+            register_interactive_ready
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -566,15 +560,16 @@ pub fn run() {
         .expect("error while building tauri application")
         .run_return(|app, event| {
             if let RunEvent::ExitRequested { code: None, api, .. } = event {
-                if RESULT_GATE.is_claimed() {
-                    return;
-                }
-                if let Some(output) = interactive_output(app) {
-                    if interactive_dirty(app) {
-                        api.prevent_exit();
-                        let _ = app.emit("interactive-close-requested", ());
-                    } else {
-                        interactive::emit_once(&InteractiveResult::cancelled(), output.as_deref());
+                if let Some((output, ready)) = interactive_close_state(app) {
+                    match interactive::close_action(RESULT_GATE.is_claimed(), ready) {
+                        CloseAction::Allow => {}
+                        CloseAction::AskFrontend => {
+                            api.prevent_exit();
+                            let _ = app.emit("interactive-close-requested", ());
+                        }
+                        CloseAction::Cancel => {
+                            interactive::emit_once(&InteractiveResult::cancelled(), output.as_deref());
+                        }
                     }
                 }
             }

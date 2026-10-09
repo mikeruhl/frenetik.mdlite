@@ -184,9 +184,9 @@ pub(crate) fn cancel_interactive(
 }
 
 #[tauri::command]
-pub(crate) fn set_interactive_dirty(dirty: bool, state: tauri::State<'_, Mutex<AppState>>) {
+pub(crate) fn register_interactive_ready(state: tauri::State<'_, Mutex<AppState>>) {
     if let Some(session) = state.lock().unwrap().interactive.as_mut() {
-        session.dirty = dirty;
+        session.frontend_ready = true;
     }
 }
 
@@ -207,7 +207,7 @@ mod tests {
             document: PathBuf::from("doc.md"),
             questions,
             output: None,
-            dirty: false,
+            frontend_ready: false,
         }
     }
 
