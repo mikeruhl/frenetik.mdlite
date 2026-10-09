@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::Manager;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::config::store_get_recent;
 use crate::interactive::{finish_session, Answer, InteractiveResult, InteractiveSession};
@@ -116,21 +117,55 @@ pub(crate) fn open_folder_file(
 
     let content = std::fs::read_to_string(&file_path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
 
-    let folder_name = {
+    let (folder_name, had_file, theme) = {
         let mut s = state.lock().unwrap();
+        let had_file = current_file_display_path(&s).is_some();
         s.file_path = file_path.clone();
-        s.folder_path
+        let folder_name = s
+            .folder_path
             .as_ref()
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        (folder_name, had_file, s.current_theme.clone())
     };
+    if !had_file {
+        rebuild_menu(&app, &store_get_recent(&app), &theme);
+    }
     let name = file_path.file_name().unwrap_or_default().to_string_lossy();
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.set_title(&format!("mdlite — {} — {}", folder_name, name));
     }
 
     Ok(content)
+}
+
+pub(crate) fn current_file_display_path(state: &AppState) -> Option<String> {
+    if state.file_path.as_os_str().is_empty() || state.startup_error.is_some() {
+        return None;
+    }
+    Some(display_path(&state.file_path))
+}
+
+fn copy_path_with(
+    path: Option<String>,
+    write: impl FnOnce(String) -> Result<(), String>,
+) -> Result<Option<String>, String> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    write(path.clone())?;
+    Ok(Some(path))
+}
+
+pub(crate) fn copy_current_file_path(app: &tauri::AppHandle) -> Result<Option<String>, String> {
+    let path = current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap());
+    copy_path_with(path, |p| app.clipboard().write_text(p).map_err(|e| e.to_string()))
+}
+
+#[tauri::command]
+pub(crate) fn copy_file_path(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    copy_current_file_path(&app)
 }
 
 pub(crate) fn session_view(session: &InteractiveSession) -> serde_json::Value {
@@ -238,5 +273,94 @@ mod tests {
     #[test]
     fn rejected_submission_returns_error() {
         assert!(prepare_submission(&session(), &HashMap::new()).is_err());
+    }
+
+    fn app_state(mode: AppMode, file_path: &str, folder: Option<&str>, startup_error: Option<&str>) -> AppState {
+        AppState {
+            mode,
+            file_path: PathBuf::from(file_path),
+            folder_path: folder.map(PathBuf::from),
+            folder_files: Default::default(),
+            current_theme: String::new(),
+            print_header: false,
+            show_hidden_files: false,
+            show_outline: false,
+            show_frontmatter: false,
+            has_frontmatter: false,
+            debouncer: None,
+            folder_debouncer: None,
+            startup_error: startup_error.map(str::to_string),
+            interactive: None,
+        }
+    }
+
+    #[test]
+    fn no_path_in_empty_mode() {
+        assert_eq!(
+            current_file_display_path(&app_state(AppMode::Empty, "", None, None)),
+            None
+        );
+    }
+
+    #[test]
+    fn no_path_in_folder_mode_without_file() {
+        let state = app_state(AppMode::Folder, "", Some(r"C:\docs"), None);
+        assert_eq!(current_file_display_path(&state), None);
+    }
+
+    #[test]
+    fn folder_mode_returns_displayed_file() {
+        let state = app_state(AppMode::Folder, r"C:\docs\a.md", Some(r"C:\docs"), None);
+        assert_eq!(current_file_display_path(&state).as_deref(), Some(r"C:\docs\a.md"));
+    }
+
+    #[test]
+    fn file_mode_returns_file() {
+        let state = app_state(AppMode::File, r"C:\docs\readme.md", None, None);
+        assert_eq!(current_file_display_path(&state).as_deref(), Some(r"C:\docs\readme.md"));
+    }
+
+    #[test]
+    fn no_path_on_startup_error() {
+        let state = app_state(AppMode::Empty, "", None, Some("File not found: x.md"));
+        assert_eq!(current_file_display_path(&state), None);
+    }
+
+    #[test]
+    fn verbatim_prefix_stripped() {
+        let state = app_state(AppMode::File, r"\\?\C:\docs\readme.md", None, None);
+        assert_eq!(current_file_display_path(&state).as_deref(), Some(r"C:\docs\readme.md"));
+    }
+
+    #[test]
+    fn verbatim_unc_normalized() {
+        let state = app_state(AppMode::File, r"\\?\UNC\server\share\doc.md", None, None);
+        assert_eq!(
+            current_file_display_path(&state).as_deref(),
+            Some(r"\\server\share\doc.md")
+        );
+    }
+
+    #[test]
+    fn copy_without_file_skips_clipboard() {
+        let result = copy_path_with(None, |_| panic!("clipboard must not be written"));
+        assert_eq!(result, Ok(None));
+    }
+
+    #[test]
+    fn copy_writes_path_and_returns_it() {
+        let mut written = None;
+        let result = copy_path_with(Some(r"C:\a.md".into()), |p| {
+            written = Some(p);
+            Ok(())
+        });
+        assert_eq!(result, Ok(Some(r"C:\a.md".to_string())));
+        assert_eq!(written.as_deref(), Some(r"C:\a.md"));
+    }
+
+    #[test]
+    fn copy_propagates_clipboard_error() {
+        let result = copy_path_with(Some(r"C:\a.md".into()), |_| Err("busy".into()));
+        assert_eq!(result, Err("busy".to_string()));
     }
 }

@@ -26,6 +26,7 @@ notify = "8"
 notify-debouncer-mini = "0.7"
 tauri-plugin-dialog = "2.7.0"
 tauri-plugin-store = "2"
+tauri-plugin-clipboard-manager = "2"
 reqwest = { version = "0.13", features = ["json"] }
 semver = "1"
 
