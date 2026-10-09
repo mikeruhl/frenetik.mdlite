@@ -50,7 +50,10 @@ pub(crate) struct AppState {
 }
 
 pub(crate) fn display_path(p: &Path) -> String {
-    let s = p.to_string_lossy().to_string();
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{rest}");
+    }
     s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
 }
 

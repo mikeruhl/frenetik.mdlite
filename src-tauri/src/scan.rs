@@ -649,6 +649,12 @@ mod tests {
     }
 
     #[test]
+    fn display_path_normalizes_verbatim_unc() {
+        let p = Path::new(r"\\?\UNC\server\share\doc.md");
+        assert_eq!(display_path(p), r"\\server\share\doc.md");
+    }
+
+    #[test]
     fn display_path_passes_normal_path_through() {
         let p = Path::new(r"C:\Users\test\file.md");
         assert_eq!(display_path(p), r"C:\Users\test\file.md");

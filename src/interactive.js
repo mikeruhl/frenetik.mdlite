@@ -71,6 +71,7 @@ function buildOtherInput(entry) {
 function bindChoiceGroup(q, entry, group, otherInput) {
   group.addEventListener("change", (e) => {
     const input = e.target;
+    if (input.name !== `iq-${q.id}`) return;
     if (q.type === "single") {
       entry.otherChosen = input.value === OTHER;
       entry.selected = entry.otherChosen ? [] : [input.value];

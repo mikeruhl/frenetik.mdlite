@@ -33,7 +33,9 @@ exits and returns the answers as JSON.
    tell the user mdlite must be installed and on `PATH` (see the "Command line" section of the mdlite README).
 
 5. **Tell the user** the decision document is open in mdlite and wait. You are notified when the process exits.
-6. **Read `answers.json`**. If it is missing or empty, parse the captured stdout instead (one JSON line).
+6. **Read the result** based on the exit code. On exit code 1, parse the captured stdout (one JSON line); an
+   existing `answers.json` may be stale because the write can fail. Otherwise read `answers.json`, and parse
+   stdout instead if it is missing or empty.
 
 ## Questions schema (version 1)
 

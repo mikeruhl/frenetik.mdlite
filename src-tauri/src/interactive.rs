@@ -411,11 +411,21 @@ pub(crate) fn check_output_path(path: &Path) -> Result<(), String> {
 
 fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
-    let tmp = path.with_file_name(format!(".{file_name}.{}.tmp", std::process::id()));
-    std::fs::write(&tmp, contents)?;
-    std::fs::rename(&tmp, path).inspect_err(|_| {
-        let _ = std::fs::remove_file(&tmp);
-    })
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or_default();
+    let tmp = path.with_file_name(format!(".{file_name}.{}.{nanos:09}.tmp", std::process::id()));
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+    file.write_all(contents)
+        .and_then(|()| file.sync_all())
+        .and_then(|()| {
+            drop(file);
+            std::fs::rename(&tmp, path)
+        })
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&tmp);
+        })
 }
 
 /// Writes the result to the optional output file (atomically) and then as one JSON line to `out`,

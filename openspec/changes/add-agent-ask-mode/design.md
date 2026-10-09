@@ -74,7 +74,12 @@ Questions schema v1:
         { "value": "memory", "label": "In-process LRU" }
       ]
     },
-    { "id": "risks", "type": "multi", "prompt": "Which risks matter?", "options": [] },
+    {
+      "id": "risks",
+      "type": "multi",
+      "prompt": "Which risks matter?",
+      "options": [{ "value": "cost", "label": "Cost" }]
+    },
     { "id": "notes", "type": "text", "prompt": "Anything else?", "multiline": true, "placeholder": "..." }
   ]
 }
