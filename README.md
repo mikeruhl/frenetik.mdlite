@@ -144,7 +144,7 @@ CLI, GitHub Copilot, Cursor, and others read. Install it with the [`skills`](htt
 CLI, which detects installed agents and places the skill in each one's skills directory:
 
 ```bash
-npx skills add mikeruhl/frenetik.mdlite
+npx skills add mikeruhl/frenetik.mdlite --skill mdlite-decision
 ```
 
 Run the same command again to update. To install manually, copy the `skills/mdlite-decision` folder into your
