@@ -29,7 +29,7 @@ mdlite opens a folder with a file tree, so one window can hold every file:
 
 - **Temporary files** (reports, reviews, scratch output): write them all into one new folder,
   `<scratch>/mdlite/<slug>/`, where `<scratch>` is the session scratch directory, else the OS temp directory.
-  Open that folder once.
+  Create the folder if your file-write tool does not create parent directories. Open that folder once.
 - **Files that must live elsewhere** (for example plans inside the repository): open their shared folder if they
   have one; otherwise open only the main file.
 

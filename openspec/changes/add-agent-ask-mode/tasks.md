@@ -91,7 +91,7 @@
       maintained repository docs and already opened files, honor a `CLAUDE.md` opt-out, stop after the first exit
       127, and group several temporary files in one scratch folder opened in folder view
 - [x] 6.10 Document both skills and the opt-out in the README
-- [ ] 6.11 End-to-end from Claude Code: a skill that writes a report opens it in mdlite; several temporary files
+- [x] 6.11 End-to-end from Claude Code: a skill that writes a report opens it in mdlite; several temporary files
       open as one folder
 
 ## 7. Verification
