@@ -63,10 +63,11 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 }
 ```
 
-- `type`: `single` or `multi` (1-50 `options`), or `text` (no `options`). `default`: a value, an array of values
-  (`multi`), or a string.
+- `type`: `single` or `multi` (1-50 `options`), or `text` (no `options`).
+- `default`: `single` takes one declared option `value`; `multi` takes an array of declared option `value`s; `text`
+  takes any string. Unknown values are rejected.
 - `id`, option `value`, `anchor`: `^[A-Za-z0-9_-]{1,64}$`. Question `id`s are unique; option `value`s are unique
-  within a question; questions may share an `anchor`. 1-50 questions, 1-50 options each.
+  within a question; questions may share an `anchor`. 1-50 questions.
 - `questions.json` must not exceed 256 KB. Unknown fields are rejected. Full sample: `examples/` next to this file.
 
 ## Result
