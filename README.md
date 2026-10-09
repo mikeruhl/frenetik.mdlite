@@ -140,7 +140,8 @@ Run `/plugin marketplace update mdlite` to pull updates on demand, or enable aut
 `/plugin`.
 
 **Other agents.** The skill follows the open [Agent Skills](https://agentskills.io) format, which Codex, Gemini
-CLI, GitHub Copilot, Cursor, and others read. Install it with the [`skills`](https://github.com/vercel-labs/skills)
+CLI, GitHub Copilot, Cursor, and others read. The workflow assumes a shell tool that runs a command in the
+background and notifies the agent when it exits; it works in any agent that provides one. Install it with the [`skills`](https://github.com/vercel-labs/skills)
 CLI, which detects installed agents and places the skill in each one's skills directory:
 
 ```bash

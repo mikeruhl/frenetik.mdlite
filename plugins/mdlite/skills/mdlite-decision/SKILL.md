@@ -13,23 +13,25 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 ## Steps
 
 1. Pick a folder: `<scratch>/mdlite/<slug>/` under the session scratch directory, else the OS temp directory.
-2. In **one** background shell call (Claude Code: Bash with `run_in_background: true`), write both files with
-   quoted heredocs and launch mdlite. Call `mdlite` from `PATH`; if it is missing, tell the user to install it.
+2. This flow requires a shell tool that runs a long-lived command in the background and notifies you when it
+   exits (Claude Code: Bash with `run_in_background: true`). In **one** such call, write both files with quoted
+   heredocs and launch mdlite. Call `mdlite` from `PATH`; if it is missing, tell the user to install it.
 
    ```bash
    d="<dir>"; mkdir -p "$d"; rm -f "$d/answers.json"
-   cat > "$d/decision.md" <<'EOF'
+   cat > "$d/decision.md" <<'MDLITE_DOC_END'
    ...summary and recommendation, then one section per option...
-   EOF
-   cat > "$d/questions.json" <<'EOF'
+   MDLITE_DOC_END
+   cat > "$d/questions.json" <<'MDLITE_JSON_END'
    {...}
-   EOF
+   MDLITE_JSON_END
    mdlite "$d/decision.md" --interactive "$d/questions.json" --output "$d/answers.json"
    ```
 
    - `decision.md`: lead with a short summary and your recommendation. Put `<a id="some-id"></a>` on its own
      line before each section a question refers to.
    - `questions.json`: see the schema below. Each `anchor` must match an id in `decision.md`.
+   - If any line of a file's content equals its delimiter, pick a different delimiter for that file.
 
 3. Tell the user the document is open, then wait for the process to exit.
 4. Read the result. Exit code 1: use stdout (`answers.json` may be stale). Otherwise read `answers.json`, falling
