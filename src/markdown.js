@@ -12,6 +12,7 @@ import "katex/dist/katex.min.css";
 let mermaidInstance = null;
 let mermaidTheme = "default";
 let mermaidCounter = 0;
+let panelMode = false;
 const usedIds = new Set();
 const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
@@ -93,6 +94,7 @@ marked.use(
     renderer: {
       heading({ tokens, depth }) {
         const text = this.parser.parseInline(tokens);
+        if (panelMode) return `<h${depth}>${text}</h${depth}>\n`;
         let id = slugify(text) || `heading-${usedIds.size}`;
         if (usedIds.has(id)) {
           let i = 1;
@@ -103,7 +105,7 @@ marked.use(
         return `<h${depth} id="${id}">${text}</h${depth}>\n`;
       },
       code({ text, lang }) {
-        if (lang === "mermaid") {
+        if (lang === "mermaid" && !panelMode) {
           const idx = mermaidCounter++;
           const bytes = new TextEncoder().encode(text);
           const chars = new Array(bytes.length);
@@ -242,8 +244,14 @@ export function extractFrontmatter(markdown) {
   return { body: markdown.slice(match[0].length), raw, fields };
 }
 
-export function parseMarkdown(markdown) {
-  const raw = marked.parse(markdown);
+export function parseMarkdown(markdown, { panel = false } = {}) {
+  panelMode = panel;
+  let raw;
+  try {
+    raw = marked.parse(markdown);
+  } finally {
+    panelMode = false;
+  }
   return DOMPurify.sanitize(raw, {
     ADD_TAGS: [
       "div",

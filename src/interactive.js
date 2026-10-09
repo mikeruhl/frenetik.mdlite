@@ -33,7 +33,7 @@ function el(tag, className, text) {
 
 function markdownBlock(className, markdown) {
   const node = el("div", className);
-  node.innerHTML = parseMarkdown(markdown);
+  node.innerHTML = parseMarkdown(markdown, { panel: true });
   return node;
 }
 
