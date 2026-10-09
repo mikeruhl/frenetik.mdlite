@@ -7,9 +7,10 @@ one-shot request/response model. Release builds set `windows_subsystem = "window
 console of its own on Windows. The left `#sidebar` slot is used only in folder mode; the right `#toc-panel` slot
 hosts the outline.
 
-The caller is an agent (Claude Code first, others later) that can write files, spawn a process, wait for it, and
-read its output. Claude Code's Bash tool caps foreground commands at 10 minutes but supports
-`run_in_background`, which re-invokes the agent when the process exits.
+The caller is an agent that can write files, run a long-lived command in the background, be notified when it
+exits, and read its output. Claude Code's Bash tool caps foreground commands at 10 minutes but supports
+`run_in_background`, which re-invokes the agent when the process exits; other agents qualify if their shell tool
+offers the same.
 
 ## Goals / Non-Goals
 
@@ -22,7 +23,8 @@ read its output. Claude Code's Bash tool caps foreground commands at 10 minutes 
 
 **Non-Goals:**
 
-- See proposal Non-goals (no editing, no server/MCP, no multi-round, no advanced controls, no plugin packaging).
+- See proposal Non-goals (no editing, no server/MCP, no multi-round, no advanced controls, no detached-process
+  fallback for agents without background shell execution).
 - Watching the questions definition for changes during a session.
 
 ## Decisions
@@ -181,20 +183,41 @@ session data). The document file watcher stays active so the agent may refine th
 
 ### D8. Agent skill
 
-`skills/mdlite-decision/SKILL.md` in the repo, installed by copying to `~/.claude/skills/`. It instructs the agent:
+`plugins/mdlite/skills/mdlite-decision/SKILL.md` in the repo, in the open Agent Skills format. It instructs the
+agent:
 
-1. Use it for decisions with substantial context (tradeoff tables, diagrams, code); use plain chat or
-   `AskUserQuestion` for quick questions.
+1. Use it for decisions with substantial context (tradeoff tables, diagrams, code); use plain chat or the agent's
+   built-in question tool for quick questions.
 2. Invoke `mdlite` by name from `PATH` (D9). No binary search. If the command is not found, stop and tell the
    user how to put mdlite on `PATH`.
-3. Write `decision.md` and `questions.json` into a new `mdlite/<slug>/` folder under the session scratch
-   directory (the scratchpad path Claude Code provides). Use the OS temp directory only when no scratch
-   directory is provided.
-4. Run `mdlite decision.md --interactive questions.json --output answers.json` with `run_in_background: true`.
+3. Use a new `mdlite/<slug>/` folder under the session scratch directory. Use the OS temp directory only when no
+   scratch directory is provided.
+4. Write `decision.md` and `questions.json` with the agent's file-write tool, then run
+   `mdlite decision.md --interactive questions.json --output answers.json` in a separate shell call. The flow
+   requires a shell tool that runs a long-lived command in the background and notifies the agent on exit
+   (Claude Code: Bash with `run_in_background: true`).
 5. On completion, read `answers.json` (fall back to captured stdout), branch on `status`, and never assume an
    answer that is absent.
 
-Distribution is the repo folder only for now; plugin or installer packaging can come later.
+Files are written with the file-write tool rather than shell heredocs. Heredocs fail in ways that depend on the
+content: a line equal to the delimiter truncates the file, an indented terminator copied from the skill never
+closes, and long commands can fail the shell tool's parser before mdlite starts. Writing the files directly costs
+two extra tool calls and removes all three. On Windows, one absolute path form with a drive letter and forward
+slashes (`C:/...`) works in file tools, Git Bash, and mdlite.
+
+Distribution:
+
+- **Claude Code**: `.claude-plugin/marketplace.json` lists the `mdlite` plugin with source `./plugins/mdlite`;
+  `plugins/mdlite/.claude-plugin/plugin.json` points at `./skills/`. Users run
+  `/plugin marketplace add mikeruhl/frenetik.mdlite` and `/plugin install mdlite@mdlite`; updates arrive through
+  the plugin manager. Keeping the plugin in its own folder means an install copies only the skill, not the repo.
+- **Other agents**: `npx skills add mikeruhl/frenetik.mdlite` offers the plugin's skills and places the chosen ones
+  in each detected agent's skills directory. The repository's OpenSpec development skills are marked internal so
+  the CLI offers only `mdlite-decision` and `mdlite-preview` (D11).
+- **Manual**: copy the folders under `plugins/mdlite/skills/` into the agent's skills directory.
+
+Alternative considered: a detached-process fallback for agents without background execution. Rejected for now;
+the README states the background-shell requirement instead.
 
 ### D9. `mdlite` on PATH
 
@@ -241,6 +264,27 @@ Links questions to the document sections they concern, in both directions.
 - **Responsibility split**: anchor resolution, badges, and scroll sync live in a separate `src/anchors.js`
   module so `interactive.js` keeps form state only.
 
+### D11. Preview skill
+
+A second skill, `mdlite-preview`, ships in the same plugin. It tells the agent to open markdown it writes for the
+user to read (reports, plans, reviews) in mdlite, in the background, instead of only printing the path. It is a
+separate skill because a skill loads when its description matches the situation, and "just wrote a markdown file"
+is a different trigger from "major decision".
+
+Gating:
+
+- **Opt-in** is installing the plugin. **Opt-out** is a line in the agent's instructions file (`CLAUDE.md`); no
+  config file or environment variable.
+- **Which files** is the agent's judgment: new files written for the user, not maintained repository docs. Each
+  file or folder opens once per session; live reload covers later edits.
+- **Missing binary**: no pre-check. The first exit 127 is reported once and auto-opening stops for the session.
+
+mdlite has no single-instance handling, so every launch is a new window. Several temporary files are therefore
+written into one `<scratch>/mdlite/<slug>/` folder and opened once in folder view.
+
+Alternative considered: a Claude Code `PostToolUse` hook on markdown writes. Rejected: Claude Code only, cannot
+tell a report from a `README.md` edit, and needs per-session state to avoid reopening and repeated failures.
+
 ## Risks / Trade-offs
 
 - [Windows stdout is silent when not piped] → `--output` file sink; skill always uses it; README documents it.
@@ -268,4 +312,5 @@ Additive. No config or store migration. Rollback is reverting the PR; existing i
 ## Open Questions
 
 None. Resolved: input transport (D2-A), layout (D3-A), output channel (D5), no timeout (D4), PATH strategy (D9),
-skill distribution (repo folder only, D8), anchors with explicit ids and scroll sync (D10).
+skill distribution (Claude Code marketplace plugin, `skills` CLI, manual copy, D8), anchors with explicit ids
+and scroll sync (D10), preview skill gating (D11).

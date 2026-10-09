@@ -15,6 +15,8 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 - **Folder view** — open a directory and browse all markdown files in a sidebar tree
 - **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
 - **Interactive mode** — agents present a decision document with questions and receive the answers as JSON
+- **Agent skills** — a Claude Code plugin and cross-agent skills that let agents ask decisions in interactive mode
+  and open the markdown they write
 - **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
 - **Math/LaTeX** — inline (`$...$`) and block (`$$...$$`) math via KaTeX
 - **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
@@ -123,9 +125,51 @@ diagnostics go to stderr.
 
 On Windows, stdout only reaches the caller when it is piped or redirected. Use `--output` for a reliable result.
 
-The questions schema, answer format, and agent workflow are documented in the Claude Code skill at
-[`skills/mdlite-decision/SKILL.md`](skills/mdlite-decision/SKILL.md). To install it, copy the
-`skills/mdlite-decision` folder to `~/.claude/skills/`.
+The questions schema, answer format, and agent workflow are documented in the agent skill at
+[`plugins/mdlite/skills/mdlite-decision/SKILL.md`](plugins/mdlite/skills/mdlite-decision/SKILL.md).
+
+### Agent skills
+
+Two skills ship together. mdlite itself must be installed and on `PATH` (see [Command line](#command-line)).
+
+| Skill             | What the agent does                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `mdlite-decision` | Presents a major decision (tables, diagrams, code, several options) in interactive mode and acts on the answers |
+| `mdlite-preview`  | Opens markdown it writes for you to read (reports, plans, reviews) in mdlite instead of only printing the path  |
+
+To stop auto-opening, tell the agent in its instructions file (for example `CLAUDE.md`): "Do not auto-open
+markdown in mdlite."
+
+**Claude Code.** Install the plugin from this repository's marketplace. It includes both skills.
+
+```text
+/plugin marketplace add mikeruhl/frenetik.mdlite
+/plugin install mdlite@mdlite
+```
+
+Auto-update is off by default for third-party marketplaces. Turn it on in `/plugin` > **Marketplaces** >
+`mdlite` > **Enable auto-update**. To update on demand, refresh the marketplace, then update the plugin and reload:
+
+```text
+/plugin marketplace update mdlite
+/plugin            (Installed > mdlite > Update now)
+/reload-plugins
+```
+
+From a shell, `claude plugin update mdlite@mdlite` does the plugin update step.
+
+**Other agents.** The skills follow the open [Agent Skills](https://agentskills.io) format, which Codex, Gemini
+CLI, GitHub Copilot, Cursor, and others read. They assume a shell tool that runs a command in the background and
+notifies the agent when it exits; they work in any agent that provides one. Install them with the
+[`skills`](https://github.com/vercel-labs/skills) CLI, which detects installed agents and places the skills in
+each one's skills directory. It asks which skills to install; add `--skill <name>` to pick one.
+
+```bash
+npx skills add mikeruhl/frenetik.mdlite
+```
+
+Run the same command again to update. To install manually, copy the folders under `plugins/mdlite/skills/` into
+your agent's skills directory.
 
 ## Build from source
 
@@ -142,8 +186,8 @@ The questions schema, answer format, and agent workflow are documented in the Cl
 ### Steps
 
 ```bash
-git clone https://github.com/<owner>/mdlite.git
-cd mdlite
+git clone https://github.com/mikeruhl/frenetik.mdlite.git
+cd frenetik.mdlite
 pnpm install
 pnpm tauri build
 ```

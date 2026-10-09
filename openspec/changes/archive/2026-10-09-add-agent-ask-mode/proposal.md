@@ -21,8 +21,14 @@ agent receives structured answers when the window exits.
   so agents invoke it by name.
 - Closing the window without submitting exits with a "cancelled" result so the caller is never left guessing.
 - Interactive sessions do not modify recent-files, jump lists, or other persisted user state.
-- Ship a Claude Code skill in the repo that tells an agent when to use mdlite for a decision, how to author the
-  document and questions, how to invoke mdlite without blocking, and how to read the result.
+- Ship an agent-neutral skill (Agent Skills format) at `plugins/mdlite/skills/mdlite-decision` that tells an agent
+  when to use mdlite for a decision, how to author the document and questions, how to invoke mdlite without
+  blocking, and how to read the result. The flow requires a shell tool that runs a command in the background and
+  notifies the agent on exit.
+- Distribute the skill as the `mdlite` Claude Code plugin through a marketplace manifest in this repository, and
+  for other agents through the `skills` CLI or a manual copy of the skill folder.
+- Ship a second skill, `plugins/mdlite/skills/mdlite-preview`, that opens markdown the agent writes for the user
+  in mdlite, writing several temporary files into one scratch folder and opening the folder.
 - No changes to existing default (non-interactive) behavior.
 
 ## Non-goals
@@ -31,8 +37,9 @@ agent receives structured answers when the window exits.
 - A long-lived server, socket, or MCP endpoint. Communication is strictly one invocation in, one result out.
 - Multi-round conversation within a single session (the agent re-invokes mdlite for follow-ups).
 - Rich form controls beyond the initial set (date pickers, file uploads, sliders, conditional questions).
-- Packaging the skill as a published Claude Code plugin or marketplace entry.
-- Agent-specific integrations beyond the Claude Code skill; the CLI contract stays agent-agnostic.
+- A detached-process fallback for agents whose shell tool cannot run a command in the background and notify on
+  exit.
+- Agent-specific integrations beyond the skill; the CLI contract stays agent-agnostic.
 
 ## Capabilities
 
@@ -41,8 +48,10 @@ agent receives structured answers when the window exits.
 - `interactive-mode`: CLI flag, input contract (questions), output contract (answers, exit codes), cancel
   semantics, validation, and the in-app question/answer UI.
 - `question-anchors`: Two-way navigation between questions and anchored document sections, plus scroll sync.
-- `agent-decision-skill`: Repo-hosted Claude Code skill describing when and how an agent invokes mdlite
-  interactive mode and consumes its result.
+- `agent-decision-skill`: Agent-neutral skill, packaged as a Claude Code marketplace plugin and installable in
+  other agents, describing when and how an agent invokes mdlite interactive mode and consumes its result.
+- `agent-preview-skill`: Agent-neutral skill in the same plugin that opens agent-written markdown in mdlite, with
+  gating and folder grouping for several files.
 - `cli-path-registration`: Making the `mdlite` command resolvable from `PATH` after installation.
 
 ### Modified Capabilities
@@ -60,6 +69,10 @@ None. `folder-navigation` requirements are unaffected; interactive mode is file-
 - **Installer**: new `src-tauri/windows/hooks.nsh` NSIS hooks, referenced from `tauri.conf.json`.
 - **Dependencies**: none planned. `serde`/`serde_json` (already present) cover the contracts; DOMPurify and
   marked (already present) cover any markdown in question text.
-- **Docs**: README usage section for `--interactive`; new `skills/mdlite-decision/SKILL.md`.
+- **Docs**: README usage section for `--interactive` and skill installation; new
+  `plugins/mdlite/skills/mdlite-decision/SKILL.md` and `plugins/mdlite/skills/mdlite-preview/SKILL.md`.
+- **Packaging**: new `.claude-plugin/marketplace.json` and `plugins/mdlite/.claude-plugin/plugin.json`; OpenSpec
+  development skills under `.claude/skills/` marked internal so the `skills` CLI offers only `mdlite-decision` and
+  `mdlite-preview`.
 - **Security**: question text is caller-supplied and must be sanitized; input file size and question counts are
   bounded.
