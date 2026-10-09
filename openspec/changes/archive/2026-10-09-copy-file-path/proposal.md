@@ -44,7 +44,7 @@ This applies equally in single-file mode and folder mode.
 
 - `src-tauri/Cargo.toml`: add `tauri-plugin-clipboard-manager = "2"`.
 - `src-tauri/src/lib.rs`: register the clipboard plugin; command/handler to copy the current file path.
-- `src-tauri/src/menu.rs`: new File menu item with accelerator; enabled state derived from whether a file is open.
+- `src-tauri/src/menu.rs`: new File menu item labeled with Shift+Alt+C; enabled only when a file is open.
 - `src-tauri/src/commands.rs`: `copy_file_path` command (used by the keyboard path and menu path).
 - `src-tauri/capabilities/default.json`: unchanged (clipboard writes happen in Rust; the plugin's JS API is not
   exposed).

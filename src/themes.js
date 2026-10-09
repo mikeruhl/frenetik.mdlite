@@ -120,6 +120,10 @@ const themeStyleEl = document.getElementById("theme-style");
 const hljsStyleEl = document.getElementById("hljs-style");
 const attributionEl = document.getElementById("attribution");
 
+function isTransparent(color) {
+  return !color || color === "transparent" || color === "rgba(0, 0, 0, 0)";
+}
+
 export function applyTheme(themeId) {
   const theme = themes[themeId] || themes.github;
 
@@ -153,9 +157,11 @@ export function applyTheme(themeId) {
   hljsStyleEl.textContent = isDark ? hljsDarkCss : hljsLightCss;
 
   requestAnimationFrame(() => {
-    const { backgroundColor: bg, color: fg } = getComputedStyle(contentEl);
-    document.body.style.backgroundColor = bg || "";
-    document.body.style.setProperty("--theme-bg", bg || "");
+    const { backgroundColor: contentBg, color: fg } = getComputedStyle(contentEl);
+    const rootBg = getComputedStyle(document.documentElement).backgroundColor;
+    const bg = [contentBg, rootBg].find((c) => !isTransparent(c)) || "#fff";
+    document.body.style.backgroundColor = bg;
+    document.body.style.setProperty("--theme-bg", bg);
     document.body.style.setProperty("--theme-fg", fg || "");
   });
 }

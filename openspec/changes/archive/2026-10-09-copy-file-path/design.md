@@ -65,13 +65,14 @@ menu after **Open Folder...**/Recent Files separator group, before **Find...**.
 - Alternative: always enabled, no-op when empty. Rejected: spec requires disabled state; a dead menu item is
   misleading.
 
-### D4: Shortcut = Shift+Alt+C, declared twice like existing shortcuts
+### D4: Shortcut = Shift+Alt+C, handled only in JS
 
-Menu accelerator `"Shift+Alt+C"` (Tauri maps Alt to Option on macOS). Matching `keydown` handler in `main.js`
-checks `e.altKey && e.shiftKey && e.code === "KeyC"` (use `code`, since Alt/Option changes `e.key` on macOS and
-some layouts) and skips when `e.target` is an `input`, `textarea`, or contenteditable. It calls
-`invoke("copy_file_path")`. If both the native accelerator and the JS handler fire, the action is idempotent and
-D5 collapses duplicate toasts.
+The menu item displays the shortcut in its label (`"Copy File Path\tShift+Alt+C"`, the same pattern as Print)
+but registers no native accelerator, because native accelerators fire even while a WebView input is focused.
+The `keydown` handler in `main.js` is the sole shortcut path. It checks
+`e.altKey && e.shiftKey && e.code === "KeyC"` (use `code`, since Alt/Option changes `e.key` on macOS and some
+layouts) and skips when `e.target` is an `input`, `textarea`, or contenteditable. It calls
+`invoke("copy_file_path")`.
 
 - Alternative: Ctrl+Shift+C. Rejected: opens the DevTools element picker in WebView2 debug builds and is
   "copy" in many terminals. Shift+Alt+C matches VS Code's "Copy Path".
@@ -80,10 +81,10 @@ D5 collapses duplicate toasts.
 
 Add one `<div id="toast" role="status" aria-live="polite" hidden>` inside `#main-content`. `showToast(text)`
 sets text, unhides, and (re)starts a ~1.8 s timer; repeated calls restart the timer rather than creating new
-nodes. Styled in `styles.css` by mirroring the search bar's pattern: light default colors plus a
-`body.dark-sidebar #toast` override, which is how the search bar already adapts across all 11 themes (no theme
-file overrides it). Positioned bottom-center, `pointer-events: none`, padding, radius, border, and font size
-matching the search bar. Hidden in print media. Focus is never moved.
+nodes. Colors come from the active theme: `applyTheme` sets `--theme-bg` (first opaque background of
+`#content`, then the document root) and `--theme-fg` on `body`, and `#toast` uses them. Positioned
+bottom-center, `pointer-events: none`, padding, radius, border, and font size matching the search bar.
+Hidden in print media. Focus is never moved.
 
 ### D6: Errors via `window.alert`
 
@@ -92,15 +93,13 @@ Matches the existing PDF export error pattern; no new dialog component.
 ## Risks / Trade-offs
 
 - [New Rust dependency increases binary size slightly] → Official plugin, small; justified in proposal.
-- [Native accelerator and JS handler both fire, double clipboard write] → Writes are identical and idempotent;
-  toast restarts instead of stacking.
 - [Linux clipboard ownership is lost when the process exits on some X11 setups] → Accepted; the app stays open
   while the user pastes. Documented as known limitation.
 - [Menu enablement goes stale if a state transition misses `rebuild_menu`] → Command path re-checks state and
   returns `None`, so a stale-enabled item only produces no-op; add tests on `current_file_display_path` and
   manually verify each transition listed in tasks.
-- [Toast contrast wrong in a bundled theme (Splendor, Retro, Air, Modest set their own page colors)] → Follow
-  the search bar's light/`dark-sidebar` pattern, which already works in all themes; verify all 11 manually.
+- [Toast contrast wrong in a bundled theme (Splendor, Retro, Air, Modest set their own page colors)] → Derive
+  toast colors from the theme's resolved background and text color; verify all 11 manually.
 
 ## Migration Plan
 

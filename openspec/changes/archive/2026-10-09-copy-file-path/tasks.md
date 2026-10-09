@@ -17,8 +17,8 @@
 ## 3. Menu
 
 - [x] 3.1 Add `has_file` input to `build_menu`/`rebuild_menu`, computed via `current_file_display_path`
-- [x] 3.2 Add File menu item `copy-file-path` "Copy File Path" with accelerator `Shift+Alt+C`, `.enabled(has_file)`,
-      placed after the Recent Files group and before Find
+- [x] 3.2 Add File menu item `copy-file-path` labeled "Copy File Path\tShift+Alt+C" (shortcut display only, no
+      native accelerator), `.enabled(has_file)`, placed after the Recent Files group and before Find
 - [x] 3.3 Handle `id == "copy-file-path"` in `on_menu_event`: emit `file-path-copied` on success, `file-path-copy-error`
       with message on failure, nothing on `None`
 - [x] 3.4 Call `rebuild_menu` on every transition that changes `has_file`: `switch_file`, `open_folder_file`, entering
@@ -30,10 +30,10 @@
 - [x] 4.2 Add `showToast(text)` in `main.js` that reuses the single element and restarts a ~1.8 s hide timer
 - [x] 4.3 Listen for `file-path-copied` (show "Path copied") and `file-path-copy-error` (`window.alert("Could not copy
 file path: " + msg)`)
-- [x] 4.4 Add keydown handler: `e.altKey && e.shiftKey && e.code === "KeyC"`, skip when target is
+- [x] 4.4 Add keydown handler (sole shortcut path): `e.altKey && e.shiftKey && e.code === "KeyC"`, skip when target is
       input/textarea/contenteditable, `invoke("copy_file_path")`, toast on `Some`, alert on rejection
 - [x] 4.5 Add "Copy file path | Shift+Alt+C" row to `WELCOME_MD` shortcut table
-- [x] 4.6 Style `#toast` in `styles.css` mirroring `#search-bar` (light default + `body.dark-sidebar #toast`),
+- [x] 4.6 Style `#toast` in `styles.css` with theme-derived colors (`--theme-bg`/`--theme-fg` set in `applyTheme`),
       bottom-center, `pointer-events: none`, hidden in `@media print`
 
 ## 5. Verification
