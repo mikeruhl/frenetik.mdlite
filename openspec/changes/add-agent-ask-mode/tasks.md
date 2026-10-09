@@ -69,12 +69,24 @@
 
 ## 6. Agent skill and docs
 
-- [x] 6.1 Write `skills/mdlite-decision/SKILL.md` (when to use, invoke `mdlite` from PATH with no search, session
-      scratch layout `<scratch>/mdlite/<slug>/` with temp-dir fallback, schema v1 example, `<a id>` anchor
-      authoring, background invocation with `--output`, status handling)
-- [x] 6.2 Add a sample `decision.md` and `questions.json` under `skills/mdlite-decision/examples/`
+- [x] 6.1 Write `plugins/mdlite/skills/mdlite-decision/SKILL.md` (when to use, invoke `mdlite` from PATH with no
+      search, session scratch layout `<scratch>/mdlite/<slug>/` with temp-dir fallback, schema v1 example,
+      `<a id>` anchor authoring, single background shell call with `--output`, status handling)
+- [x] 6.2 Add a sample `decision.md` and `questions.json` under `plugins/mdlite/skills/mdlite-decision/examples/`
 - [x] 6.3 Update README: `--interactive` usage, contracts, exit codes, Windows stdout caveat, PATH setup per OS
       (macOS symlink, Linux `~/.local/bin`, restart terminals), skill installation
+- [x] 6.4 Package the skill as the `mdlite` Claude Code plugin (`plugins/mdlite/.claude-plugin/plugin.json`) and
+      list it in `.claude-plugin/marketplace.json`; the plugin source is `./plugins/mdlite` so installs copy only
+      the skill
+- [x] 6.5 Make the skill agent-neutral: refer to the agent's built-in question tool and background shell tool,
+      naming Claude Code equivalents as examples, and state the background-execution and exit-notification
+      requirement
+- [x] 6.6 Document installation in the README: Claude Code marketplace, `npx skills add mikeruhl/frenetik.mdlite
+    --skill mdlite-decision` for other agents, and manual copy of `plugins/mdlite/skills/mdlite-decision`
+- [x] 6.7 Mark the repository's OpenSpec development skills internal so the `skills` CLI offers only
+      `mdlite-decision`
+- [x] 6.8 Write both files with per-file unique quoted heredoc delimiters (`MDLITE_DOC_END`, `MDLITE_JSON_END`)
+      and instruct the agent to change a delimiter when a content line equals it
 
 ## 7. Verification
 

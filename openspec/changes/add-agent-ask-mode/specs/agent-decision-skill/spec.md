@@ -2,19 +2,45 @@
 
 ### Requirement: Skill ships in the repository
 
-The repository SHALL contain a Claude Code skill at `plugins/mdlite/skills/mdlite-decision/SKILL.md` with valid frontmatter
-(`name`, `description`) and installation instructions in the README (copy the folder to `~/.claude/skills/`).
+The repository SHALL contain an Agent Skills format skill at `plugins/mdlite/skills/mdlite-decision/SKILL.md` with
+valid frontmatter (`name`, `description`), packaged as the `mdlite` Claude Code plugin
+(`plugins/mdlite/.claude-plugin/plugin.json`) and listed in a marketplace manifest at
+`.claude-plugin/marketplace.json`. The README SHALL document installation through the Claude Code marketplace,
+through the `skills` CLI for other agents, and by manually copying `plugins/mdlite/skills/mdlite-decision` into an
+agent's skills directory.
 
-#### Scenario: Skill discovered after install
+#### Scenario: Installed through the Claude Code marketplace
 
-- **WHEN** the skill folder is copied to `~/.claude/skills/` and Claude Code starts
+- **WHEN** the user runs `/plugin marketplace add mikeruhl/frenetik.mdlite` and `/plugin install mdlite@mdlite`
 - **THEN** `mdlite-decision` appears in the available skills list
+
+#### Scenario: Installed for another agent
+
+- **WHEN** the user runs `npx skills add mikeruhl/frenetik.mdlite --skill mdlite-decision`, or copies
+  `plugins/mdlite/skills/mdlite-decision` into the agent's skills directory
+- **THEN** the agent can discover and load `mdlite-decision`
+
+#### Scenario: Only the decision skill is offered
+
+- **WHEN** the `skills` CLI lists skills in the repository
+- **THEN** the repository's internal OpenSpec development skills are not offered for installation
+
+### Requirement: Skill is agent-neutral with a stated shell requirement
+
+The skill SHALL avoid depending on a single agent's tool names, and SHALL state that its flow requires a shell tool
+that runs a long-lived command in the background and notifies the agent when the command exits, naming the
+Claude Code equivalent (Bash with `run_in_background`) as an example.
+
+#### Scenario: Shell requirement stated
+
+- **WHEN** an agent reads the skill
+- **THEN** the skill states the background-execution and exit-notification requirement before the launch step
 
 ### Requirement: Skill defines when to use mdlite
 
 The skill SHALL instruct the agent to use mdlite interactive mode for decisions that need substantial context
-(comparison tables, diagrams, code samples, multiple options with tradeoffs) and to use ordinary chat or
-`AskUserQuestion` for short questions.
+(comparison tables, diagrams, code samples, multiple options with tradeoffs) and to use ordinary chat or the
+agent's built-in question tool for short questions.
 
 #### Scenario: Trivial question
 
@@ -26,8 +52,10 @@ The skill SHALL instruct the agent to use mdlite interactive mode for decisions 
 The skill SHALL instruct the agent to: invoke `mdlite` by command name from `PATH` without searching for the
 binary; write the document, questions file, and output file into a new `mdlite/<slug>/` folder under the
 session scratch directory, using the OS temp directory only when no scratch directory is available; follow
-questions schema v1; launch mdlite with `--output` using background execution so the agent is not blocked by
-tool timeouts; and stop with a clear message to the user if the command is not found.
+questions schema v1; write both files and launch mdlite with `--output` in a single background shell call so the
+agent is not blocked by tool timeouts; write each file with a quoted heredoc using a per-file unique delimiter
+(`MDLITE_DOC_END` for the document, `MDLITE_JSON_END` for the questions) and choose a different delimiter when
+any content line equals it; and stop with a clear message to the user if the command is not found.
 
 #### Scenario: Binary not on PATH
 
@@ -40,6 +68,11 @@ tool timeouts; and stop with a clear message to the user if the command is not f
 - **WHEN** the agent prepares a decision and a session scratch directory is available
 - **THEN** `decision.md`, `questions.json`, and `answers.json` are all created under
   `<scratch>/mdlite/<slug>/`
+
+#### Scenario: Content contains a delimiter line
+
+- **WHEN** a line of the document or questions content equals that file's heredoc delimiter
+- **THEN** the agent writes that file with a different delimiter so the content is not truncated
 
 #### Scenario: Long-running decision
 
