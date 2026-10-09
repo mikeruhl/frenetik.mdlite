@@ -194,6 +194,12 @@ fn parse_interactive_args(
         return Err(format!("--interactive requires a file, not a folder: {doc_arg}"));
     }
     std::fs::read_to_string(&document).map_err(|e| format!("Cannot read document {doc_arg}: {e}"))?;
+    if output
+        .as_deref()
+        .is_some_and(|out| interactive::output_aliases_input(out, &[document.as_path(), Path::new(questions_arg)]))
+    {
+        return Err(interactive::OUTPUT_ALIASES_INPUT.to_string());
+    }
     let questions = interactive::load_questions(Path::new(questions_arg))?;
     Ok(InteractiveSession {
         document,
@@ -206,6 +212,7 @@ fn parse_interactive_args(
 fn report_cli_error(message: String) -> ! {
     let args: Vec<String> = std::env::args().collect();
     if let Some(output) = interactive::interactive_request_in_argv(&args) {
+        interactive::protect_inputs(interactive::input_candidates_in_argv(&args));
         interactive::fail_startup(message, output.as_deref());
     }
     eprintln!("{message}");
@@ -294,6 +301,12 @@ pub fn run() {
             let path_arg = path_arg.as_deref();
             let output_arg = arg_str("output");
             let interactive_arg = arg_str("interactive");
+            interactive::protect_inputs(
+                path_arg
+                    .into_iter()
+                    .chain(interactive_arg.as_deref())
+                    .map(PathBuf::from),
+            );
             if let Err(msg) =
                 interactive::check_output_requires_interactive(interactive_arg.is_some(), output_arg.is_some())
             {

@@ -3,12 +3,14 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Mutex;
 
 pub(crate) const SCHEMA_VERSION: u32 = 1;
 const MAX_QUESTIONS_FILE_BYTES: u64 = 256 * 1024;
 const MAX_QUESTIONS: usize = 50;
 const MAX_OPTIONS: usize = 50;
 const MAX_ID_LEN: usize = 64;
+pub(crate) const OUTPUT_ALIASES_INPUT: &str = "--output must not be the document or questions file";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -180,6 +182,17 @@ impl ResultGate {
 }
 
 pub(crate) static RESULT_GATE: ResultGate = ResultGate::new();
+
+/// Input files the output file must never overwrite, checked on every write.
+static PROTECTED_INPUTS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+pub(crate) fn protect_inputs(paths: impl IntoIterator<Item = PathBuf>) {
+    PROTECTED_INPUTS.lock().unwrap().extend(paths);
+}
+
+fn protected_inputs() -> Vec<PathBuf> {
+    PROTECTED_INPUTS.lock().unwrap().clone()
+}
 
 fn is_valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= MAX_ID_LEN && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
@@ -409,6 +422,36 @@ pub(crate) fn check_output_path(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn same_path(a: &Path, b: &Path) -> bool {
+    if cfg!(windows) {
+        a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+    } else {
+        a == b
+    }
+}
+
+fn canonical_output(path: &Path) -> Option<PathBuf> {
+    if let Ok(p) = std::fs::canonicalize(path) {
+        return Some(p);
+    }
+    let parent = match path.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => Path::new("."),
+    };
+    Some(std::fs::canonicalize(parent).ok()?.join(path.file_name()?))
+}
+
+/// Whether writing `output` would overwrite one of `inputs`. Inputs that do not exist cannot be lost.
+pub(crate) fn output_aliases_input<P: AsRef<Path>>(output: &Path, inputs: &[P]) -> bool {
+    let Some(output) = canonical_output(output) else {
+        return false;
+    };
+    inputs
+        .iter()
+        .filter_map(|i| std::fs::canonicalize(i).ok())
+        .any(|input| same_path(&output, &input))
+}
+
 fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let nanos = std::time::SystemTime::now()
@@ -430,11 +473,19 @@ fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
 
 /// Writes the result to the optional output file (atomically) and then as one JSON line to `out`,
 /// returning the delivered exit code. When the file cannot be written, an error result goes to `out`
-/// instead.
-pub(crate) fn deliver(result: &InteractiveResult, output: Option<&Path>, out: &mut impl Write) -> i32 {
+/// instead. An output path that aliases one of `inputs` is never written.
+pub(crate) fn deliver<P: AsRef<Path>>(
+    result: &InteractiveResult,
+    output: Option<&Path>,
+    inputs: &[P],
+    out: &mut impl Write,
+) -> i32 {
     let serialize = |r: &InteractiveResult| serde_json::to_string(r).expect("result serializes");
     let json = serialize(result);
     let file_error = output.and_then(|path| {
+        if output_aliases_input(path, inputs) {
+            return Some(OUTPUT_ALIASES_INPUT.to_string());
+        }
         write_atomic(path, json.as_bytes())
             .err()
             .map(|e| format!("Cannot write {}: {e}", path.display()))
@@ -461,7 +512,7 @@ pub(crate) fn emit_once(result: &InteractiveResult, output: Option<&Path>) -> Op
     if let Some(msg) = &result.error {
         eprintln!("{msg}");
     }
-    let code = deliver(result, output, &mut std::io::stdout());
+    let code = deliver(result, output, &protected_inputs(), &mut std::io::stdout());
     RESULT_GATE.commit(code);
     Some(code)
 }
@@ -500,9 +551,28 @@ pub(crate) fn interactive_request_in_argv<S: AsRef<str>>(args: &[S]) -> Option<O
     requested.then(|| output.filter(|v| !v.is_empty()).map(PathBuf::from))
 }
 
+/// Every positional or `--interactive=` value in raw arguments, used as the possible input files when
+/// the CLI parser rejected the arguments.
+pub(crate) fn input_candidates_in_argv<S: AsRef<str>>(args: &[S]) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    let mut iter = args.iter().skip(1).map(AsRef::as_ref);
+    while let Some(arg) = iter.next() {
+        if let Some(value) = arg.strip_prefix("--interactive=") {
+            candidates.push(PathBuf::from(value));
+        } else if arg == "--output" {
+            iter.next();
+        } else if !arg.starts_with('-') {
+            candidates.push(PathBuf::from(arg));
+        }
+    }
+    candidates
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const NO_INPUTS: &[&Path] = &[];
 
     fn sample_json() -> String {
         serde_json::json!({
@@ -875,7 +945,7 @@ mod tests {
         let path = dir.path().join("answers.json");
         let mut out = Vec::new();
         let result = InteractiveResult::submitted("doc.md".into(), BTreeMap::new());
-        assert_eq!(deliver(&result, Some(&path), &mut out), 0);
+        assert_eq!(deliver(&result, Some(&path), NO_INPUTS, &mut out), 0);
         let stdout = String::from_utf8(out).unwrap();
         assert_eq!(stdout.lines().count(), 1);
         let file = std::fs::read_to_string(&path).unwrap();
@@ -887,7 +957,7 @@ mod tests {
     #[test]
     fn deliver_without_output_writes_stdout_only() {
         let mut out = Vec::new();
-        assert_eq!(deliver(&InteractiveResult::cancelled(), None, &mut out), 2);
+        assert_eq!(deliver(&InteractiveResult::cancelled(), None, NO_INPUTS, &mut out), 2);
         let parsed: serde_json::Value = serde_json::from_slice(&out).unwrap();
         assert_eq!(parsed["status"], "cancelled");
     }
@@ -897,7 +967,7 @@ mod tests {
         let mut out = Vec::new();
         let missing = Path::new("no-such-dir-xyz").join("answers.json");
         let result = InteractiveResult::submitted("doc.md".into(), BTreeMap::new());
-        assert_eq!(deliver(&result, Some(&missing), &mut out), 1);
+        assert_eq!(deliver(&result, Some(&missing), NO_INPUTS, &mut out), 1);
         let stdout = String::from_utf8(out).unwrap();
         assert_eq!(stdout.lines().count(), 1);
         let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
@@ -962,6 +1032,81 @@ mod tests {
         assert_eq!(
             check_output_requires_interactive(false, true),
             Err("--output requires --interactive".to_string())
+        );
+    }
+    fn inputs_in(dir: &Path) -> (PathBuf, PathBuf) {
+        let doc = dir.join("decision.md");
+        let questions = dir.join("questions.json");
+        std::fs::write(&doc, "# Doc").unwrap();
+        std::fs::write(&questions, "{}").unwrap();
+        (doc, questions)
+    }
+
+    #[test]
+    fn output_aliasing_document_detected() {
+        let dir = tempfile::tempdir().unwrap();
+        let (doc, questions) = inputs_in(dir.path());
+        let alias = dir.path().join(".").join("decision.md");
+        assert!(output_aliases_input(&alias, &[&doc, &questions]));
+    }
+
+    #[test]
+    fn output_aliasing_questions_detected() {
+        let dir = tempfile::tempdir().unwrap();
+        let (doc, questions) = inputs_in(dir.path());
+        assert!(output_aliases_input(&questions, &[&doc, &questions]));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn output_aliasing_ignores_case_on_windows() {
+        let dir = tempfile::tempdir().unwrap();
+        let (doc, questions) = inputs_in(dir.path());
+        assert!(output_aliases_input(
+            &dir.path().join("DECISION.MD"),
+            &[&doc, &questions]
+        ));
+    }
+
+    #[test]
+    fn distinct_output_is_not_an_alias() {
+        let dir = tempfile::tempdir().unwrap();
+        let (doc, questions) = inputs_in(dir.path());
+        assert!(!output_aliases_input(
+            &dir.path().join("answers.json"),
+            &[&doc, &questions]
+        ));
+        assert!(!output_aliases_input(
+            &dir.path().join("answers.json"),
+            &[dir.path().join("missing.md")]
+        ));
+    }
+
+    #[test]
+    fn deliver_never_writes_over_an_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let (doc, questions) = inputs_in(dir.path());
+        let mut out = Vec::new();
+        let result = InteractiveResult::error("bad arguments");
+        assert_eq!(deliver(&result, Some(&doc), &[&doc, &questions], &mut out), 1);
+        assert_eq!(std::fs::read_to_string(&doc).unwrap(), "# Doc");
+        let parsed: serde_json::Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(parsed["status"], "error");
+        assert_eq!(parsed["error"], OUTPUT_ALIASES_INPUT);
+    }
+
+    #[test]
+    fn argv_input_candidates() {
+        assert_eq!(
+            input_candidates_in_argv(&[
+                "mdlite",
+                "--interactive=q.json",
+                "--output",
+                "o.json",
+                "--bogus",
+                "doc.md"
+            ]),
+            vec![PathBuf::from("q.json"), PathBuf::from("doc.md")]
         );
     }
 }
