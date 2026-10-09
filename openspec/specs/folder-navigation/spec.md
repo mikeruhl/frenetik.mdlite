@@ -1,5 +1,9 @@
 # folder-navigation Specification
 
+## Purpose
+
+Keep the folder-mode navigation tree in sync with files and folders created or deleted on disk, across scan and rescan cycles.
+
 ## Requirements
 
 ### Requirement: Navigation tree reflects file deletions
@@ -52,10 +56,10 @@ nodes) to the navigation tree when they appear on disk, in their correct sorted 
 
 ### Requirement: Live nav tree updates survive scan and rescan cycles
 
-While folder mode is open, live detection of file/folder creation and deletion in the navigation tree
-(as covered by the folder-navigation capability's creation and deletion requirements) SHALL remain active
-for the full duration of the folder session. It MUST NOT stop working after the folder's initial scan
-completes, and MUST NOT stop working after the user triggers a manual rescan of the same folder.
+While folder mode is open, live navigation tree updates SHALL remain active for the full folder session.
+This covers detection of file/folder creation and deletion per this capability's creation and deletion
+requirements. It MUST NOT stop working after the folder's initial scan completes, and MUST NOT stop working
+after the user triggers a manual rescan of the same folder.
 
 #### Scenario: File created after the initial folder scan has finished
 
