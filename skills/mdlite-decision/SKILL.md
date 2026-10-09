@@ -12,18 +12,21 @@ exits and returns the answers as JSON.
 
 - Use for decisions with substantial context: multiple options with tradeoffs, comparison tables, mermaid
   diagrams, code samples, or anything longer than a few lines.
-- Do not use for short questions. Ask in chat or with the AskUserQuestion tool instead.
+- Do not use for short questions. Ask in chat or with your built-in question tool instead.
 
 ## Steps
 
-1. **Create a working folder** under the session scratch directory (the scratchpad path provided in your system
-   prompt): `<scratch>/mdlite/<slug>/`, where `<slug>` is a short kebab-case name for the decision. Use the OS
-   temp directory only when no scratch directory is provided. Write all three files there.
+1. **Create a working folder** under the session scratch directory if your environment provides one (for
+   example, the scratchpad path in your system prompt): `<scratch>/mdlite/<slug>/`, where `<slug>` is a short
+   kebab-case name for the decision. Use the OS temp directory only when no scratch directory is provided.
+   Write all three files there.
 2. **Write `decision.md`**: the full context. Lead with a one-paragraph summary and your recommendation, then one
    section per option. Put `<a id="some-id"></a>` on its own line before each section a question refers to.
 3. **Write `questions.json`** (schema below). Set a question's `anchor` to the id of the section it concerns.
    Only reference anchor ids you wrote into `decision.md`.
-4. **Launch mdlite in the background** so tool timeouts do not apply (Bash tool with `run_in_background: true`):
+4. **Launch mdlite in the background** so tool timeouts do not apply. In Claude Code, use the Bash tool with
+   `run_in_background: true`. In other agents, use the background or long-running process option of the shell
+   tool. If none exists, run the command in the foreground with the longest available timeout.
 
    ```bash
    mdlite "<dir>/decision.md" --interactive "<dir>/questions.json" --output "<dir>/answers.json"
@@ -32,7 +35,8 @@ exits and returns the answers as JSON.
    Call `mdlite` by name from `PATH`. Do not search the filesystem for it. If the command is not found, stop and
    tell the user mdlite must be installed and on `PATH` (see the "Command line" section of the mdlite README).
 
-5. **Tell the user** the decision document is open in mdlite and wait. You are notified when the process exits.
+5. **Tell the user** the decision document is open in mdlite and wait for the process to exit. If your agent does
+   not notify you on exit, poll for `answers.json` or the process status.
 6. **Read the result** based on the exit code. On exit code 1, parse the captured stdout (one JSON line); an
    existing `answers.json` may be stale because the write can fail. Otherwise read `answers.json`, and parse
    stdout instead if it is missing or empty.

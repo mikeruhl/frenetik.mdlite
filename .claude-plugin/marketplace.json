@@ -1,0 +1,20 @@
+{
+  "name": "mdlite",
+  "owner": {
+    "name": "Mike Ruhl"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for mdlite"
+  },
+  "plugins": [
+    {
+      "name": "mdlite",
+      "source": "./",
+      "description": "Present major decisions as rendered markdown in mdlite and collect structured answers.",
+      "homepage": "https://github.com/mikeruhl/frenetik.mdlite",
+      "repository": "https://github.com/mikeruhl/frenetik.mdlite",
+      "license": "MIT",
+      "keywords": ["markdown", "decisions", "questions"]
+    }
+  ]
+}

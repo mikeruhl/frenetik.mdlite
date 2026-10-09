@@ -1,0 +1,11 @@
+{
+  "name": "mdlite",
+  "description": "Present major decisions as rendered markdown in mdlite and collect structured answers.",
+  "author": {
+    "name": "Mike Ruhl"
+  },
+  "homepage": "https://github.com/mikeruhl/frenetik.mdlite",
+  "repository": "https://github.com/mikeruhl/frenetik.mdlite",
+  "license": "MIT",
+  "skills": ["./skills/"]
+}

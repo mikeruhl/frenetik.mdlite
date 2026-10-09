@@ -123,9 +123,32 @@ diagnostics go to stderr.
 
 On Windows, stdout only reaches the caller when it is piped or redirected. Use `--output` for a reliable result.
 
-The questions schema, answer format, and agent workflow are documented in the Claude Code skill at
-[`skills/mdlite-decision/SKILL.md`](skills/mdlite-decision/SKILL.md). To install it, copy the
-`skills/mdlite-decision` folder to `~/.claude/skills/`.
+The questions schema, answer format, and agent workflow are documented in the agent skill at
+[`skills/mdlite-decision/SKILL.md`](skills/mdlite-decision/SKILL.md).
+
+### Agent skill
+
+**Claude Code.** Install the plugin from this repository's marketplace. Updates arrive through the plugin
+manager whenever `main` changes.
+
+```text
+/plugin marketplace add mikeruhl/frenetik.mdlite
+/plugin install mdlite@mdlite
+```
+
+Run `/plugin marketplace update mdlite` to pull updates on demand, or enable auto-update for the marketplace in
+`/plugin`.
+
+**Other agents.** The skill follows the open [Agent Skills](https://agentskills.io) format, which Codex, Gemini
+CLI, GitHub Copilot, Cursor, and others read. Install it with the [`skills`](https://github.com/vercel-labs/skills)
+CLI, which detects installed agents and places the skill in each one's skills directory:
+
+```bash
+npx skills add mikeruhl/frenetik.mdlite
+```
+
+Run the same command again to update. To install manually, copy the `skills/mdlite-decision` folder into your
+agent's skills directory.
 
 ## Build from source
 
