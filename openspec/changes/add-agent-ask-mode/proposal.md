@@ -72,6 +72,7 @@ None. `folder-navigation` requirements are unaffected; interactive mode is file-
 - **Docs**: README usage section for `--interactive` and skill installation; new
   `plugins/mdlite/skills/mdlite-decision/SKILL.md` and `plugins/mdlite/skills/mdlite-preview/SKILL.md`.
 - **Packaging**: new `.claude-plugin/marketplace.json` and `plugins/mdlite/.claude-plugin/plugin.json`; OpenSpec
-  development skills under `.claude/skills/` marked internal so the `skills` CLI offers only `mdlite-decision`.
+  development skills under `.claude/skills/` marked internal so the `skills` CLI offers only `mdlite-decision` and
+  `mdlite-preview`.
 - **Security**: question text is caller-supplied and must be sanitized; input file size and question counts are
   bounded.

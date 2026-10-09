@@ -20,10 +20,11 @@ an agent's skills directory.
   `plugins/mdlite/skills/mdlite-decision` into the agent's skills directory
 - **THEN** the agent can discover and load `mdlite-decision`
 
-#### Scenario: Only the decision skill is offered
+#### Scenario: Internal skills are excluded while both public skills remain
 
 - **WHEN** the `skills` CLI lists skills in the repository
-- **THEN** the repository's internal OpenSpec development skills are not offered for installation
+- **THEN** the repository's internal OpenSpec development skills are not offered for installation, and
+  `mdlite-decision` and `mdlite-preview` are offered
 
 ### Requirement: Skill is agent-neutral with a stated shell requirement
 

@@ -84,7 +84,7 @@
 - [x] 6.6 Document installation in the README: Claude Code marketplace, `npx skills add mikeruhl/frenetik.mdlite`
       for other agents, and manual copy of the folders under `plugins/mdlite/skills/`
 - [x] 6.7 Mark the repository's OpenSpec development skills internal so the `skills` CLI offers only
-      `mdlite-decision`
+      `mdlite-decision` and `mdlite-preview`
 - [x] 6.8 Write both files with the agent's file-write tool and launch mdlite in a separate background shell
       call, using one absolute path form (drive letter with forward slashes on Windows)
 - [x] 6.9 Add `plugins/mdlite/skills/mdlite-preview/SKILL.md`: open agent-written markdown in the background, skip
