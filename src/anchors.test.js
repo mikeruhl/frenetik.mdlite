@@ -33,6 +33,14 @@ describe("anchors", () => {
       expect(pickActiveAnchor(at(-300, 300, 700), 1000, true)).toBe("s3");
     });
 
+    it("orders anchors by position when questions reference them out of document order", () => {
+      const positions = [
+        { anchor: "late", top: 50 },
+        { anchor: "early", top: -300 },
+      ];
+      expect(pickActiveAnchor(positions, 1000, false)).toBe("late");
+    });
+
     it("returns null when nothing is above the line or visible", () => {
       expect(pickActiveAnchor(at(1200), 1000, false)).toBeNull();
       expect(pickActiveAnchor([], 1000, false)).toBeNull();

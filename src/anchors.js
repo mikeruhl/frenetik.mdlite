@@ -15,11 +15,13 @@ export function groupByAnchor(questions) {
 const READING_LINE = 0.2;
 
 /**
- * Picks the anchor whose section is being read. `positions` are in document order with `top` relative to
- * the scroll viewport. The section is the last anchor above the reading line; at the end of the document
- * it is the last visible anchor; before any anchor reaches the line it is the first visible one.
+ * Picks the anchor whose section is being read. `positions` carry `top` relative to the scroll viewport and
+ * are ordered by `top` here, since question order need not match document order. The section is the last
+ * anchor above the reading line; at the end of the document it is the last visible anchor; before any anchor
+ * reaches the line it is the first visible one.
  */
-export function pickActiveAnchor(positions, viewHeight, atBottom) {
+export function pickActiveAnchor(unordered, viewHeight, atBottom) {
+  const positions = [...unordered].sort((a, b) => a.top - b.top);
   const visible = positions.filter((p) => p.top >= 0 && p.top < viewHeight);
   if (atBottom && visible.length) return visible[visible.length - 1].anchor;
   const passed = positions.filter((p) => p.top <= viewHeight * READING_LINE);

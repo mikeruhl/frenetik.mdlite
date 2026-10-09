@@ -190,6 +190,7 @@ fn parse_interactive_args(
     if !document.is_file() {
         return Err(format!("--interactive requires a file, not a folder: {doc_arg}"));
     }
+    std::fs::read_to_string(&document).map_err(|e| format!("Cannot read document {doc_arg}: {e}"))?;
     let questions = interactive::load_questions(Path::new(questions_arg))?;
     Ok(InteractiveSession {
         document,

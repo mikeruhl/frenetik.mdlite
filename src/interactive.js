@@ -58,6 +58,7 @@ function buildOtherInput(entry) {
   const input = el("input", "iq-other");
   input.type = "text";
   input.placeholder = "Other…";
+  input.setAttribute("aria-label", "Other answer");
   input.value = entry.other;
   input.disabled = !entry.otherChosen;
   input.addEventListener("input", () => {
@@ -93,6 +94,8 @@ function buildControls(q, entry) {
     const input = el(q.multiline ? "textarea" : "input", "iq-text");
     if (!q.multiline) input.type = "text";
     if (q.placeholder) input.placeholder = q.placeholder;
+    input.setAttribute("aria-label", q.prompt);
+    input.required = Boolean(q.required);
     input.value = entry.text;
     input.addEventListener("input", () => {
       entry.text = input.value;
