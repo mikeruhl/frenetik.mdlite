@@ -140,16 +140,23 @@ Two skills ship together. mdlite itself must be installed and on `PATH` (see [Co
 To stop auto-opening, tell the agent in its instructions file (for example `CLAUDE.md`): "Do not auto-open
 markdown in mdlite."
 
-**Claude Code.** Install the plugin from this repository's marketplace. It includes both skills. Updates arrive
-through the plugin manager whenever `main` changes.
+**Claude Code.** Install the plugin from this repository's marketplace. It includes both skills.
 
 ```text
 /plugin marketplace add mikeruhl/frenetik.mdlite
 /plugin install mdlite@mdlite
 ```
 
-Run `/plugin marketplace update mdlite` to pull updates on demand, or enable auto-update for the marketplace in
-`/plugin`.
+Auto-update is off by default for third-party marketplaces. Turn it on in `/plugin` > **Marketplaces** >
+`mdlite` > **Enable auto-update**. To update on demand, refresh the marketplace, then update the plugin and reload:
+
+```text
+/plugin marketplace update mdlite
+/plugin            (Installed > mdlite > Update now)
+/reload-plugins
+```
+
+From a shell, `claude plugin update mdlite@mdlite` does the plugin update step.
 
 **Other agents.** The skills follow the open [Agent Skills](https://agentskills.io) format, which Codex, Gemini
 CLI, GitHub Copilot, Cursor, and others read. They assume a shell tool that runs a command in the background and

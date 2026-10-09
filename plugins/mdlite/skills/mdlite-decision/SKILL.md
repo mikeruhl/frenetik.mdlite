@@ -12,7 +12,7 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 
 ## Steps
 
-1. Pick a folder: `<scratch>/mdlite/<slug>/`, where `<scratch>` is the session scratch directory, else the OS temp
+1. Pick a folder `<dir>`: `<scratch>/mdlite/<slug>/`, where `<scratch>` is the session scratch directory, else the OS temp
    directory. Create the folder if your file-write tool does not create parent directories.
    Use one absolute path form for every tool call. On Windows, use a drive letter with forward slashes
    (`C:/Users/.../mdlite/<slug>`); file tools, Git Bash, and mdlite all accept it.
