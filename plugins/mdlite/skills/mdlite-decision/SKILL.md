@@ -14,33 +14,29 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 
 1. Pick a folder: `<scratch>/mdlite/<slug>/`, where `<scratch>` is the session scratch directory, else the OS temp
    directory.
-2. This flow requires a shell tool that runs a long-lived command in the background and notifies you when it
-   exits (Claude Code: Bash with `run_in_background: true`). In **one** such call, write both files with quoted
-   heredocs and launch mdlite. Call `mdlite` from `PATH` only; do not search the filesystem for it. If it is
-   not found (exit 127), stop and tell the user:
+   Use one absolute path form for every tool call. On Windows, use a drive letter with forward slashes
+   (`C:/Users/.../mdlite/<slug>`); file tools, Git Bash, and mdlite all accept it.
+2. Write both files with your file-write tool, not the shell:
+   - `decision.md`: lead with a short summary and your recommendation. Put `<a id="some-id"></a>` on its own
+     line before each section a question refers to.
+   - `questions.json`: see the schema below. Each `anchor` must match an id in `decision.md`.
+3. Launch mdlite with a shell tool that runs a long-lived command in the background and notifies you when it
+   exits (Claude Code: Bash with `run_in_background: true`):
+
+   ```bash
+   d="<dir>"; rm -f "$d/answers.json"
+   mdlite "$d/decision.md" --interactive "$d/questions.json" --output "$d/answers.json"
+   ```
+
+   Call `mdlite` from `PATH` only; do not search the filesystem for it. If it is not found (exit 127), stop and
+   tell the user:
    - mdlite is not on `PATH`. If it is installed, add it to `PATH` (setup per OS:
      <https://github.com/mikeruhl/frenetik.mdlite#command-line>), then restart the agent session, which does
      not see `PATH` changes made after it started. Verify with `mdlite --help`.
    - Otherwise install it from <https://github.com/mikeruhl/frenetik.mdlite/releases>.
 
-   ```bash
-   d="<scratch>/mdlite/<slug>"; mkdir -p "$d"; rm -f "$d/answers.json"
-   cat > "$d/decision.md" <<'MDLITE_DOC_END'
-   ...summary and recommendation, then one section per option...
-   MDLITE_DOC_END
-   cat > "$d/questions.json" <<'MDLITE_JSON_END'
-   {...}
-   MDLITE_JSON_END
-   mdlite "$d/decision.md" --interactive "$d/questions.json" --output "$d/answers.json"
-   ```
-
-   - `decision.md`: lead with a short summary and your recommendation. Put `<a id="some-id"></a>` on its own
-     line before each section a question refers to.
-   - `questions.json`: see the schema below. Each `anchor` must match an id in `decision.md`.
-   - If any line of a file's content equals its delimiter, pick a different delimiter for that file.
-
-3. Tell the user the document is open, then wait for the process to exit.
-4. Read the result. Exit code 1: use stdout (`answers.json` may be stale). Otherwise read `answers.json`, falling
+4. Tell the user the document is open, then wait for the process to exit.
+5. Read the result. Exit code 1: use stdout (`answers.json` may be stale). Otherwise read `answers.json`, falling
    back to stdout.
 
 ## Questions schema

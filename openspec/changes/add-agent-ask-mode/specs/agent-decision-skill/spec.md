@@ -52,10 +52,10 @@ agent's built-in question tool for short questions.
 The skill SHALL instruct the agent to: invoke `mdlite` by command name from `PATH` without searching for the
 binary; write the document, questions file, and output file into a new `mdlite/<slug>/` folder under the
 session scratch directory, using the OS temp directory only when no scratch directory is available; follow
-questions schema v1; write both files and launch mdlite with `--output` in a single background shell call so the
-agent is not blocked by tool timeouts; write each file with a quoted heredoc using a per-file unique delimiter
-(`MDLITE_DOC_END` for the document, `MDLITE_JSON_END` for the questions) and choose a different delimiter when
-any content line equals it; and stop with a clear message to the user if the command is not found.
+questions schema v1; write both files with the agent's file-write tool rather than the shell; launch mdlite with
+`--output` in a separate background shell call so the agent is not blocked by tool timeouts; use one absolute
+path form for every tool call (on Windows, a drive letter with forward slashes); and stop with a clear message to
+the user if the command is not found.
 
 #### Scenario: Binary not on PATH
 
@@ -69,10 +69,12 @@ any content line equals it; and stop with a clear message to the user if the com
 - **THEN** `decision.md`, `questions.json`, and `answers.json` are all created under
   `<scratch>/mdlite/<slug>/`
 
-#### Scenario: Content contains a delimiter line
+#### Scenario: Content would break a shell heredoc
 
-- **WHEN** a line of the document or questions content equals that file's heredoc delimiter
-- **THEN** the agent writes that file with a different delimiter so the content is not truncated
+- **WHEN** the document contains code blocks, delimiter-like lines, or other text that a shell heredoc could
+  misparse
+- **THEN** the agent writes the file with its file-write tool, so the content reaches disk unchanged and mdlite
+  still launches
 
 #### Scenario: Long-running decision
 

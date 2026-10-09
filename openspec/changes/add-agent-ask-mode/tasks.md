@@ -82,11 +82,11 @@
       naming Claude Code equivalents as examples, and state the background-execution and exit-notification
       requirement
 - [x] 6.6 Document installation in the README: Claude Code marketplace, `npx skills add mikeruhl/frenetik.mdlite
-    --skill mdlite-decision` for other agents, and manual copy of `plugins/mdlite/skills/mdlite-decision`
+  --skill mdlite-decision` for other agents, and manual copy of `plugins/mdlite/skills/mdlite-decision`
 - [x] 6.7 Mark the repository's OpenSpec development skills internal so the `skills` CLI offers only
       `mdlite-decision`
-- [x] 6.8 Write both files with per-file unique quoted heredoc delimiters (`MDLITE_DOC_END`, `MDLITE_JSON_END`)
-      and instruct the agent to change a delimiter when a content line equals it
+- [x] 6.8 Write both files with the agent's file-write tool and launch mdlite in a separate background shell
+      call, using one absolute path form (drive letter with forward slashes on Windows)
 
 ## 7. Verification
 

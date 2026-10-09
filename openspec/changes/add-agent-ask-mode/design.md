@@ -192,17 +192,18 @@ agent:
    user how to put mdlite on `PATH`.
 3. Use a new `mdlite/<slug>/` folder under the session scratch directory. Use the OS temp directory only when no
    scratch directory is provided.
-4. In one background shell call, write `decision.md` and `questions.json` with quoted heredocs and run
-   `mdlite decision.md --interactive questions.json --output answers.json`. The flow requires a shell tool that
-   runs a long-lived command in the background and notifies the agent on exit (Claude Code: Bash with
-   `run_in_background: true`).
+4. Write `decision.md` and `questions.json` with the agent's file-write tool, then run
+   `mdlite decision.md --interactive questions.json --output answers.json` in a separate shell call. The flow
+   requires a shell tool that runs a long-lived command in the background and notifies the agent on exit
+   (Claude Code: Bash with `run_in_background: true`).
 5. On completion, read `answers.json` (fall back to captured stdout), branch on `status`, and never assume an
    answer that is absent.
 
-Heredoc delimiters are fixed per file (`MDLITE_DOC_END`, `MDLITE_JSON_END`), and the agent picks a different one
-when a content line equals it. A random delimiter is not an option: with a quoted heredoc the delimiter is literal
-text in the command, so it cannot be generated at run time. The agent authors the content and can inspect it, so
-a unique delimiter plus a collision check is enforceable.
+Files are written with the file-write tool rather than shell heredocs. Heredocs fail in ways that depend on the
+content: a line equal to the delimiter truncates the file, an indented terminator copied from the skill never
+closes, and long commands can fail the shell tool's parser before mdlite starts. Writing the files directly costs
+two extra tool calls and removes all three. On Windows, one absolute path form with a drive letter and forward
+slashes (`C:/...`) works in file tools, Git Bash, and mdlite.
 
 Distribution:
 
