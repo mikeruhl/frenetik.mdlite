@@ -2,7 +2,7 @@
 
 ### Requirement: Skill ships in the repository
 
-The repository SHALL contain a Claude Code skill at `skills/mdlite-decision/SKILL.md` with valid frontmatter
+The repository SHALL contain a Claude Code skill at `plugins/mdlite/skills/mdlite-decision/SKILL.md` with valid frontmatter
 (`name`, `description`) and installation instructions in the README (copy the folder to `~/.claude/skills/`).
 
 #### Scenario: Skill discovered after install

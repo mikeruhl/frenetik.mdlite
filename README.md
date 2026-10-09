@@ -124,7 +124,7 @@ diagnostics go to stderr.
 On Windows, stdout only reaches the caller when it is piped or redirected. Use `--output` for a reliable result.
 
 The questions schema, answer format, and agent workflow are documented in the agent skill at
-[`skills/mdlite-decision/SKILL.md`](skills/mdlite-decision/SKILL.md).
+[`plugins/mdlite/skills/mdlite-decision/SKILL.md`](plugins/mdlite/skills/mdlite-decision/SKILL.md).
 
 ### Agent skill
 
@@ -147,8 +147,8 @@ CLI, which detects installed agents and places the skill in each one's skills di
 npx skills add mikeruhl/frenetik.mdlite --skill mdlite-decision
 ```
 
-Run the same command again to update. To install manually, copy the `skills/mdlite-decision` folder into your
-agent's skills directory.
+Run the same command again to update. To install manually, copy the
+`plugins/mdlite/skills/mdlite-decision` folder into your agent's skills directory.
 
 ## Build from source
 
