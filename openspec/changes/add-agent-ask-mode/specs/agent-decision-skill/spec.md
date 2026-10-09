@@ -6,8 +6,8 @@ The repository SHALL contain an Agent Skills format skill at `plugins/mdlite/ski
 valid frontmatter (`name`, `description`), packaged as the `mdlite` Claude Code plugin
 (`plugins/mdlite/.claude-plugin/plugin.json`) and listed in a marketplace manifest at
 `.claude-plugin/marketplace.json`. The README SHALL document installation through the Claude Code marketplace,
-through the `skills` CLI for other agents, and by manually copying `plugins/mdlite/skills/mdlite-decision` into an
-agent's skills directory.
+through the `skills` CLI for other agents, and by manually copying the folders under `plugins/mdlite/skills/` into
+an agent's skills directory.
 
 #### Scenario: Installed through the Claude Code marketplace
 
@@ -16,7 +16,7 @@ agent's skills directory.
 
 #### Scenario: Installed for another agent
 
-- **WHEN** the user runs `npx skills add mikeruhl/frenetik.mdlite --skill mdlite-decision`, or copies
+- **WHEN** the user runs `npx skills add mikeruhl/frenetik.mdlite` and selects `mdlite-decision`, or copies
   `plugins/mdlite/skills/mdlite-decision` into the agent's skills directory
 - **THEN** the agent can discover and load `mdlite-decision`
 

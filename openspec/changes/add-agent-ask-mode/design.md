@@ -211,10 +211,10 @@ Distribution:
   `plugins/mdlite/.claude-plugin/plugin.json` points at `./skills/`. Users run
   `/plugin marketplace add mikeruhl/frenetik.mdlite` and `/plugin install mdlite@mdlite`; updates arrive through
   the plugin manager. Keeping the plugin in its own folder means an install copies only the skill, not the repo.
-- **Other agents**: `npx skills add mikeruhl/frenetik.mdlite --skill mdlite-decision` places the skill in each
-  detected agent's skills directory. The repository's OpenSpec development skills are marked internal so the CLI
-  offers only `mdlite-decision`.
-- **Manual**: copy `plugins/mdlite/skills/mdlite-decision` into the agent's skills directory.
+- **Other agents**: `npx skills add mikeruhl/frenetik.mdlite` offers the plugin's skills and places the chosen ones
+  in each detected agent's skills directory. The repository's OpenSpec development skills are marked internal so
+  the CLI offers only `mdlite-decision` and `mdlite-preview` (D11).
+- **Manual**: copy the folders under `plugins/mdlite/skills/` into the agent's skills directory.
 
 Alternative considered: a detached-process fallback for agents without background execution. Rejected for now;
 the README states the background-shell requirement instead.
@@ -264,6 +264,27 @@ Links questions to the document sections they concern, in both directions.
 - **Responsibility split**: anchor resolution, badges, and scroll sync live in a separate `src/anchors.js`
   module so `interactive.js` keeps form state only.
 
+### D11. Preview skill
+
+A second skill, `mdlite-preview`, ships in the same plugin. It tells the agent to open markdown it writes for the
+user to read (reports, plans, reviews) in mdlite, in the background, instead of only printing the path. It is a
+separate skill because a skill loads when its description matches the situation, and "just wrote a markdown file"
+is a different trigger from "major decision".
+
+Gating:
+
+- **Opt-in** is installing the plugin. **Opt-out** is a line in the agent's instructions file (`CLAUDE.md`); no
+  config file or environment variable.
+- **Which files** is the agent's judgment: new files written for the user, not maintained repository docs. Each
+  file or folder opens once per session; live reload covers later edits.
+- **Missing binary**: no pre-check. The first exit 127 is reported once and auto-opening stops for the session.
+
+mdlite has no single-instance handling, so every launch is a new window. Several temporary files are therefore
+written into one `<scratch>/mdlite/<slug>/` folder and opened once in folder view.
+
+Alternative considered: a Claude Code `PostToolUse` hook on markdown writes. Rejected: Claude Code only, cannot
+tell a report from a `README.md` edit, and needs per-session state to avoid reopening and repeated failures.
+
 ## Risks / Trade-offs
 
 - [Windows stdout is silent when not piped] → `--output` file sink; skill always uses it; README documents it.
@@ -292,4 +313,4 @@ Additive. No config or store migration. Rollback is reverting the PR; existing i
 
 None. Resolved: input transport (D2-A), layout (D3-A), output channel (D5), no timeout (D4), PATH strategy (D9),
 skill distribution (Claude Code marketplace plugin, `skills` CLI, manual copy, D8), anchors with explicit ids
-and scroll sync (D10).
+and scroll sync (D10), preview skill gating (D11).

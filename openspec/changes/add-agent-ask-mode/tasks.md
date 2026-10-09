@@ -81,12 +81,18 @@
 - [x] 6.5 Make the skill agent-neutral: refer to the agent's built-in question tool and background shell tool,
       naming Claude Code equivalents as examples, and state the background-execution and exit-notification
       requirement
-- [x] 6.6 Document installation in the README: Claude Code marketplace, `npx skills add mikeruhl/frenetik.mdlite
-  --skill mdlite-decision` for other agents, and manual copy of `plugins/mdlite/skills/mdlite-decision`
+- [x] 6.6 Document installation in the README: Claude Code marketplace, `npx skills add mikeruhl/frenetik.mdlite`
+      for other agents, and manual copy of the folders under `plugins/mdlite/skills/`
 - [x] 6.7 Mark the repository's OpenSpec development skills internal so the `skills` CLI offers only
       `mdlite-decision`
 - [x] 6.8 Write both files with the agent's file-write tool and launch mdlite in a separate background shell
       call, using one absolute path form (drive letter with forward slashes on Windows)
+- [x] 6.9 Add `plugins/mdlite/skills/mdlite-preview/SKILL.md`: open agent-written markdown in the background, skip
+      maintained repository docs and already opened files, honor a `CLAUDE.md` opt-out, stop after the first exit
+      127, and group several temporary files in one scratch folder opened in folder view
+- [x] 6.10 Document both skills and the opt-out in the README
+- [ ] 6.11 End-to-end from Claude Code: a skill that writes a report opens it in mdlite; several temporary files
+      open as one folder
 
 ## 7. Verification
 

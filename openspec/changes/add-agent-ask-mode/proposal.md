@@ -27,6 +27,8 @@ agent receives structured answers when the window exits.
   notifies the agent on exit.
 - Distribute the skill as the `mdlite` Claude Code plugin through a marketplace manifest in this repository, and
   for other agents through the `skills` CLI or a manual copy of the skill folder.
+- Ship a second skill, `plugins/mdlite/skills/mdlite-preview`, that opens markdown the agent writes for the user
+  in mdlite, writing several temporary files into one scratch folder and opening the folder.
 - No changes to existing default (non-interactive) behavior.
 
 ## Non-goals
@@ -48,6 +50,8 @@ agent receives structured answers when the window exits.
 - `question-anchors`: Two-way navigation between questions and anchored document sections, plus scroll sync.
 - `agent-decision-skill`: Agent-neutral skill, packaged as a Claude Code marketplace plugin and installable in
   other agents, describing when and how an agent invokes mdlite interactive mode and consumes its result.
+- `agent-preview-skill`: Agent-neutral skill in the same plugin that opens agent-written markdown in mdlite, with
+  gating and folder grouping for several files.
 - `cli-path-registration`: Making the `mdlite` command resolvable from `PATH` after installation.
 
 ### Modified Capabilities
@@ -66,7 +70,7 @@ None. `folder-navigation` requirements are unaffected; interactive mode is file-
 - **Dependencies**: none planned. `serde`/`serde_json` (already present) cover the contracts; DOMPurify and
   marked (already present) cover any markdown in question text.
 - **Docs**: README usage section for `--interactive` and skill installation; new
-  `plugins/mdlite/skills/mdlite-decision/SKILL.md`.
+  `plugins/mdlite/skills/mdlite-decision/SKILL.md` and `plugins/mdlite/skills/mdlite-preview/SKILL.md`.
 - **Packaging**: new `.claude-plugin/marketplace.json` and `plugins/mdlite/.claude-plugin/plugin.json`; OpenSpec
   development skills under `.claude/skills/` marked internal so the `skills` CLI offers only `mdlite-decision`.
 - **Security**: question text is caller-supplied and must be sanitized; input file size and question counts are

@@ -15,7 +15,8 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 - **Folder view** — open a directory and browse all markdown files in a sidebar tree
 - **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
 - **Interactive mode** — agents present a decision document with questions and receive the answers as JSON
-- **Agent skill** — a Claude Code plugin and cross-agent skill that teaches agents to use interactive mode
+- **Agent skills** — a Claude Code plugin and cross-agent skills that let agents ask decisions in interactive mode
+  and open the markdown they write
 - **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
 - **Math/LaTeX** — inline (`$...$`) and block (`$$...$$`) math via KaTeX
 - **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
@@ -127,14 +128,20 @@ On Windows, stdout only reaches the caller when it is piped or redirected. Use `
 The questions schema, answer format, and agent workflow are documented in the agent skill at
 [`plugins/mdlite/skills/mdlite-decision/SKILL.md`](plugins/mdlite/skills/mdlite-decision/SKILL.md).
 
-### Agent skill
+### Agent skills
 
-The `mdlite-decision` skill tells an agent when a decision deserves a rendered document (comparison tables,
-diagrams, code, several options with tradeoffs) and how to write it, launch interactive mode, and act on the
-answers. mdlite itself must be installed and on `PATH` (see [Command line](#command-line)).
+Two skills ship together. mdlite itself must be installed and on `PATH` (see [Command line](#command-line)).
 
-**Claude Code.** Install the plugin from this repository's marketplace. Updates arrive through the plugin
-manager whenever `main` changes.
+| Skill             | What the agent does                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `mdlite-decision` | Presents a major decision (tables, diagrams, code, several options) in interactive mode and acts on the answers |
+| `mdlite-preview`  | Opens markdown it writes for you to read (reports, plans, reviews) in mdlite instead of only printing the path  |
+
+To stop auto-opening, tell the agent in its instructions file (for example `CLAUDE.md`): "Do not auto-open
+markdown in mdlite."
+
+**Claude Code.** Install the plugin from this repository's marketplace. It includes both skills. Updates arrive
+through the plugin manager whenever `main` changes.
 
 ```text
 /plugin marketplace add mikeruhl/frenetik.mdlite
@@ -144,18 +151,18 @@ manager whenever `main` changes.
 Run `/plugin marketplace update mdlite` to pull updates on demand, or enable auto-update for the marketplace in
 `/plugin`.
 
-**Other agents.** The skill follows the open [Agent Skills](https://agentskills.io) format, which Codex, Gemini
-CLI, GitHub Copilot, Cursor, and others read. The workflow assumes a shell tool that runs a command in the
-background and notifies the agent when it exits; it works in any agent that provides one. Install it with the
-[`skills`](https://github.com/vercel-labs/skills) CLI, which detects installed agents and places the skill in
-each one's skills directory:
+**Other agents.** The skills follow the open [Agent Skills](https://agentskills.io) format, which Codex, Gemini
+CLI, GitHub Copilot, Cursor, and others read. They assume a shell tool that runs a command in the background and
+notifies the agent when it exits; they work in any agent that provides one. Install them with the
+[`skills`](https://github.com/vercel-labs/skills) CLI, which detects installed agents and places the skills in
+each one's skills directory. It asks which skills to install; add `--skill <name>` to pick one.
 
 ```bash
-npx skills add mikeruhl/frenetik.mdlite --skill mdlite-decision
+npx skills add mikeruhl/frenetik.mdlite
 ```
 
-Run the same command again to update. To install manually, copy the
-`plugins/mdlite/skills/mdlite-decision` folder into your agent's skills directory.
+Run the same command again to update. To install manually, copy the folders under `plugins/mdlite/skills/` into
+your agent's skills directory.
 
 ## Build from source
 
