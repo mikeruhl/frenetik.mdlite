@@ -28,11 +28,12 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
    mdlite "$d/decision.md" --interactive "$d/questions.json" --output "$d/answers.json"
    ```
 
-   Call `mdlite` from `PATH` only; do not search the filesystem for it. If it is not found (exit 127), stop and
+   Call `mdlite` from `PATH` only. Do not check for it beforehand (`which`, `command -v`, `mdlite --help`) or
+   search the filesystem; the launch itself reports a missing binary. If it is not found (exit 127), stop and
    tell the user:
    - mdlite is not on `PATH`. If it is installed, add it to `PATH` (setup per OS:
      <https://github.com/mikeruhl/frenetik.mdlite#command-line>), then restart the agent session, which does
-     not see `PATH` changes made after it started. Verify with `mdlite --help`.
+     not see `PATH` changes made after it started. They can confirm with `mdlite --help`.
    - Otherwise install it from <https://github.com/mikeruhl/frenetik.mdlite/releases>.
 
 4. Tell the user the document is open, then wait for the process to exit.
