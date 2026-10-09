@@ -4,7 +4,8 @@
 
 The system SHALL enter interactive mode only when invoked as
 `mdlite <document> --interactive <questions> [--output <file>]`. Invocations without
-`--interactive` SHALL behave exactly as before this change.
+`--interactive` SHALL behave exactly as before this change. `--output` requires `--interactive`; an invocation with
+`--output` but no `--interactive` SHALL print an error to stderr and exit with code 1.
 
 #### Scenario: Interactive invocation opens document with questions
 

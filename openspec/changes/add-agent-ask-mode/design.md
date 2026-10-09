@@ -35,6 +35,7 @@ D2, D3, and D5 were evaluated as options; the user confirmed the recommended opt
 
 - `--interactive` takes the questions source as its value, so "interactive" and "has questions" cannot diverge.
 - Interactive mode requires a file path (not a folder). A folder or missing document is an input error.
+- `--output` requires `--interactive`. Passing `--output` alone is an input error (stderr message, exit 1).
 - Alternative considered: a bare `--interactive` boolean plus `--questions <file>`. Rejected: two flags that must
   always appear together.
 

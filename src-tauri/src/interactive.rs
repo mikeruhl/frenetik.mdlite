@@ -386,6 +386,14 @@ fn normalize_answer(q: &Question, a: &Answer) -> Result<Option<Answer>, String> 
     }
 }
 
+/// Rejects `--output` outside interactive mode, where nothing would ever be written to it.
+pub(crate) fn check_output_requires_interactive(interactive: bool, output: bool) -> Result<(), String> {
+    if output && !interactive {
+        return Err("--output requires --interactive".to_string());
+    }
+    Ok(())
+}
+
 /// Verifies the `--output` path can be created before the window opens.
 pub(crate) fn check_output_path(path: &Path) -> Result<(), String> {
     if path.is_dir() {
@@ -934,5 +942,16 @@ mod tests {
         assert!(check_output_path(&dir.path().join("a.json")).is_ok());
         assert!(check_output_path(dir.path()).is_err());
         assert!(check_output_path(&dir.path().join("missing").join("a.json")).is_err());
+    }
+
+    #[test]
+    fn output_requires_interactive() {
+        assert!(check_output_requires_interactive(true, true).is_ok());
+        assert!(check_output_requires_interactive(true, false).is_ok());
+        assert!(check_output_requires_interactive(false, false).is_ok());
+        assert_eq!(
+            check_output_requires_interactive(false, true),
+            Err("--output requires --interactive".to_string())
+        );
     }
 }

@@ -290,8 +290,14 @@ pub fn run() {
             let path_arg = arg_str("path");
             let path_arg = path_arg.as_deref();
             let output_arg = arg_str("output");
+            let interactive_arg = arg_str("interactive");
+            if let Err(msg) =
+                interactive::check_output_requires_interactive(interactive_arg.is_some(), output_arg.is_some())
+            {
+                report_cli_error(msg);
+            }
 
-            let interactive_session = arg_str("interactive").map(|questions_arg| {
+            let interactive_session = interactive_arg.map(|questions_arg| {
                 parse_interactive_args(path_arg, &questions_arg, output_arg.as_deref())
                     .unwrap_or_else(|msg| interactive::fail_startup(msg, output_arg.as_deref().map(Path::new)))
             });
