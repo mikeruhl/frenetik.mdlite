@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "title": "Caching strategy",
+  "questions": [
+    {
+      "id": "strategy",
+      "type": "single",
+      "prompt": "Which caching option should we build?",
+      "required": true,
+      "allowOther": true,
+      "default": "redis",
+      "anchor": "caching-options",
+      "options": [
+        { "value": "redis", "label": "Redis", "description": "Shared, survives deploys." },
+        { "value": "memory", "label": "In-process LRU", "description": "Zero ops, per-instance." },
+        { "value": "cdn", "label": "CDN edge cache" }
+      ]
+    },
+    {
+      "id": "risks",
+      "type": "multi",
+      "prompt": "Which risks must the design address before launch?",
+      "allowOther": true,
+      "anchor": "risks",
+      "options": [
+        { "value": "stale", "label": "Stale data" },
+        { "value": "latency", "label": "Latency" },
+        { "value": "cold-start", "label": "Cold start" }
+      ]
+    },
+    {
+      "id": "rollout",
+      "type": "text",
+      "prompt": "Any changes to the rollout plan?",
+      "multiline": true,
+      "placeholder": "Optional",
+      "anchor": "rollout"
+    }
+  ]
+}

@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::Manager;
 
 use crate::config::store_get_recent;
+use crate::interactive::{finish_session, Answer, InteractiveResult, InteractiveSession};
 use crate::menu::rebuild_menu;
 use crate::scan::{run_progressive_scan, SCAN_GENERATION};
 use crate::{display_path, AppMode, AppState};
@@ -74,6 +76,17 @@ pub(crate) fn notify_outline_closed(state: tauri::State<'_, Mutex<AppState>>, ap
 }
 
 #[tauri::command]
+pub(crate) fn set_outline_visible(visible: bool, state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) {
+    let theme = {
+        let mut s = state.lock().unwrap();
+        s.show_outline = visible;
+        s.current_theme.clone()
+    };
+    let recent = store_get_recent(&app);
+    rebuild_menu(&app, &recent, &theme);
+}
+
+#[tauri::command]
 pub(crate) fn notify_has_frontmatter(has: bool, state: tauri::State<'_, Mutex<AppState>>, app: tauri::AppHandle) {
     let theme = {
         let mut s = state.lock().unwrap();
@@ -118,4 +131,112 @@ pub(crate) fn open_folder_file(
     }
 
     Ok(content)
+}
+
+pub(crate) fn session_view(session: &InteractiveSession) -> serde_json::Value {
+    let mut view = serde_json::to_value(&session.questions).unwrap_or_default();
+    view["document"] = serde_json::json!(display_path(&session.document));
+    view
+}
+
+pub(crate) fn prepare_submission(
+    session: &InteractiveSession,
+    answers: &HashMap<String, Answer>,
+) -> Result<InteractiveResult, String> {
+    let normalized = crate::interactive::validate_answers(&session.questions, answers)?;
+    Ok(InteractiveResult::submitted(
+        display_path(&session.document),
+        normalized,
+    ))
+}
+
+#[tauri::command]
+pub(crate) fn get_interactive_session(state: tauri::State<'_, Mutex<AppState>>) -> Option<serde_json::Value> {
+    state.lock().unwrap().interactive.as_ref().map(session_view)
+}
+
+#[tauri::command]
+pub(crate) fn submit_answers(
+    answers: HashMap<String, Answer>,
+    state: tauri::State<'_, Mutex<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let (result, output) = {
+        let s = state.lock().unwrap();
+        let session = s.interactive.as_ref().ok_or("Not in interactive mode")?;
+        (prepare_submission(session, &answers)?, session.output.clone())
+    };
+    finish_session(&app, &result, output.as_deref());
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn cancel_interactive(
+    state: tauri::State<'_, Mutex<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let output = {
+        let s = state.lock().unwrap();
+        s.interactive.as_ref().ok_or("Not in interactive mode")?.output.clone()
+    };
+    finish_session(&app, &InteractiveResult::cancelled(), output.as_deref());
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn register_interactive_ready(state: tauri::State<'_, Mutex<AppState>>) {
+    if let Some(session) = state.lock().unwrap().interactive.as_mut() {
+        session.frontend_ready = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interactive::parse_questions;
+    use std::path::PathBuf;
+
+    fn session() -> InteractiveSession {
+        let questions = parse_questions(
+            r#"{"version":1,"title":"T","questions":[
+                {"id":"pick","type":"single","prompt":"P","required":true,
+                 "options":[{"value":"a","label":"A"}]}]}"#,
+        )
+        .unwrap();
+        InteractiveSession {
+            document: PathBuf::from("doc.md"),
+            questions,
+            output: None,
+            frontend_ready: false,
+        }
+    }
+
+    #[test]
+    fn session_view_includes_document_and_questions() {
+        let view = session_view(&session());
+        assert_eq!(view["document"], "doc.md");
+        assert_eq!(view["title"], "T");
+        assert_eq!(view["questions"][0]["id"], "pick");
+    }
+
+    #[test]
+    fn valid_submission_produces_submitted_result() {
+        let answers = HashMap::from([(
+            "pick".to_string(),
+            Answer {
+                value: Some("a".into()),
+                ..Answer::default()
+            },
+        )]);
+        let result = prepare_submission(&session(), &answers).unwrap();
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(json["status"], "submitted");
+        assert_eq!(json["document"], "doc.md");
+        assert_eq!(json["answers"]["pick"]["value"], "a");
+    }
+
+    #[test]
+    fn rejected_submission_returns_error() {
+        assert!(prepare_submission(&session(), &HashMap::new()).is_err());
+    }
 }

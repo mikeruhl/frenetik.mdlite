@@ -16,6 +16,7 @@ import {
 } from "./markdown.js";
 import { highlightSearchMatches, openSearch, isSearchActive, getSearchQuery, bindSearchEvents } from "./search.js";
 import { toggleToc, refreshToc, bindTocEvents } from "./toc.js";
+import { initInteractive, refreshInteractive } from "./interactive.js";
 import { initHistory, pushNavigation, navigateBack, navigateForward } from "./history.js";
 import {
   initSidebar,
@@ -72,6 +73,7 @@ function render(markdown) {
     highlightSearchMatches(getSearchQuery());
   }
   refreshToc();
+  refreshInteractive();
   invoke("notify_has_frontmatter", { has: hasFm });
 }
 
@@ -319,6 +321,8 @@ const printHeader = (await store.get("print_header")) ?? true;
 document.body.classList.toggle("print-header-enabled", printHeader);
 
 showFrontmatter = (await store.get("show_frontmatter")) ?? false;
+
+await initInteractive({ contentEl, scrollRoot: mainContentEl });
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");

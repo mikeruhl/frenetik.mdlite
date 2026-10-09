@@ -39,7 +39,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "@tauri-apps/plugin-opener": "^2.5.5",
     "@tauri-apps/plugin-store": "^2.4.4",
-    "dompurify": "^3.4.14",
+    "dompurify": "^3.4.16",
     "gemoji": "^8.1.0",
     "github-markdown-css": "^5.9.0",
     "highlight.js": "^11.12.0",

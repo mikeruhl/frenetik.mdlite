@@ -14,6 +14,7 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 - **Live reload** — file watcher detects edits and re-renders automatically
 - **Folder view** — open a directory and browse all markdown files in a sidebar tree
 - **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
+- **Interactive mode** — agents present a decision document with questions and receive the answers as JSON
 - **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
 - **Math/LaTeX** — inline (`$...$`) and block (`$$...$$`) math via KaTeX
 - **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
@@ -33,6 +34,19 @@ Download the latest release from the [Releases](../../releases) page.
 | Linux                 | `.AppImage`      |
 
 Or build from source (see below).
+
+### Command line
+
+Agents and scripts run `mdlite` by name, so it must be on `PATH`.
+
+| Platform | Setup                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------- |
+| Windows  | Automatic. The installer adds its folder to your user `PATH` and removes it on uninstall.                           |
+| macOS    | `sudo ln -sf /Applications/mdlite.app/Contents/MacOS/mdlite /usr/local/bin/mdlite`                                  |
+| Linux    | `chmod +x /path/to/mdlite.AppImage && mkdir -p ~/.local/bin && ln -sf /path/to/mdlite.AppImage ~/.local/bin/mdlite` |
+
+Restart open terminals and agent sessions afterwards; they do not see `PATH` changes made after they started.
+Check with `mdlite --help`.
 
 ## Usage
 
@@ -83,6 +97,35 @@ Use the **Theme** menu. Your choice persists across sessions.
 
 Fenced code blocks with the `mermaid` language tag render as diagrams inline. Hover over a diagram
 and click **Open** to view it in a separate window with zoom and pan controls.
+
+### Interactive mode (agent decisions)
+
+An agent can open a decision document with questions beside it and read the answers when the window closes.
+
+```bash
+mdlite decision.md --interactive questions.json --output answers.json
+```
+
+- Questions appear in the left sidebar. Choose answers and click **Submit** (`Ctrl+Enter`, `Cmd+Enter` on macOS).
+- A question with an `anchor` links to `<a id="..."></a>` in the document: `§` jumps to the section, the `Q1`
+  badge in the document jumps back, and the question for the section you are reading is highlighted.
+- Closing the window cancels. If answers were entered, mdlite asks before discarding them.
+- Interactive sessions do not appear in recent files.
+
+The result is one JSON line on stdout, also written to `--output` when given. Stdout carries nothing else;
+diagnostics go to stderr.
+
+| Status      | Exit code | Meaning                                       |
+| ----------- | --------- | --------------------------------------------- |
+| `submitted` | 0         | `answers` holds the responses                 |
+| `error`     | 1         | Invalid arguments or questions file (`error`) |
+| `cancelled` | 2         | Window closed without submitting              |
+
+On Windows, stdout only reaches the caller when it is piped or redirected. Use `--output` for a reliable result.
+
+The questions schema, answer format, and agent workflow are documented in the Claude Code skill at
+[`skills/mdlite-decision/SKILL.md`](skills/mdlite-decision/SKILL.md). To install it, copy the
+`skills/mdlite-decision` folder to `~/.claude/skills/`.
 
 ## Build from source
 
