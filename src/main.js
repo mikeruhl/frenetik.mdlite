@@ -5,6 +5,7 @@ import { LazyStore } from "@tauri-apps/plugin-store";
 
 import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
+import { showToast, isEditableTarget } from "./toast.js";
 import {
   parseMarkdown,
   extractFrontmatter,
@@ -113,6 +114,7 @@ A lightweight markdown previewer.
 | Toggle outline | Ctrl+Shift+O |
 | Print | Ctrl+P |
 | Export to PDF | Ctrl+Shift+E |
+| Copy file path | Shift+Alt+C |
 | Go back | Alt+Left |
 | Go forward | Alt+Right |
 | Switch theme | Theme menu |
@@ -204,6 +206,18 @@ await listen("print", () => {
 
 await listen("export-pdf-error", (event) => {
   window.alert("PDF export failed: " + event.payload);
+});
+
+function reportCopyError(message) {
+  window.alert("Could not copy file path: " + message);
+}
+
+await listen("file-path-copied", () => {
+  showToast("Path copied");
+});
+
+await listen("file-path-copy-error", (event) => {
+  reportCopyError(event.payload);
 });
 
 await listen("set-print-header", (event) => {
@@ -387,6 +401,12 @@ document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "E") {
     e.preventDefault();
     invoke("export_pdf");
+  }
+  if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyC" && !isEditableTarget(e.target)) {
+    e.preventDefault();
+    invoke("copy_file_path").then((path) => {
+      if (path) showToast("Path copied");
+    }, reportCopyError);
   }
   if (e.altKey && e.key === "ArrowLeft") {
     e.preventDefault();

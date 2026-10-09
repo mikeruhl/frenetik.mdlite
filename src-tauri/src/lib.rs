@@ -162,6 +162,8 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
     let recent_folders = store_add_recent_folder(app, &folder_path);
     let recent_files = store_get_recent(app);
     jumplist::update_jump_list(&recent_files, &recent_folders);
+    let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
+    rebuild_menu(app, &recent_files, &theme);
 
     let _ = app.emit("enter-folder-mode", ());
 
@@ -250,6 +252,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             read_file,
             get_mode,
@@ -260,6 +263,7 @@ pub fn run() {
             notify_outline_closed,
             set_outline_visible,
             notify_has_frontmatter,
+            copy_file_path,
             export::export_pdf,
             updater::check_for_updates,
             get_interactive_session,
@@ -404,23 +408,13 @@ pub fn run() {
             }
 
             let show_outline = false;
-            let menu_state = MenuState {
-                print_header,
-                show_hidden_files,
-                show_outline,
-                show_frontmatter,
-                has_frontmatter: false,
-            };
-            let menu = build_menu(app.handle(), &recent, &theme, &menu_state)?;
-            app.set_menu(menu)?;
-
             let folder_path_for_watch = folder_path.clone();
             app.manage(Mutex::new(AppState {
                 mode: mode.clone(),
                 file_path: file_path.clone(),
                 folder_path,
                 folder_files: HashSet::new(),
-                current_theme: theme,
+                current_theme: theme.clone(),
                 print_header,
                 show_hidden_files,
                 show_outline,
@@ -431,6 +425,17 @@ pub fn run() {
                 startup_error,
                 interactive: interactive_session,
             }));
+
+            let menu_state = MenuState {
+                print_header,
+                show_hidden_files,
+                show_outline,
+                show_frontmatter,
+                has_frontmatter: false,
+                has_file: current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap()).is_some(),
+            };
+            let menu = build_menu(app.handle(), &recent, &theme, &menu_state)?;
+            app.set_menu(menu)?;
 
             if mode == AppMode::Folder {
                 if let Some(ref fp) = folder_path_for_watch {
@@ -503,6 +508,16 @@ pub fn run() {
                     let _ = handle.emit("print", ());
                 } else if id == "export-pdf" {
                     export::show_export_dialog(handle);
+                } else if id == "copy-file-path" {
+                    match copy_current_file_path(handle) {
+                        Ok(Some(path)) => {
+                            let _ = handle.emit("file-path-copied", path);
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            let _ = handle.emit("file-path-copy-error", e);
+                        }
+                    }
                 } else if id == "find" {
                     let _ = handle.emit("open-search", ());
                 } else if id == "toggle-outline" {
