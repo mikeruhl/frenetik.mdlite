@@ -12,13 +12,15 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 
 ## Steps
 
-1. Pick a folder: `<scratch>/mdlite/<slug>/` under the session scratch directory, else the OS temp directory.
+1. Pick a folder: `<scratch>/mdlite/<slug>/`, where `<scratch>` is the session scratch directory, else the OS temp
+   directory.
 2. This flow requires a shell tool that runs a long-lived command in the background and notifies you when it
    exits (Claude Code: Bash with `run_in_background: true`). In **one** such call, write both files with quoted
-   heredocs and launch mdlite. Call `mdlite` from `PATH`; if it is missing, tell the user to install it.
+   heredocs and launch mdlite. Call `mdlite` from `PATH` only; do not search the filesystem for it. If it is
+   missing, point the user to the "Install > Command line" section of the mdlite README.
 
    ```bash
-   d="<dir>"; mkdir -p "$d"; rm -f "$d/answers.json"
+   d="<scratch>/mdlite/<slug>"; mkdir -p "$d"; rm -f "$d/answers.json"
    cat > "$d/decision.md" <<'MDLITE_DOC_END'
    ...summary and recommendation, then one section per option...
    MDLITE_DOC_END
@@ -61,7 +63,8 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 }
 ```
 
-- `type`: `single`, `multi`, or `text` (no `options`). `default`: a value, an array of values (`multi`), or a string.
+- `type`: `single` or `multi` (1-50 `options`), or `text` (no `options`). `default`: a value, an array of values
+  (`multi`), or a string.
 - `id`, option `value`, `anchor`: `^[A-Za-z0-9_-]{1,64}$`. Question `id`s are unique; option `value`s are unique
   within a question; questions may share an `anchor`. 1-50 questions, 1-50 options each.
 - `questions.json` must not exceed 256 KB. Unknown fields are rejected. Full sample: `examples/` next to this file.
