@@ -5,109 +5,75 @@ description: Present a major, context-heavy decision to the user as a rendered m
 
 # mdlite decision
 
-mdlite opens a markdown document beside a questions panel. The user reads, answers, and clicks Submit. mdlite
-exits and returns the answers as JSON.
+mdlite shows a markdown document beside a questions panel and returns the answers as JSON when the user submits.
 
-## When to use
-
-- Use for decisions with substantial context: multiple options with tradeoffs, comparison tables, mermaid
-  diagrams, code samples, or anything longer than a few lines.
-- Do not use for short questions. Ask in chat or with your built-in question tool instead.
+**Use only** when the decision needs tables, diagrams, code, or more options than your built-in question tool
+allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 
 ## Steps
 
-1. **Create a working folder** under the session scratch directory if your environment provides one (for
-   example, the scratchpad path in your system prompt): `<scratch>/mdlite/<slug>/`, where `<slug>` is a short
-   kebab-case name for the decision. Use the OS temp directory only when no scratch directory is provided.
-   Write all three files there.
-2. **Write `decision.md`**: the full context. Lead with a one-paragraph summary and your recommendation, then one
-   section per option. Put `<a id="some-id"></a>` on its own line before each section a question refers to.
-3. **Write `questions.json`** (schema below). Set a question's `anchor` to the id of the section it concerns.
-   Only reference anchor ids you wrote into `decision.md`.
-4. **Launch mdlite in the background** so tool timeouts do not apply. In Claude Code, use the Bash tool with
-   `run_in_background: true`. In other agents, use the background or long-running process option of the shell
-   tool. If none exists, run the command in the foreground with the longest available timeout.
+1. Pick a folder: `<scratch>/mdlite/<slug>/` under the session scratch directory, else the OS temp directory.
+2. In **one** background shell call (Claude Code: Bash with `run_in_background: true`), write both files with
+   quoted heredocs and launch mdlite. Call `mdlite` from `PATH`; if it is missing, tell the user to install it.
 
    ```bash
-   mdlite "<dir>/decision.md" --interactive "<dir>/questions.json" --output "<dir>/answers.json"
+   d="<dir>"; mkdir -p "$d"; rm -f "$d/answers.json"
+   cat > "$d/decision.md" <<'EOF'
+   ...summary and recommendation, then one section per option...
+   EOF
+   cat > "$d/questions.json" <<'EOF'
+   {...}
+   EOF
+   mdlite "$d/decision.md" --interactive "$d/questions.json" --output "$d/answers.json"
    ```
 
-   Call `mdlite` by name from `PATH`. Do not search the filesystem for it. If the command is not found, stop and
-   tell the user mdlite must be installed and on `PATH` (see the "Command line" section of the mdlite README).
+   - `decision.md`: lead with a short summary and your recommendation. Put `<a id="some-id"></a>` on its own
+     line before each section a question refers to.
+   - `questions.json`: see the schema below. Each `anchor` must match an id in `decision.md`.
 
-5. **Tell the user** the decision document is open in mdlite and wait for the process to exit. If your agent does
-   not notify you on exit, poll for `answers.json` or the process status.
-6. **Read the result** based on the exit code. On exit code 1, parse the captured stdout (one JSON line); an
-   existing `answers.json` may be stale because the write can fail. Otherwise read `answers.json`, and parse
-   stdout instead if it is missing or empty.
+3. Tell the user the document is open, then wait for the process to exit.
+4. Read the result. Exit code 1: use stdout (`answers.json` may be stale). Otherwise read `answers.json`, falling
+   back to stdout.
 
-## Questions schema (version 1)
+## Questions schema
 
 ```json
 {
   "version": 1,
-  "title": "Choose a caching strategy",
+  "title": "Choose a cache",
   "submitLabel": "Submit",
   "questions": [
     {
-      "id": "strategy",
+      "id": "cache",
       "type": "single",
-      "prompt": "Which strategy should we use?",
-      "description": "Optional **markdown**.",
+      "prompt": "Which cache?",
+      "description": "Optional markdown.",
       "required": true,
       "allowOther": true,
       "default": "redis",
-      "anchor": "caching-options",
-      "options": [
-        { "value": "redis", "label": "Redis", "description": "Optional markdown." },
-        { "value": "memory", "label": "In-process LRU" }
-      ]
-    },
-    {
-      "id": "risks",
-      "type": "multi",
-      "prompt": "Which risks matter?",
-      "options": [{ "value": "latency", "label": "Latency" }]
+      "anchor": "options",
+      "options": [{ "value": "redis", "label": "Redis", "description": "Optional markdown." }]
     },
     { "id": "notes", "type": "text", "prompt": "Anything else?", "multiline": true, "placeholder": "Optional" }
   ]
 }
 ```
 
-Rules (mdlite rejects violations with `status: "error"`):
-
-- `type` is `single` (radio), `multi` (checkboxes), or `text`.
-- `id`, option `value`, and `anchor` match `^[A-Za-z0-9_-]{1,64}$`; ids and option values are unique.
-- 1 to 50 questions; choice questions have 1 to 50 options; text questions have none.
-- `default` is an option value (`single`), an array of option values (`multi`), or a string (`text`).
-- Unknown fields are rejected. The file must be at most 256 KB.
+- `type`: `single`, `multi`, or `text` (no `options`). `default`: a value, an array of values (`multi`), or a string.
+- `id`, option `value`, `anchor`: `^[A-Za-z0-9_-]{1,64}$`, unique. 1-50 questions, 1-50 options each.
+- Unknown fields are rejected. Full sample: `examples/` next to this file.
 
 ## Result
 
-One JSON object, written to `--output` and printed on stdout:
+`{"version":1,"status":"submitted","document":"...","answers":{"cache":{"value":"redis"},"notes":{"text":"..."}}}`
 
-```json
-{
-  "version": 1,
-  "status": "submitted",
-  "document": "C:\\...\\decision.md",
-  "answers": {
-    "strategy": { "value": "redis" },
-    "risks": { "values": ["latency"], "other": "cold start" },
-    "notes": { "text": "Ship behind a flag." }
-  }
-}
-```
+Answers: `single` → `value` or `other`; `multi` → `values` plus optional `other`; `text` → `text`. Unanswered
+optional questions are omitted; never assume them.
 
-- `single`: `{ "value": "..." }` or `{ "other": "..." }`. `multi`: `{ "values": [...] }` plus optional `"other"`.
-  `text`: `{ "text": "..." }`. Unanswered optional questions are omitted.
+| status      | exit | Action                                     |
+| ----------- | ---- | ------------------------------------------ |
+| `submitted` | 0    | Restate the answers, then proceed.         |
+| `cancelled` | 2    | Do not proceed. Ask how to continue.       |
+| `error`     | 1    | Read `error`, fix the files, and relaunch. |
 
-| status      | exit code | Action                                                            |
-| ----------- | --------- | ----------------------------------------------------------------- |
-| `submitted` | 0         | Restate the chosen answers to the user, then proceed accordingly. |
-| `cancelled` | 2         | Do not proceed with any option. Ask the user how to continue.     |
-| `error`     | 1         | Read `error`, fix the files, and relaunch.                        |
-
-- A missing or empty result with a non-zero exit code means `cancelled`.
-- Act only on answers present in the payload. Never assume an omitted answer.
-- For follow-up questions, write a new decision folder and launch mdlite again.
+A missing result with a non-zero exit means `cancelled`. For follow-ups, use a new folder.
