@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::Manager;
 
+use crate::commands::current_file_display_path;
 use crate::AppState;
 
 pub(crate) struct MenuState {
@@ -11,6 +12,7 @@ pub(crate) struct MenuState {
     pub(crate) show_outline: bool,
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
+    pub(crate) has_file: bool,
 }
 
 pub(crate) const THEMES: &[(&str, &str)] = &[
@@ -39,6 +41,7 @@ pub(crate) fn build_menu(
         show_outline,
         show_frontmatter,
         has_frontmatter,
+        has_file,
     } = *state;
     let mut recent_sub = SubmenuBuilder::new(app, "Recent Files");
     if recent.is_empty() {
@@ -59,6 +62,10 @@ pub(crate) fn build_menu(
         recent_sub = recent_sub.separator().text("clear-recent", "Clear Recent Files");
     }
 
+    let copy_path_item = MenuItemBuilder::with_id("copy-file-path", "Copy File Path\tShift+Alt+C")
+        .enabled(has_file)
+        .build(app)?;
+
     let find_item = MenuItemBuilder::with_id("find", "Find...")
         .accelerator("CmdOrCtrl+F")
         .build(app)?;
@@ -73,6 +80,8 @@ pub(crate) fn build_menu(
         .text("open-file", "Open...")
         .text("open-folder", "Open Folder...")
         .item(&recent_sub.build()?)
+        .separator()
+        .item(&copy_path_item)
         .separator()
         .item(&find_item)
         .separator()
@@ -158,6 +167,7 @@ pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &st
             show_outline: s.show_outline,
             show_frontmatter: s.show_frontmatter,
             has_frontmatter: s.has_frontmatter,
+            has_file: current_file_display_path(&s).is_some(),
         }
     };
     if let Ok(menu) = build_menu(app, recent, theme, &ms) {
