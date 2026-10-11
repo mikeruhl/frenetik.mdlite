@@ -68,6 +68,8 @@ pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         return;
     }
 
+    let read_result = std::fs::read_to_string(&new_path);
+
     let (needs_new_watcher, was_not_file) = {
         let state = app.state::<Mutex<AppState>>();
         let mut s = state.lock().unwrap();
@@ -83,7 +85,9 @@ pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         s.folder_path = None;
         s.folder_files.clear();
         s.folder_debouncer = None;
-        s.startup_error = None;
+        // Only report this file as open (current_file_display_path) once it actually
+        // loaded; a failed read keeps it reported as a startup error instead.
+        s.startup_error = read_result.as_ref().err().map(|e| e.to_string());
         (old_dir != new_dir || was_other, was_other)
     };
 
@@ -101,7 +105,7 @@ pub(crate) fn switch_file(app: &tauri::AppHandle, new_path_str: &str) {
         let _ = w.set_title(&format!("mdlite — {}", name));
     }
 
-    if let Ok(content) = std::fs::read_to_string(&new_path) {
+    if let Ok(content) = read_result {
         let _ = app.emit("file-changed", content);
     }
 

@@ -12,7 +12,7 @@
       `\\?\` and `\\?\UNC\` normalization
 - [x] 2.3 Add `copy_current_file_path(app) -> Result<Option<String>, String>` that writes via `ClipboardExt::write_text`
 - [x] 2.4 Add `#[tauri::command] copy_file_path` wrapping 2.3; register in the invoke handler
-- [x] 2.5 Test the command handler's no-file path returns `Ok(None)` without touching the clipboard
+- [x] 2.5 Test `copy_path_with`'s no-file path (`None` input) returns `Ok(None)` without touching the clipboard
 
 ## 3. Menu
 

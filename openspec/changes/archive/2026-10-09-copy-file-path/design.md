@@ -50,7 +50,8 @@ is open, `Ok(Some(path))` on success, `Err` on clipboard failure. Two thin calle
 
 Both report outcome to the frontend: success emits/returns so JS shows the toast; failure shows the alert. The
 menu path emits `file-path-copied` / `file-path-copy-error` events; the command path returns the result to the
-`invoke` caller. The frontend uses one `notifyPathCopied()` / error function for both.
+`invoke` caller. The frontend uses one shared pair for both: `showToast("Path copied")` on success,
+`reportCopyError()` on failure.
 
 A pure function `current_file_display_path(state: &AppState) -> Option<String>` encapsulates the "is a file
 open" rule (non-empty `file_path` and no `startup_error`) so it is unit-testable without a clipboard.
