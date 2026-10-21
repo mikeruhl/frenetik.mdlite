@@ -55,8 +55,8 @@
 ## 5. Verification
 
 - [x] 5.1 `cargo clippy -- -D warnings`, `cargo test`, `pnpm lint`, `pnpm test` pass
-- [ ] 5.2 Run the manual test plan (`test-plan.md`) in a built app
-- [ ] 5.3 Regression: sidebar navigation, Back/Forward, TOC links, footnote links, image placeholders, live reload
+- [x] 5.2 Run the manual test plan (`test-plan.md`) in a built app
+- [x] 5.3 Regression: sidebar navigation, Back/Forward, TOC links, footnote links, image placeholders, live reload
 - [x] 5.3a One line each in mdlite-preview and mdlite-decision SKILL.md about relative links; extend
       `skill-sections.test.js`
 - [x] 5.4 Add a "Links" section to `docs/` sample or README describing trust rules and settings
