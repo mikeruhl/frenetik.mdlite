@@ -74,6 +74,25 @@
         </div>
       </div>
     </div>
+    <div id="link-dialog-overlay" class="link-dialog-hidden">
+      <div id="link-dialog" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title">
+        <div id="link-dialog-header"><span id="link-dialog-title"></span></div>
+        <div id="link-dialog-body">
+          <div id="link-dialog-destination" hidden></div>
+          <p id="link-dialog-note" hidden></p>
+          <p id="link-dialog-warning" hidden></p>
+          <label id="link-dialog-trust-row" hidden>
+            <input id="link-dialog-trust" type="checkbox" />
+            <span id="link-dialog-trust-label"></span>
+          </label>
+          <input id="link-dialog-input" type="text" autocomplete="off" spellcheck="false" hidden />
+        </div>
+        <div id="link-dialog-footer">
+          <button id="link-dialog-cancel" type="button">Cancel</button>
+          <button id="link-dialog-ok" type="button"></button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

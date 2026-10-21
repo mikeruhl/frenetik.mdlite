@@ -1582,6 +1582,112 @@ body.dark-sidebar #about-update-result a {
   color: #58a6ff;
 }
 
+/* Link confirmation / safe file type dialog */
+#link-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+#link-dialog-overlay.link-dialog-hidden {
+  display: none;
+}
+
+#link-dialog {
+  background: var(--theme-bg, #fff);
+  color: var(--theme-fg, #1f2328);
+  border: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 25%, transparent);
+  border-radius: 8px;
+  width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+#link-dialog-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 25%, transparent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+#link-dialog-body {
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+#link-dialog-body p {
+  margin: 8px 0 0;
+}
+
+#link-dialog-destination {
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--theme-fg, #1f2328) 8%, var(--theme-bg, #fff));
+  border: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 20%, transparent);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+#link-dialog-warning {
+  font-weight: 500;
+}
+
+#link-dialog-trust-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+#link-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: var(--theme-bg, #fff);
+  color: var(--theme-fg, #1f2328);
+  border: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 35%, transparent);
+  border-radius: 6px;
+}
+
+#link-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 25%, transparent);
+}
+
+#link-dialog-footer button {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 30%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theme-fg, #1f2328) 8%, var(--theme-bg, #fff));
+  color: var(--theme-fg, #1f2328);
+  cursor: pointer;
+}
+
+#link-dialog-footer button:hover {
+  background: color-mix(in srgb, var(--theme-fg, #1f2328) 16%, var(--theme-bg, #fff));
+}
+
+#link-dialog-footer button:focus-visible,
+#link-dialog-input:focus-visible {
+  outline: 2px solid var(--theme-fg, #1f2328);
+  outline-offset: 2px;
+}
+
 /* Print header (hidden on screen, visible in print when enabled) */
 #print-header {
   display: none;
@@ -1607,6 +1713,7 @@ body.dark-sidebar #about-update-result a {
   #attribution,
   #frontmatter-panel,
   #about-overlay,
+  #link-dialog-overlay,
   .mermaid-expand,
   .copy-code-btn,
   .remote-image-actions,

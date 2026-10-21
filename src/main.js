@@ -34,6 +34,7 @@ import {
   navigateToFolderLink,
 } from "./sidebar.js";
 import { initLinks } from "./links.js";
+import { confirmLink, promptFileType } from "./link-dialog.js";
 
 const store = new LazyStore("settings.json");
 
@@ -318,6 +319,16 @@ function hideAboutModal() {
   }
 }
 
+await listen("prompt-add-file-type", async () => {
+  const ext = await promptFileType();
+  if (!ext) return;
+  try {
+    await invoke("add_safe_file_type", { ext });
+  } catch (err) {
+    showToast(String(err));
+  }
+});
+
 await listen("show-about", () => {
   showAboutModal();
 });
@@ -484,7 +495,7 @@ document.addEventListener("keydown", (e) => {
 initLinks({
   invoke,
   navigate: navigateToFolderLink,
-  confirm: () => Promise.resolve({ open: false, trustOrigin: false }),
+  confirm: confirmLink,
   notify: showToast,
   scrollToFragment: (id) => {
     const target = document.getElementById(id);
