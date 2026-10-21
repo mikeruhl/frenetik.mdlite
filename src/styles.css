@@ -1651,6 +1651,10 @@ body.dark-sidebar #about-update-result a {
   font-weight: 500;
 }
 
+#link-dialog [hidden] {
+  display: none;
+}
+
 #link-dialog-trust-row {
   display: flex;
   align-items: center;
