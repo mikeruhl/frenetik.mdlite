@@ -310,6 +310,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(images::ImageState::new())
+        .manage(links::PendingLinks::default())
         .register_asynchronous_uri_scheme_protocol(images::SCHEME, |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             tauri::async_runtime::spawn(async move {

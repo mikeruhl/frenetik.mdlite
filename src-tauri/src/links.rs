@@ -163,24 +163,89 @@ pub(crate) fn perform(action: &LinkAction, target: Option<&Path>, opener: &impl 
     }
 }
 
-/// Re-resolves `href` from Rust state rather than trusting anything the frontend sends back.
-/// `ctx` must have `allow_network: false`; network access is enabled only for a second pass
-/// once the first pass reports an unconfirmed network target.
+/// A resolved link awaiting the user's decision. `follow` acts on this stored resolution and
+/// never on anything the frontend sends back.
+pub(crate) struct PendingLink {
+    href: String,
+    source: ContextSource,
+    action: LinkAction,
+    target: Option<PathBuf>,
+}
+
+fn prepare(href: String, source: ContextSource, canonicalize: impl Fn(&Path) -> Option<PathBuf>) -> PendingLink {
+    let (action, target) = classify(parse_href(&href), &source.ctx(), canonicalize);
+    PendingLink {
+        href,
+        source,
+        action,
+        target,
+    }
+}
+
+fn needs_token(action: &LinkAction) -> bool {
+    !matches!(
+        action,
+        LinkAction::Navigate { .. } | LinkAction::NotFound { .. } | LinkAction::Blocked { .. }
+    )
+}
+
+/// Holds at most one pending link; a new resolution replaces it and a follow consumes it.
+#[derive(Default)]
+pub(crate) struct PendingLinks(Mutex<Option<(String, PendingLink)>>);
+
+impl PendingLinks {
+    fn issue(
+        &self,
+        pending: PendingLink,
+        token: impl FnOnce() -> Result<String, String>,
+    ) -> Result<Option<String>, String> {
+        let mut slot = self.0.lock().unwrap();
+        *slot = None;
+        if !needs_token(&pending.action) {
+            return Ok(None);
+        }
+        let token = token()?;
+        *slot = Some((token.clone(), pending));
+        Ok(Some(token))
+    }
+
+    fn take(&self, token: &str) -> Option<PendingLink> {
+        self.0
+            .lock()
+            .unwrap()
+            .take()
+            .filter(|(t, _)| t == token)
+            .map(|(_, p)| p)
+    }
+}
+
+fn random_token() -> Result<String, String> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// The second network pass reuses the stored href and context, so network access is enabled
+/// only after the user confirmed the exact target the first pass reported.
 fn follow(
-    href: &str,
+    pending: PendingLink,
     trust_origin: bool,
-    ctx: LinkContext,
     canonicalize: impl Fn(&Path) -> Option<PathBuf>,
     opener: &impl LinkOpener,
     trust: impl FnOnce(&str) -> Result<(), String>,
 ) -> Result<(), String> {
-    let (mut action, mut target) = classify(parse_href(href), &ctx, &canonicalize);
+    let PendingLink {
+        href,
+        source,
+        mut action,
+        mut target,
+    } = pending;
     if matches!(action, LinkAction::ConfirmNetwork { .. }) {
         let ctx = LinkContext {
             allow_network: true,
-            ..ctx
+            ..source.ctx()
         };
-        (action, target) = classify(parse_href(href), &ctx, &canonicalize);
+        (action, target) = classify(parse_href(&href), &ctx, &canonicalize);
         if let LinkAction::NotFound { path } = &action {
             return Err(format!("File not found: {path}"));
         }
@@ -230,29 +295,35 @@ fn fs_canonicalize(p: &Path) -> Option<PathBuf> {
     std::fs::canonicalize(p).ok()
 }
 
-#[tauri::command]
-pub(crate) async fn resolve_link(href: String, app: AppHandle) -> LinkAction {
-    let source = ContextSource::read(&app);
-    classify(parse_href(&href), &source.ctx(), fs_canonicalize).0
+#[derive(Debug, Serialize)]
+pub(crate) struct ResolvedLink {
+    #[serde(flatten)]
+    action: LinkAction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
 }
 
 #[tauri::command]
-pub(crate) async fn follow_link(href: String, trust_origin: bool, app: AppHandle) -> Result<(), String> {
-    let source = ContextSource::read(&app);
+pub(crate) async fn resolve_link(href: String, app: AppHandle) -> Result<ResolvedLink, String> {
+    let pending = prepare(href, ContextSource::read(&app), fs_canonicalize);
+    let action = pending.action.clone();
+    let token = app.state::<PendingLinks>().issue(pending, random_token)?;
+    Ok(ResolvedLink { action, token })
+}
+
+#[tauri::command]
+pub(crate) async fn follow_link(token: String, trust_origin: bool, app: AppHandle) -> Result<(), String> {
+    let pending = app
+        .state::<PendingLinks>()
+        .take(&token)
+        .ok_or_else(|| CANNOT_OPEN.to_string())?;
     let trust = |origin: &str| {
         store_add_trusted_origin(&app, origin)?;
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || menu::refresh_menu(&handle));
         Ok(())
     };
-    follow(
-        &href,
-        trust_origin,
-        source.ctx(),
-        fs_canonicalize,
-        &TauriOpener(app.clone()),
-        trust,
-    )
+    follow(pending, trust_origin, fs_canonicalize, &TauriOpener(app.clone()), trust)
 }
 
 /// Like `exists`, but never touches a network path outside the open folder's share, since
@@ -807,6 +878,15 @@ mod tests {
             }
         }
 
+        fn source(&self) -> ContextSource {
+            ContextSource {
+                doc_dir: Some(self.folder.clone()),
+                folder: Some(self.folder.clone()),
+                safe_types: self.safe_types.clone(),
+                trusted_origins: Vec::new(),
+            }
+        }
+
         fn display(&self, rel: &str) -> String {
             display_path(&fs::canonicalize(self.folder.join(rel)).unwrap())
         }
@@ -1289,13 +1369,141 @@ mod tests {
         panic!("trust must not be called")
     }
 
+    fn follow_href(
+        href: &str,
+        trust_origin: bool,
+        fx: &Fixture,
+        canonicalize: impl Fn(&Path) -> Option<PathBuf>,
+        opener: &impl LinkOpener,
+        trust: impl FnOnce(&str) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let pending = prepare(href.into(), fx.source(), &canonicalize);
+        follow(pending, trust_origin, &canonicalize, opener, trust)
+    }
+
+    fn counter_tokens() -> impl FnMut() -> Result<String, String> {
+        let mut n = 0;
+        move || {
+            n += 1;
+            Ok(format!("t{n}"))
+        }
+    }
+
+    fn issue(
+        links: &PendingLinks,
+        fx: &Fixture,
+        href: &str,
+        tokens: impl FnOnce() -> Result<String, String>,
+    ) -> Option<String> {
+        links
+            .issue(prepare(href.into(), fx.source(), fs_canon), tokens)
+            .unwrap()
+    }
+
+    #[test]
+    fn follow_acts_on_stored_resolution_without_re_resolving() {
+        let fx = Fixture::new();
+        let o = FakeOpener::default();
+        let pending = prepare("img.png".into(), fx.source(), fs_canon);
+        fs::remove_file(fx.folder.join("img.png")).unwrap();
+        follow(pending, false, panicking, &o, no_trust).unwrap();
+        let png = fx.folder.join("img.png");
+        assert_eq!(*o.calls.borrow(), vec![format!("open:{}", png.display())]);
+    }
+
+    #[test]
+    fn tokens_are_single_use() {
+        let fx = Fixture::new();
+        let links = PendingLinks::default();
+        let token = issue(&links, &fx, "img.png", counter_tokens()).unwrap();
+        assert!(links.take(&token).is_some());
+        assert!(links.take(&token).is_none());
+    }
+
+    #[test]
+    fn new_resolution_replaces_pending_token() {
+        let fx = Fixture::new();
+        let links = PendingLinks::default();
+        let mut tokens = counter_tokens();
+        let first = issue(&links, &fx, "img.png", &mut tokens).unwrap();
+        let second = issue(&links, &fx, "run.ps1", &mut tokens).unwrap();
+        assert_ne!(first, second);
+        assert!(links.take(&first).is_none());
+        assert!(links.take(&second).is_none());
+    }
+
+    #[test]
+    fn wrong_token_discards_pending_link() {
+        let fx = Fixture::new();
+        let links = PendingLinks::default();
+        let token = issue(&links, &fx, "img.png", counter_tokens()).unwrap();
+        assert!(links.take("guess").is_none());
+        assert!(links.take(&token).is_none());
+    }
+
+    #[test]
+    fn unopenable_actions_get_no_token_and_clear_pending() {
+        let fx = Fixture::new();
+        let links = PendingLinks::default();
+        let mut tokens = counter_tokens();
+        let token = issue(&links, &fx, "img.png", &mut tokens).unwrap();
+        for href in ["sub/b.md", "nope.md", "javascript:alert(1)"] {
+            assert_eq!(issue(&links, &fx, href, &mut tokens), None, "{href}");
+        }
+        assert!(links.take(&token).is_none());
+    }
+
+    #[test]
+    fn confirmable_actions_get_tokens() {
+        let fx = Fixture::new();
+        let links = PendingLinks::default();
+        let mut tokens = counter_tokens();
+        for href in [
+            "img.png",
+            "run.ps1",
+            "../outside/notes.md",
+            "https://x.example/a",
+            "mailto:a@b.c",
+        ] {
+            assert!(issue(&links, &fx, href, &mut tokens).is_some(), "{href}");
+        }
+    }
+
+    #[test]
+    fn random_tokens_are_long_and_distinct() {
+        let a = random_token().unwrap();
+        let b = random_token().unwrap();
+        assert_eq!(a.len(), 64);
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn resolved_link_serializes_action_with_token() {
+        let json = serde_json::to_value(ResolvedLink {
+            action: LinkAction::ConfirmOpenFile { path: "p".into() },
+            token: Some("t".into()),
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "kind": "confirmOpenFile", "path": "p", "token": "t" })
+        );
+        let json = serde_json::to_value(ResolvedLink {
+            action: LinkAction::NotFound { path: "p".into() },
+            token: None,
+        })
+        .unwrap();
+        assert_eq!(json, serde_json::json!({ "kind": "notFound", "path": "p" }));
+    }
+
     #[test]
     fn follow_refuses_what_reclassifies_as_unopenable() {
         let fx = Fixture::new();
         for href in ["sub/b.md", "nope.md", "javascript:alert(1)", "//evil.example/x"] {
             let o = FakeOpener::default();
             assert_eq!(
-                follow(href, true, fx.ctx(&[]), fs_canon, &o, no_trust),
+                follow_href(href, true, &fx, fs_canon, &o, no_trust),
                 Err("Link cannot be opened".into()),
                 "{href}"
             );
@@ -1307,8 +1515,8 @@ mod tests {
     fn follow_opens_confirmed_targets_from_rust_resolution() {
         let fx = Fixture::new();
         let o = FakeOpener::default();
-        follow("img.png", false, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
-        follow("../outside/notes.md", false, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
+        follow_href("img.png", false, &fx, fs_canon, &o, no_trust).unwrap();
+        follow_href("../outside/notes.md", false, &fx, fs_canon, &o, no_trust).unwrap();
         let png = fs::canonicalize(fx.folder.join("img.png")).unwrap();
         let notes = fs::canonicalize(fx.root.join("outside/notes.md")).unwrap();
         assert_eq!(
@@ -1326,9 +1534,9 @@ mod tests {
             trusted.borrow_mut().push(origin.to_string());
             Ok(())
         };
-        follow("https://x.example/a", true, fx.ctx(&[]), fs_canon, &o, record).unwrap();
-        follow("https://y.example/a", false, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
-        follow("mailto:a@b.c", true, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
+        follow_href("https://x.example/a", true, &fx, fs_canon, &o, record).unwrap();
+        follow_href("https://y.example/a", false, &fx, fs_canon, &o, no_trust).unwrap();
+        follow_href("mailto:a@b.c", true, &fx, fs_canon, &o, no_trust).unwrap();
         assert_eq!(*trusted.borrow(), vec!["https://x.example".to_string()]);
         assert_eq!(
             *o.calls.borrow(),
@@ -1347,14 +1555,7 @@ mod tests {
             None
         };
         assert_eq!(
-            follow(
-                r"\\nonexistent.example\share\x.md",
-                false,
-                fx.ctx(&[]),
-                canon,
-                &o,
-                no_trust
-            ),
+            follow_href(r"\\nonexistent.example\share\x.md", false, &fx, canon, &o, no_trust),
             Err(r"File not found: \\nonexistent.example\share\x.md".into())
         );
         assert_eq!(
@@ -1370,10 +1571,10 @@ mod tests {
         let fx = Fixture::new();
         let o = FakeOpener::default();
         let local = fs::canonicalize(fx.folder.join("a.md")).unwrap();
-        follow(
+        follow_href(
             r"\\srv\s\x.md",
             false,
-            fx.ctx(&[]),
+            &fx,
             |_: &Path| Some(local.clone()),
             &o,
             no_trust,

@@ -26,10 +26,11 @@ describe("activateLink", () => {
       url: "https://x.io",
       origin: "https://x.io",
       insecure: false,
+      token: "tok1",
     });
     deps.confirm.mockResolvedValueOnce({ open: true, trustOrigin: true });
     await activateLink("https://x.io", deps);
-    expect(deps.invoke).toHaveBeenLastCalledWith("follow_link", { href: "https://x.io", trustOrigin: true });
+    expect(deps.invoke).toHaveBeenLastCalledWith("follow_link", { token: "tok1", trustOrigin: true });
   });
 
   it("cancel does not follow", async () => {
@@ -40,11 +41,18 @@ describe("activateLink", () => {
   });
 
   it("openUrl follows without dialog", async () => {
-    deps.invoke.mockResolvedValueOnce({ kind: "openUrl", url: "https://t.io" });
+    deps.invoke.mockResolvedValueOnce({ kind: "openUrl", url: "https://t.io", token: "tok2" });
     deps.invoke.mockResolvedValueOnce(undefined);
     await activateLink("https://t.io", deps);
     expect(deps.confirm).not.toHaveBeenCalled();
-    expect(deps.invoke).toHaveBeenLastCalledWith("follow_link", { href: "https://t.io", trustOrigin: false });
+    expect(deps.invoke).toHaveBeenLastCalledWith("follow_link", { token: "tok2", trustOrigin: false });
+  });
+
+  it("follow_link receives only the token, never the href", async () => {
+    deps.invoke.mockResolvedValueOnce({ kind: "confirmOpenFile", path: "C:\\f\\a.png", token: "tok4" });
+    deps.confirm.mockResolvedValueOnce({ open: true, trustOrigin: false });
+    await activateLink("a.png", deps);
+    expect(deps.invoke.mock.calls.at(-1)).toEqual(["follow_link", { token: "tok4", trustOrigin: false }]);
   });
 
   it("notFound and blocked toast", async () => {
@@ -100,12 +108,12 @@ describe("activateLink", () => {
   });
 
   it("confirmNetwork goes through the dialog before follow_link", async () => {
-    const action = { kind: "confirmNetwork", path: "\\\\srv\\s\\a.md" };
+    const action = { kind: "confirmNetwork", path: "\\\\srv\\s\\a.md", token: "tok3" };
     deps.invoke.mockResolvedValueOnce(action);
     deps.confirm.mockResolvedValueOnce({ open: true, trustOrigin: false });
     await activateLink("//srv/s/a.md", deps);
     expect(deps.confirm).toHaveBeenCalledWith(action);
-    expect(deps.invoke).toHaveBeenLastCalledWith("follow_link", { href: "//srv/s/a.md", trustOrigin: false });
+    expect(deps.invoke).toHaveBeenLastCalledWith("follow_link", { token: "tok3", trustOrigin: false });
   });
 });
 

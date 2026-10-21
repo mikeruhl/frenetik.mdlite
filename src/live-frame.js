@@ -60,8 +60,7 @@ function snapshot() {
 function scheduleSnapshot() {
   clearTimeout(settleTimer);
   settleTimer = setTimeout(() => {
-    const message = snapshot();
-    if (message) post(message);
+    post(snapshot() ?? { type: "snapshot" });
   }, SETTLE_MS);
 }
 

@@ -12,11 +12,11 @@ export async function activateLink(href, deps) {
     if (action.kind === "navigate") {
       await deps.navigate(action.path, action.fragment);
     } else if (action.kind === "openUrl") {
-      await deps.invoke("follow_link", { href, trustOrigin: false });
+      await deps.invoke("follow_link", { token: action.token, trustOrigin: false });
     } else if (CONFIRM_KINDS.has(action.kind)) {
       const decision = await deps.confirm(action);
       if (decision?.open) {
-        await deps.invoke("follow_link", { href, trustOrigin: decision.trustOrigin === true });
+        await deps.invoke("follow_link", { token: action.token, trustOrigin: decision.trustOrigin === true });
       }
     } else if (action.kind === "notFound") {
       deps.notify("File not found: " + action.path);
