@@ -1,10 +1,10 @@
 # Manual test plan: add-local-links
 
-Fixture: a folder `links-fixture/` with `docs/a.md`, `docs/sub/b.md` (has an `## Install` heading),
-`docs/diagram.png`, `docs/run.ps1`, `docs/report.docm`, and `a.md` containing the links below. A second file
-`outside/notes.md` lives next to `links-fixture/`.
+Fixture: `docs/links-sample/folder/` with `a.md` (contains the links below), `sub/b.md` (has an `## Install`
+heading), `.github/c.md`, `diagram.png`, `run.ps1`, and `report.docm`. A second file `outside/notes.md` lives next
+to it in `docs/links-sample/`. Open `docs/links-sample/folder` as the folder under test.
 
-## 1. In-folder navigation (open `links-fixture/` as a folder)
+## 1. In-folder navigation (open `docs/links-sample/folder` as a folder)
 
 | #   | Step                                    | Expected                                                    |
 | --- | --------------------------------------- | ----------------------------------------------------------- |
@@ -19,7 +19,7 @@ Fixture: a folder `links-fixture/` with `docs/a.md`, `docs/sub/b.md` (has an `##
 
 | #   | Step                                         | Expected                                                         |
 | --- | -------------------------------------------- | ---------------------------------------------------------------- |
-| 2.1 | Click `[notes](../../outside/notes.md)`.     | Dialog shows the absolute path; Cancel has focus.                |
+| 2.1 | Click `[notes](../outside/notes.md)`.     | Dialog shows the absolute path; Cancel has focus.                |
 | 2.2 | Press Escape.                                | Dialog closes, nothing opens.                                    |
 | 2.3 | Repeat 2.1, choose Open.                     | New mdlite window shows `notes.md`; original window unchanged.   |
 | 2.4 | Open `a.md` alone (single-file), click 1.1's link. | Dialog appears; Open launches a new instance.              |

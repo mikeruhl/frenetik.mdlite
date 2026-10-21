@@ -18,4 +18,15 @@ describe("agent skill authoring sections", () => {
     expect(decision).not.toBeNull();
     expect(authoringSection("mdlite-preview")).toBe(decision);
   });
+
+  it("tell agents about relative links", () => {
+    const read = (skill) =>
+      readFileSync(resolve("plugins/mdlite/skills", skill, "SKILL.md"), "utf8").replace(/\s+/g, " ");
+    expect(read("mdlite-preview")).toContain(
+      "Link related files to each other with relative links; mdlite opens them directly in folder view."
+    );
+    expect(read("mdlite-decision")).toContain(
+      "Relative links to sibling markdown files open in a new mdlite window after the user confirms, so long supporting detail can live in a linked file."
+    );
+  });
 });

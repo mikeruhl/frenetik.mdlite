@@ -77,6 +77,17 @@ Or use **File → Open Folder...** from the menu. The sidebar shows a collapsibl
 `.markdown`, and `.mdx` files. Click a file to preview it. Folders with no markdown descendants are
 hidden. If the folder contains a `README.md`, it opens automatically.
 
+### Links
+
+- Links to files inside the open folder open directly.
+- Every other link asks first and shows the real destination.
+- Markdown files outside the folder open in a new window.
+- Non-markdown files open only if their type is listed in **View → Safe File Types**; otherwise they are shown in the
+  file manager.
+- Web links offer "Always trust" per scheme and host. Manage the list in **View → Trusted Domains**.
+- Unsupported link types are blocked.
+- Links to network shares are confirmed before mdlite connects.
+
 ### Search
 
 Press `Ctrl+F` (or `Cmd+F` on macOS) or use **File → Find...** to open the search bar.

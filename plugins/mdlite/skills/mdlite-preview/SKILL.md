@@ -32,6 +32,7 @@ mdlite opens a folder with a file tree, so one window can hold every file:
   Create the folder if your file-write tool does not create parent directories. Open that folder once.
 - **Files that must live elsewhere** (for example plans inside the repository): open their shared folder if they
   have one; otherwise open only the main file.
+- Link related files to each other with relative links; mdlite opens them directly in folder view.
 
 ## Rich Document authoring
 

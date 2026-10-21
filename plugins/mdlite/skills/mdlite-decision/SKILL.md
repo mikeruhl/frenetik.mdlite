@@ -76,6 +76,8 @@ mdlite treats the document as untrusted:
 - `<style>`, `style` attributes, form controls (`<form>`, `<input>`, `<button>`, `<select>`, `<textarea>`), and
   custom classes are stripped. Use markdown emphasis, tables, alerts, and headings instead.
 - Never make an image or diagram the only carrier of essential information. State the key facts in text too.
+- Relative links to sibling markdown files open in a new mdlite window after the user confirms, so long supporting
+  detail can live in a linked file.
 
 ## Questions schema
 
