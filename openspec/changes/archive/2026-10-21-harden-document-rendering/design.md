@@ -6,7 +6,7 @@ Rendering happens in the frontend: `marked` produces HTML, `DOMPurify.sanitize` 
 and any `class`. The settings store (`tauri-plugin-store`, `settings.json`) already persists theme, zoom, and recent
 files via `config.rs`. `reqwest` 0.13 is already a dependency (updater).
 
-Decisions recorded in `docs/adr/0001` and the grilling session: Documents are untrusted; the Image Allow-list is empty
+Decisions recorded in the `live-blocks` spec and the grilling session: Documents are untrusted; the Image Allow-list is empty
 by default and matched by exact hostname; this change ships before Charts and Live Blocks.
 
 ## Goals / Non-Goals

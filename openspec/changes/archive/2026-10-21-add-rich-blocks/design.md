@@ -4,7 +4,7 @@ After `harden-document-rendering`, Raw HTML is restricted, remote images go thro
 print/PDF await a render-completion promise. Mermaid is the only Rich Block: fenced language detection in the `code`
 renderer emits a base64 `data-*` container, and a lazily imported engine renders after insertion. Main CSP is
 `script-src 'self'`. On Windows, wry injects Tauri IPC globals into every frame, so a frame's isolation rests on Tauri's
-origin/capability check (ADR 0001).
+origin/capability check (see `live-blocks` spec).
 
 ## Goals / Non-Goals
 

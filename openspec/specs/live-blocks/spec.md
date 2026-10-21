@@ -4,6 +4,18 @@
 
 Runs author-written Live Blocks only with reader consent, isolated from mdlite, with theming and print behavior.
 
+Every Document is untrusted, so the main document never executes author code and its CSP stays `script-src 'self'`.
+Live Blocks are the only place author script runs: after per-Document consent, inside a sandboxed iframe served from the
+dedicated `mdlive` URI scheme with its own CSP and no network. Rejected alternatives: allowing `<script>` in Documents
+(any opened file would gain full access to the app and Tauri IPC), and a same-origin sandboxed iframe or `srcdoc`
+(running author code there requires `'unsafe-inline'` or `'unsafe-eval'` in the app-wide CSP, since such frames inherit
+or share the main policy).
+
+On Windows, wry injects Tauri IPC globals into every frame, including sandboxed iframes. Isolation therefore depends on
+Tauri's origin/capability check rejecting the `mdlive` origin, not on the globals being absent. The isolation
+requirement below must be proven by an automated test; if it cannot pass, Live Blocks are not shipped. Live Blocks use
+inline data only until local asset loading exists.
+
 ## Requirements
 
 ### Requirement: Live Blocks run only with consent

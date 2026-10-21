@@ -3,7 +3,7 @@
 Every Document is untrusted (see `GLOSSARY.md`), but today a Document can beacon to any remote host through images
 (`img-src *`), inject document-wide CSS through `<style>`, borrow mdlite chrome classes, and render fake forms. Print
 and PDF capture the live DOM without waiting for Mermaid, so diagrams can print blank. Upcoming Charts and Live Blocks
-(ADR 0001) build on this baseline, so it must be tightened first.
+(see `live-blocks` spec) build on this baseline, so it must be tightened first.
 
 ## What Changes
 

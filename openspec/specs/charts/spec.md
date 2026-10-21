@@ -5,6 +5,12 @@
 Renders Vega-Lite Charts from declarative specifications, isolated from the network and author code, following the
 active theme.
 
+Charts are Rich Blocks rendered by a bundled engine from a declarative spec, so d3-grade charts never require executing
+author code in the main document (see live-blocks for the one exception). Vega must evaluate expressions with the
+CSP-safe interpreter instead of `new Function`, because the main CSP forbids `'unsafe-eval'`. Charts use inline data
+only until local asset loading exists. Rejected alternatives: Observable Plot (specs are JavaScript, not data) and
+Chart.js (narrower grammar, canvas-only rendering).
+
 ## Requirements
 
 ### Requirement: Vega-Lite fenced blocks render as Charts

@@ -2,8 +2,8 @@
 
 Documents, especially agent-generated decision and report Documents, need richer presentation than plain markdown:
 Atlassian-style panels and status labels, data charts, and occasionally bespoke d3 visualizations. mdlite must deliver
-this without letting an untrusted Document run code in the app (ADR 0001) and without adopting React/Atlaskit (ADR
-0002). Depends on `harden-document-rendering`.
+this without letting an untrusted Document run code in the app (see `live-blocks` spec) and without adopting React/Atlaskit (see
+`atlassian-styling` spec). Depends on `harden-document-rendering`.
 
 ## What Changes
 

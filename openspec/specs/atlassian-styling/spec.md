@@ -4,6 +4,12 @@
 
 Renders Atlassian-style Panels, Status Lozenges, and Expands from GitHub-compatible markdown syntax.
 
+The goal is Atlaskit-quality formatting without Atlaskit: Atlaskit is React-based, the frontend is vanilla JavaScript
+with a 50 KB-per-addition budget, and Documents must degrade readably on GitHub. Panels reuse GitHub alert syntax
+(`> [!NOTE]` and its four siblings, mapped to the info, success, note, warning, and error tones), Status Lozenges are
+`<mark data-status="...">`, and Expands are `<details>`, all styled to resemble Atlaskit. Atlaskit and React are not
+dependencies; Atlassian Document Format rendering is deferred.
+
 ## Requirements
 
 ### Requirement: GitHub alerts render as Panels
