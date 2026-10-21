@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("mermaid", () => ({ default: { initialize: vi.fn(), render: vi.fn() } }));
+const mermaidState = vi.hoisted(() => ({ config: null }));
+vi.mock("mermaid", () => ({
+  default: {
+    initialize: vi.fn((config) => {
+      mermaidState.config = config;
+    }),
+    render: vi.fn(),
+  },
+}));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
   convertFileSrc: (path, protocol) => `http://${protocol}.localhost/${encodeURIComponent(path)}`,
@@ -149,18 +157,18 @@ describe("mermaid controls", () => {
     resetRenderState();
     contentEl.innerHTML = parseMarkdown("```mermaid\ngraph TD; A-->B\n```");
     await renderAllRichBlocks();
-    expect(mermaid.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: "default" }));
+    expect(mermaidState.config).toMatchObject({ theme: "default" });
     mermaid.render.mockClear();
 
     await switchTo("github-dark", "rgb(13, 17, 23)");
-    expect(mermaid.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: "dark" }));
+    expect(mermaidState.config).toMatchObject({ theme: "dark" });
     expect(mermaid.render).toHaveBeenCalledTimes(1);
 
     await switchTo("retro", "rgb(34, 34, 34)");
-    expect(mermaid.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: "dark" }));
+    expect(mermaidState.config).toMatchObject({ theme: "dark" });
 
     await switchTo("github", "rgb(255, 255, 255)");
-    expect(mermaid.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: "default" }));
+    expect(mermaidState.config).toMatchObject({ theme: "default" });
     document.body.style.removeProperty("--theme-bg");
     mermaid.render.mockReset();
   });
@@ -174,7 +182,7 @@ describe("mermaid controls", () => {
     await renderAllRichBlocks();
     await renderAllRichBlocks();
 
-    expect(mermaid.initialize).toHaveBeenCalledWith(expect.objectContaining({ suppressErrorRendering: true }));
+    expect(mermaidState.config).toMatchObject({ suppressErrorRendering: true });
     expect(contentEl.querySelectorAll(".mermaid-error")).toHaveLength(1);
     mermaid.render.mockReset();
   });
