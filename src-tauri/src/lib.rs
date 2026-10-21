@@ -81,10 +81,18 @@ pub(crate) fn is_app_navigation(url: &tauri::Url) -> bool {
     (app_origin && url.port().is_none()) || dev_origin
 }
 
+fn main_window_config(
+    windows: &[tauri::utils::config::WindowConfig],
+) -> tauri::Result<tauri::utils::config::WindowConfig> {
+    windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .ok_or(tauri::Error::WindowNotFound)
+}
+
 fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
-    let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main").cloned() else {
-        return Ok(());
-    };
+    let config = main_window_config(&app.config().app.windows)?;
     tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
         .on_navigation(is_app_navigation)
         .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
@@ -693,7 +701,25 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tauri::utils::config::WindowConfig;
     use tauri_plugin_cli::{ArgData, Matches};
+
+    #[test]
+    fn main_window_config_is_required() {
+        let other = WindowConfig {
+            label: "other".into(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            main_window_config(std::slice::from_ref(&other)),
+            Err(tauri::Error::WindowNotFound)
+        ));
+        let main = WindowConfig {
+            label: "main".into(),
+            ..Default::default()
+        };
+        assert_eq!(main_window_config(&[other, main]).unwrap().label, "main");
+    }
 
     fn matches_with(name: &str, value: serde_json::Value) -> Matches {
         let mut matches = Matches::default();
