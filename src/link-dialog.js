@@ -22,15 +22,34 @@ function fillDestination(el, action) {
     return;
   }
   const { url, origin } = action;
-  const host = new URL(origin).host;
-  const at = url.indexOf(host);
-  if (at < 0) {
+  const host = originHost(origin);
+  const at = host ? hostStart(url) : -1;
+  if (at < 0 || url.slice(at, at + host.length).toLowerCase() !== host.toLowerCase()) {
     el.textContent = url;
     return;
   }
+  const end = at + host.length;
   const strong = document.createElement("strong");
-  strong.textContent = host;
-  el.append(document.createTextNode(url.slice(0, at)), strong, document.createTextNode(url.slice(at + host.length)));
+  strong.textContent = url.slice(at, end);
+  el.append(document.createTextNode(url.slice(0, at)), strong, document.createTextNode(url.slice(end)));
+}
+
+function originHost(origin) {
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function hostStart(url) {
+  const scheme = url.indexOf("//");
+  if (scheme < 0) return -1;
+  const start = scheme + 2;
+  const rest = url.slice(start);
+  const authorityEnd = rest.search(/[/?#]/);
+  const authority = authorityEnd < 0 ? rest : rest.slice(0, authorityEnd);
+  return start + authority.lastIndexOf("@") + 1;
 }
 
 function show({ title, primary, destination, note, warning, trustLabel, withInput, initialFocus, result }) {

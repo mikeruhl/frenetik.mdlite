@@ -94,6 +94,56 @@ describe("link dialog", () => {
     await expect(p).resolves.toEqual({ open: true, trustOrigin: true });
   });
 
+  const destinationParts = (action) => {
+    const p = confirmLink({ insecure: false, ...action, kind: "confirmUrl" });
+    const dest = $("link-dialog-destination");
+    const strong = dest.querySelector("strong");
+    const parts = {
+      text: dest.textContent,
+      host: strong?.textContent ?? null,
+      before: strong ? (strong.previousSibling?.textContent ?? "") : null,
+    };
+    $("link-dialog-cancel").click();
+    return p.then(() => parts);
+  };
+
+  it("emphasizes the real host, not a userinfo lookalike", async () => {
+    const parts = await destinationParts({ url: "https://evil.com@evil.com/x", origin: "https://evil.com" });
+    expect(parts).toEqual({ text: "https://evil.com@evil.com/x", host: "evil.com", before: "https://evil.com@" });
+  });
+
+  it("emphasizes the host regardless of case or port", async () => {
+    expect(await destinationParts({ url: "https://X.io:8443/a", origin: "https://x.io" })).toEqual({
+      text: "https://X.io:8443/a",
+      host: "X.io",
+      before: "https://",
+    });
+  });
+
+  it("emphasizes a punycode host", async () => {
+    const parts = await destinationParts({
+      url: "https://xn--bcher-kva.example/x",
+      origin: "https://xn--bcher-kva.example",
+    });
+    expect(parts.host).toBe("xn--bcher-kva.example");
+  });
+
+  it("shows the url as plain text when the origin cannot be parsed", async () => {
+    expect(await destinationParts({ url: "https://x.io/a", origin: "not a url" })).toEqual({
+      text: "https://x.io/a",
+      host: null,
+      before: null,
+    });
+  });
+
+  it("shows the url as plain text when the host is not where expected", async () => {
+    expect(await destinationParts({ url: "https://a.io/x.io", origin: "https://x.io" })).toEqual({
+      text: "https://a.io/x.io",
+      host: null,
+      before: null,
+    });
+  });
+
   it("secure url hides the warning and trust is off by default", async () => {
     const p = confirmLink({ kind: "confirmUrl", url: "https://x.io/", origin: "https://x.io", insecure: false });
     expect($("link-dialog-warning").hidden).toBe(true);

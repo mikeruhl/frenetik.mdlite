@@ -239,10 +239,35 @@ pub(crate) const EXECUTABLE_EXTENSIONS: &[&str] = &[
     "sh",
     "app",
     "command",
+    "pif",
+    "scf",
+    "msc",
+    "chm",
+    "inf",
+    "ws",
+    "wsc",
+    "psc1",
+    "ps1xml",
+    "application",
+    "gadget",
+    "settingcontent-ms",
+    "library-ms",
+    "search-ms",
+    "diagcab",
+    "appx",
+    "msix",
+    "appinstaller",
+    "xll",
+    "iqy",
+    "slk",
+    "vb",
 ];
 
 pub(crate) fn normalize_origin(origin: &str) -> Option<String> {
-    let url = reqwest::Url::parse(origin.trim()).ok()?;
+    url_origin(&reqwest::Url::parse(origin.trim()).ok()?)
+}
+
+pub(crate) fn url_origin(url: &reqwest::Url) -> Option<String> {
     if !matches!(url.scheme(), "http" | "https") {
         return None;
     }
@@ -561,6 +586,24 @@ mod tests {
                 err.starts_with("Executable file types can't be opened directly"),
                 "{err}"
             );
+        }
+        assert!(list.is_empty());
+    }
+
+    #[test]
+    fn windows_code_running_types_cannot_be_added() {
+        let mut list = vec![];
+        for ext in [
+            "pif",
+            "msc",
+            "settingcontent-ms",
+            "search-ms",
+            "appinstaller",
+            "xll",
+            "iqy",
+            "ps1xml",
+        ] {
+            assert!(add_file_type_to_list(&mut list, ext).is_err(), "{ext}");
         }
         assert!(list.is_empty());
     }

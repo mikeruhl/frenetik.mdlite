@@ -7,7 +7,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::commands::current_file_display_path;
 use crate::config::{
     normalize_extension, normalize_origin, store_add_safe_file_type, store_add_trusted_origin,
-    store_get_safe_file_types, store_get_trusted_origins,
+    store_get_safe_file_types, store_get_trusted_origins, url_origin,
 };
 use crate::scan::is_markdown_ext;
 use crate::{display_path, menu, AppMode, AppState};
@@ -294,15 +294,10 @@ pub(crate) fn parse_href(href: &str) -> ParsedHref {
         if !is_drive {
             let scheme = scheme.to_ascii_lowercase();
             return match scheme.as_str() {
-                "http" | "https" => match normalize_origin(href) {
-                    Some(origin) => ParsedHref::Web {
-                        url: href.to_string(),
-                        origin,
-                        insecure: scheme == "http",
-                    },
-                    None => ParsedHref::Blocked { scheme },
+                "http" | "https" => parse_web(href, scheme),
+                "mailto" => ParsedHref::Mailto {
+                    url: encode_mailto(href),
                 },
-                "mailto" => ParsedHref::Mailto { url: href.to_string() },
                 "file" => parse_file_url(rest),
                 _ => ParsedHref::Blocked { scheme },
             };
@@ -310,6 +305,36 @@ pub(crate) fn parse_href(href: &str) -> ParsedHref {
     }
     let (path, fragment) = split_fragment_and_query(href);
     file_href(percent_decode(path), fragment)
+}
+
+/// Emits the parsed URL's canonical form so the trust check and the OS opener see one string.
+fn parse_web(href: &str, scheme: String) -> ParsedHref {
+    let Some((url, origin)) = reqwest::Url::parse(href)
+        .ok()
+        .and_then(|u| url_origin(&u).map(|o| (u, o)))
+    else {
+        return ParsedHref::Blocked { scheme };
+    };
+    ParsedHref::Web {
+        url: url.into(),
+        origin,
+        insecure: scheme == "http",
+    }
+}
+
+fn encode_mailto(href: &str) -> String {
+    let mut out = String::with_capacity(href.len());
+    for c in href.chars() {
+        if c == '"' || c.is_whitespace() || c.is_control() {
+            let mut buf = [0u8; 4];
+            for b in c.encode_utf8(&mut buf).bytes() {
+                out.push_str(&format!("%{b:02X}"));
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 pub(crate) fn classify(
@@ -614,12 +639,63 @@ mod tests {
         assert_eq!(
             parse_href("HTTP://Example.com/x"),
             ParsedHref::Web {
-                url: "HTTP://Example.com/x".into(),
+                url: "http://example.com/x".into(),
                 origin: "http://example.com".into(),
                 insecure: true
             }
         );
         assert!(matches!(parse_href("mailto:a@b.c"), ParsedHref::Mailto { .. }));
+    }
+
+    fn web_url(href: &str) -> (String, String) {
+        match parse_href(href) {
+            ParsedHref::Web { url, origin, .. } => (url, origin),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn web_url_is_canonical() {
+        assert_eq!(
+            web_url("https://EVIL.Example.COM/Path"),
+            (
+                "https://evil.example.com/Path".into(),
+                "https://evil.example.com".into()
+            )
+        );
+        assert_eq!(
+            web_url("https://b\u{fc}cher.example/x"),
+            (
+                "https://xn--bcher-kva.example/x".into(),
+                "https://xn--bcher-kva.example".into()
+            )
+        );
+        let (url, _) = web_url("https://a.example/x\" y z?q=\"1 2\"#f g\"");
+        assert_eq!(url, "https://a.example/x%22%20y%20z?q=%221%202%22#f%20g%22");
+    }
+
+    #[test]
+    fn web_url_with_unparsable_host_is_blocked() {
+        assert_eq!(
+            parse_href("https://a b.example/"),
+            ParsedHref::Blocked { scheme: "https".into() }
+        );
+    }
+
+    #[test]
+    fn mailto_encodes_quotes_whitespace_and_controls() {
+        assert_eq!(
+            parse_href("mailto:a@b.c?subject=hi \"there\"\tx\u{7}\u{a0}y"),
+            ParsedHref::Mailto {
+                url: "mailto:a@b.c?subject=hi%20%22there%22%09x%07%C2%A0y".into()
+            }
+        );
+        assert_eq!(
+            parse_href("mailto:a@b.c?subject=a%20b"),
+            ParsedHref::Mailto {
+                url: "mailto:a@b.c?subject=a%20b".into()
+            }
+        );
     }
 
     #[test]
@@ -899,6 +975,18 @@ mod tests {
     }
 
     #[test]
+    fn trusted_origin_opens_canonical_url() {
+        let fx = Fixture::new();
+        let trusted = vec!["https://docs.example.com".to_string()];
+        assert_eq!(
+            run("https://DOCS.example.com/a \"b\"", &fx.ctx(&trusted)),
+            LinkAction::OpenUrl {
+                url: "https://docs.example.com/a%20%22b%22".into()
+            }
+        );
+    }
+
+    #[test]
     fn same_host_other_scheme_confirms() {
         let fx = Fixture::new();
         let trusted = vec!["https://docs.example.com".to_string()];
@@ -919,7 +1007,7 @@ mod tests {
         assert_eq!(
             run("https://api.docs.example.com", &fx.ctx(&trusted)),
             LinkAction::ConfirmUrl {
-                url: "https://api.docs.example.com".into(),
+                url: "https://api.docs.example.com/".into(),
                 origin: "https://api.docs.example.com".into(),
                 insecure: false,
             }
