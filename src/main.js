@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { LazyStore } from "@tauri-apps/plugin-store";
 
 import { applyTheme } from "./themes.js";
@@ -32,7 +31,9 @@ import {
   initFolderStartup,
   getCurrentFilePath,
   navigateToFile,
+  navigateToFolderLink,
 } from "./sidebar.js";
+import { initLinks } from "./links.js";
 
 const store = new LazyStore("settings.json");
 
@@ -345,7 +346,7 @@ async function checkForUpdates() {
       );
       document.getElementById("about-download-link").addEventListener("click", (e) => {
         e.preventDefault();
-        openUrl(result.release_url);
+        invoke("open_release_page").catch((err) => showToast("Could not open link: " + err));
       });
     } else {
       aboutUpdateResult.textContent = "You're on the latest version.";
@@ -480,21 +481,18 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-document.addEventListener("click", (e) => {
-  const anchor = e.target.closest("a[href]");
-  if (!anchor) return;
-  const href = anchor.getAttribute("href");
-  if (href && href.startsWith("#")) {
-    e.preventDefault();
-    const target = document.getElementById(href.slice(1));
+initLinks({
+  invoke,
+  navigate: navigateToFolderLink,
+  confirm: () => Promise.resolve({ open: false, trustOrigin: false }),
+  notify: showToast,
+  scrollToFragment: (id) => {
+    const target = document.getElementById(id);
     if (target) {
       pushNavigation();
       target.scrollIntoView({ behavior: "smooth" });
     }
-  } else if (href && href.startsWith("http")) {
-    e.preventDefault();
-    openUrl(href);
-  }
+  },
 });
 
 window.addEventListener("mouseup", (e) => {

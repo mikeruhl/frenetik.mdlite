@@ -100,3 +100,75 @@ describe("new-file marker on collapsed folders", () => {
     expect(document.querySelectorAll(".has-new")).toHaveLength(0);
   });
 });
+
+describe("link navigation", () => {
+  async function loadWithFile(path) {
+    const sidebar = await loadSidebar();
+    const { invoke } = await import("@tauri-apps/api/core");
+    invoke.mockReset();
+    const render = vi.fn();
+    sidebar.initSidebar(render);
+    invoke.mockResolvedValue("content");
+    await sidebar.navigateToFolderLink(path, "");
+    return { sidebar, invoke, render };
+  }
+
+  it("revealInTree expands a collapsed ancestor and scrolls to the file", async () => {
+    const sidebar = await loadSidebar();
+    const { invoke } = await import("@tauri-apps/api/core");
+    invoke.mockReset();
+    invoke.mockResolvedValue("content");
+    sidebar.initSidebar(vi.fn());
+    sidebar.handleScanFiles([dir("docs", "/root/docs")], [{ name: "a.md", path: "/root/docs/a.md" }]);
+    const row = document.querySelector('.tree-file[data-path="/root/docs/a.md"]');
+    row.scrollIntoView = vi.fn();
+    const children = row.parentElement;
+    expect(children.style.display).toBe("none");
+
+    await sidebar.navigateToFolderLink("/root/docs/a.md", "");
+
+    expect(children.style.display).toBe("block");
+    expect(row.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+  });
+
+  it("scrolls to the fragment target after loading", async () => {
+    const sidebar = await loadSidebar();
+    const { invoke } = await import("@tauri-apps/api/core");
+    invoke.mockReset();
+    invoke.mockResolvedValue("content");
+    sidebar.initSidebar(vi.fn());
+    const target = document.createElement("h2");
+    target.id = "install";
+    target.scrollIntoView = vi.fn();
+    document.body.appendChild(target);
+
+    await sidebar.navigateToFolderLink("/root/a.md", "install");
+
+    expect(target.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("handleScanComplete keeps a hidden current file when it still exists", async () => {
+    const { sidebar, invoke, render } = await loadWithFile("/root/hidden.md");
+    invoke.mockReset();
+    invoke.mockResolvedValueOnce(true);
+    render.mockClear();
+
+    await sidebar.handleScanComplete();
+
+    expect(invoke).toHaveBeenCalledWith("file_exists", { path: "/root/hidden.md" });
+    expect(sidebar.getCurrentFilePath()).toBe("/root/hidden.md");
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("handleScanComplete blanks the current file when it no longer exists", async () => {
+    const { sidebar, invoke, render } = await loadWithFile("/root/gone.md");
+    invoke.mockReset();
+    invoke.mockResolvedValueOnce(false);
+    render.mockClear();
+
+    await sidebar.handleScanComplete();
+
+    expect(sidebar.getCurrentFilePath()).toBeNull();
+    expect(render).toHaveBeenCalledWith("");
+  });
+});

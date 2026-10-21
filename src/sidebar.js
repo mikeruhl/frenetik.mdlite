@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { pushNavigation } from "./history.js";
+import { showToast } from "./toast.js";
 
 const mainContentEl = document.getElementById("main-content");
 const sidebarHeaderEl = document.getElementById("sidebar-header");
@@ -188,14 +189,13 @@ export function handleScanFiles(pathChain, files) {
   }
 }
 
-export function handleScanComplete() {
+export async function handleScanComplete() {
   removeScanningIndicator();
   sidebarTreeEl.querySelectorAll(".folder-scan-spinner").forEach((el) => el.remove());
-  if (currentFilePath) {
-    const stillExists = Array.from(sidebarTreeEl.querySelectorAll(".tree-file")).some(
-      (el) => el.dataset.path === currentFilePath
-    );
-    if (!stillExists) {
+  if (currentFilePath && !findFileElement(currentFilePath)) {
+    const path = currentFilePath;
+    const exists = await invoke("file_exists", { path }).catch(() => false);
+    if (!exists && currentFilePath === path) {
       currentFilePath = null;
       renderFn("");
     }
@@ -237,6 +237,30 @@ export async function navigateToFile(path) {
     await loadFile(path);
   } catch (e) {
     console.error("Failed to navigate to file:", e);
+  }
+}
+
+function revealInTree(path) {
+  const row = findFileElement(path);
+  if (!row) return;
+  let container = row.parentElement;
+  while (container && container !== sidebarTreeEl) {
+    if (container.style.display === "none") container.previousElementSibling.click();
+    container = container.parentElement;
+  }
+  row.scrollIntoView({ block: "nearest" });
+}
+
+export async function navigateToFolderLink(path, fragment) {
+  try {
+    pushNavigation();
+    await loadFile(path);
+    revealInTree(path);
+    const target = fragment ? document.getElementById(fragment) : null;
+    if (target) target.scrollIntoView();
+    else mainContentEl.scrollTop = 0;
+  } catch (e) {
+    showToast("Could not open link: " + e);
   }
 }
 
