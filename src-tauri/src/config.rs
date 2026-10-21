@@ -208,6 +208,175 @@ pub(crate) fn store_remove_image_host(app: &tauri::AppHandle, host: &str) -> Vec
     list
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) const DEFAULT_SAFE_FILE_TYPES: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "pdf", "txt", "csv", "json", "yaml", "yml", "log", "mp3", "wav",
+    "mp4", "webm", "mov", "docx", "xlsx", "pptx",
+];
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) const EXECUTABLE_EXTENSIONS: &[&str] = &[
+    "exe",
+    "com",
+    "bat",
+    "cmd",
+    "ps1",
+    "psm1",
+    "vbs",
+    "vbe",
+    "js",
+    "jse",
+    "wsf",
+    "wsh",
+    "hta",
+    "msi",
+    "msp",
+    "lnk",
+    "scr",
+    "cpl",
+    "jar",
+    "reg",
+    "url",
+    "appref-ms",
+    "sh",
+    "app",
+    "command",
+];
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn normalize_origin(origin: &str) -> Option<String> {
+    let url = reqwest::Url::parse(origin.trim()).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    let host = normalize_host(url.host_str()?)?;
+    Some(format!("{}://{host}", url.scheme()))
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn normalize_extension(ext: &str) -> Option<String> {
+    let ext = ext.trim().trim_start_matches('.').to_ascii_lowercase();
+    let valid = !ext.is_empty() && ext.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    valid.then_some(ext)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn add_file_type_to_list(list: &mut Vec<String>, ext: &str) -> Result<bool, String> {
+    let Some(e) = normalize_extension(ext) else {
+        return Err(format!("Invalid file type: {ext}"));
+    };
+    if EXECUTABLE_EXTENSIONS.contains(&e.as_str()) {
+        return Err(format!("Executable file types can't be opened directly: .{e}"));
+    }
+    if list.contains(&e) {
+        return Ok(false);
+    }
+    list.push(e);
+    Ok(true)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn store_get_trusted_origins(app: &tauri::AppHandle) -> Vec<String> {
+    let store = app.store(STORE_FILE).expect("store");
+    let raw: Vec<String> = store
+        .get("trusted_link_domains")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let mut list = Vec::new();
+    for origin in raw.iter().filter_map(|o| normalize_origin(o)) {
+        if !list.contains(&origin) {
+            list.push(origin);
+        }
+    }
+    list
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn store_set_trusted_origins(app: &tauri::AppHandle, list: &[String]) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("trusted_link_domains", serde_json::json!(list));
+    let _ = store.save();
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn store_add_trusted_origin(app: &tauri::AppHandle, origin: &str) -> Result<Vec<String>, String> {
+    let Some(normalized) = normalize_origin(origin) else {
+        return Err(format!("Invalid origin: {origin}"));
+    };
+    let mut list = store_get_trusted_origins(app);
+    if !list.contains(&normalized) {
+        list.push(normalized);
+        store_set_trusted_origins(app, &list);
+    }
+    Ok(list)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn store_remove_trusted_origin(app: &tauri::AppHandle, origin: &str) -> Vec<String> {
+    let mut list = store_get_trusted_origins(app);
+    if let Some(normalized) = normalize_origin(origin) {
+        let before = list.len();
+        list.retain(|entry| entry != &normalized);
+        if list.len() != before {
+            store_set_trusted_origins(app, &list);
+        }
+    }
+    list
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn store_get_safe_file_types(app: &tauri::AppHandle) -> Vec<String> {
+    let store = app.store(STORE_FILE).expect("store");
+    let Some(raw) = store
+        .get("safe_file_types")
+        .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
+    else {
+        return DEFAULT_SAFE_FILE_TYPES.iter().map(|e| (*e).to_string()).collect();
+    };
+    let mut list = Vec::new();
+    for ext in &raw {
+        let _ = add_file_type_to_list(&mut list, ext);
+    }
+    list
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn store_set_safe_file_types(app: &tauri::AppHandle, list: &[String]) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("safe_file_types", serde_json::json!(list));
+    let _ = store.save();
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn store_add_safe_file_type(app: &tauri::AppHandle, ext: &str) -> Result<Vec<String>, String> {
+    let mut list = store_get_safe_file_types(app);
+    if add_file_type_to_list(&mut list, ext)? {
+        store_set_safe_file_types(app, &list);
+    }
+    Ok(list)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn store_remove_safe_file_type(app: &tauri::AppHandle, ext: &str) -> Vec<String> {
+    let mut list = store_get_safe_file_types(app);
+    if let Some(e) = normalize_extension(ext) {
+        let before = list.len();
+        list.retain(|entry| entry != &e);
+        if list.len() != before {
+            store_set_safe_file_types(app, &list);
+        }
+    }
+    list
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn store_reset_safe_file_types(app: &tauri::AppHandle) -> Vec<String> {
+    let store = app.store(STORE_FILE).expect("store");
+    store.delete("safe_file_types");
+    let _ = store.save();
+    store_get_safe_file_types(app)
+}
+
 pub(crate) fn migrate_store_keys(app: &tauri::AppHandle) {
     let store = app.store(STORE_FILE).expect("store");
     if let Some(val) = store.get("show_dot_files") {
@@ -368,5 +537,63 @@ mod tests {
         assert!(remove_host_from_list(&mut list, "EXAMPLE.com"));
         assert_eq!(list, vec!["other.org"]);
         assert!(!remove_host_from_list(&mut list, "missing.net"));
+    }
+
+    #[test]
+    fn normalize_origin_keeps_scheme_and_host() {
+        assert_eq!(
+            normalize_origin("HTTPS://Docs.Example.com:8443/a?b"),
+            Some("https://docs.example.com".into())
+        );
+        assert_eq!(
+            normalize_origin("http://example.com"),
+            Some("http://example.com".into())
+        );
+        assert_eq!(normalize_origin("ftp://example.com"), None);
+        assert_eq!(normalize_origin("example.com"), None);
+    }
+
+    #[test]
+    fn trusted_origin_scheme_is_part_of_identity() {
+        assert_ne!(normalize_origin("https://a.com"), normalize_origin("http://a.com"));
+    }
+
+    #[test]
+    fn normalize_extension_variants() {
+        assert_eq!(normalize_extension(" .PNG "), Some("png".into()));
+        assert_eq!(normalize_extension("..pdf"), Some("pdf".into()));
+        assert_eq!(normalize_extension(""), None);
+        assert_eq!(normalize_extension("a/b"), None);
+    }
+
+    #[test]
+    fn executables_cannot_be_added() {
+        let mut list = vec![];
+        for ext in ["exe", ".BAT", "Ps1", "appref-ms"] {
+            let err = add_file_type_to_list(&mut list, ext).unwrap_err();
+            assert!(
+                err.starts_with("Executable file types can't be opened directly"),
+                "{err}"
+            );
+        }
+        assert!(list.is_empty());
+    }
+
+    #[test]
+    fn add_file_type_dedupes_and_rejects_invalid() {
+        let mut list = vec!["png".to_string()];
+        assert_eq!(add_file_type_to_list(&mut list, ".PNG"), Ok(false));
+        assert_eq!(add_file_type_to_list(&mut list, "heic"), Ok(true));
+        assert_eq!(
+            add_file_type_to_list(&mut list, "a b").unwrap_err(),
+            "Invalid file type: a b"
+        );
+    }
+
+    #[test]
+    fn defaults_contain_no_executables() {
+        assert!(DEFAULT_SAFE_FILE_TYPES
+            .iter()
+            .all(|e| !EXECUTABLE_EXTENSIONS.contains(e)));
     }
 }
