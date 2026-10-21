@@ -42,6 +42,17 @@ allows. Otherwise explain in chat and ask with the built-in tool; it is cheaper.
 
 ## Rich Document authoring
 
+mdlite renders more than CommonMark. Prefer these constructs to prose or ASCII art when they fit. They work in
+every mdlite version:
+
+| Construct | Use for                                          | Syntax                                                                     |
+| --------- | ------------------------------------------------ | -------------------------------------------------------------------------- |
+| Diagram   | Flows, sequences, states, architecture           | A fenced `mermaid` block                                                   |
+| Math      | Formulas                                         | `$E = mc^2$` inline; `$$` on its own line before and after a block formula |
+| Footnote  | Sources and asides that would interrupt the text | `claim[^1]` in the text, `[^1]: source` at the end                         |
+| Task list | Checklists and next steps                        | `- [ ] todo` and `- [x] done`; rendered read-only                          |
+| Emoji     | Sparing status signals, such as in table cells   | GitHub shortcodes such as `:warning:`                                      |
+
 These constructs need mdlite 0.4.0 or later. Run `mdlite --version` once per session; when it fails or prints an
 older version, write tables and plain alerts instead.
 
