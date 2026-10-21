@@ -11,18 +11,25 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 
 ## Features
 
-- **Live reload** — file watcher detects edits and re-renders automatically
-- **Folder view** — open a directory and browse all markdown files in a sidebar tree
-- **Search** — `Ctrl+F` find with regex and case-sensitivity toggles
-- **Interactive mode** — agents present a decision document with questions and receive the answers as JSON
-- **Agent skills** — a Claude Code plugin and cross-agent skills that let agents ask decisions in interactive mode
+- **Live reload**: file watcher detects edits and re-renders automatically
+- **Folder view**: open a directory and browse all markdown files in a sidebar tree
+- **Search**: `Ctrl+F` find with regex and case-sensitivity toggles
+- **Rich content**: Atlassian-style panels, status lozenges, and expands written in plain GitHub syntax
+- **Charts**: `vega-lite` code blocks render as themed charts, with no network access
+- **Live Blocks**: `html-live` code blocks run HTML and d3 in an isolated frame, only after you click **Run**
+- **Mermaid diagrams**: rendered inline with an option to open in a zoomable/pannable window
+- **Math/LaTeX**: inline (`$...$`) and block (`$$...$$`) math via KaTeX
+- **Footnotes, task lists, and emoji shortcodes**: GitHub-style `[^1]`, `- [ ]`, and `:rocket:`
+- **Full width**: optional reading layout that uses the whole window
+- **Interactive mode**: agents present a decision document with questions and receive the answers as JSON
+- **Agent skills**: a Claude Code plugin and cross-agent skills that let agents ask decisions in interactive mode
   and open the markdown they write
-- **Mermaid diagrams** — rendered inline with an option to open in a zoomable/pannable window
-- **Math/LaTeX** — inline (`$...$`) and block (`$$...$$`) math via KaTeX
-- **11 themes** — 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
+- **11 themes**: 7 GitHub variants (light, dark, dark dimmed, dark high contrast, auto, colorblind),
   Splendor, Retro, Air, Modest (persisted across sessions)
-- **Fast startup** — native binary, no runtime dependencies
-- **Cross-platform** — Windows, macOS, Linux
+- **Fast startup**: native binary, no runtime dependencies
+- **Cross-platform**: Windows, macOS, Linux
+
+![mdlite rendering panels and status lozenges in the GitHub Dark theme](docs/screenshots/dark-theme-overview.png)
 
 ## Install
 
@@ -104,12 +111,149 @@ Matches are highlighted inline. The counter shows your position (e.g. "3 of 12")
 
 ### Theme selection
 
-Use the **Theme** menu. Your choice persists across sessions.
+Use the **Theme** menu. Your choice persists across sessions. Panels, lozenges, charts, diagrams, and Live Blocks
+follow the active theme.
 
-### Mermaid diagrams
+### Full width
+
+**View → Full Width** widens the document to the window, keeping a margin on each side. The setting persists across
+sessions and does not affect printing or PDF export.
+
+### Rich content
+
+mdlite renders a few constructs beyond plain markdown. Each one uses syntax that still reads well on GitHub, so the
+same file works in both places. [`docs/screenshots/showcase.md`](docs/screenshots/showcase.md) contains every
+example below.
+
+#### Panels
+
+GitHub alert syntax renders as colored panels. `NOTE`, `TIP`, `IMPORTANT`, `WARNING`, and `CAUTION` map to info,
+success, note, warning, and error tones.
+
+```markdown
+> [!WARNING]
+> p95 latency rises during cache warm-up.
+```
+
+![Five panels: note, tip, important, warning, and caution](docs/screenshots/panels.png)
+
+#### Status lozenges
+
+A `<mark>` with a `data-status` attribute renders as a status lozenge. Tones are `neutral`, `info`, `success`,
+`warning`, `error`, and `note`; any other value renders as a plain highlight.
+
+```markdown
+<mark data-status="success">Done</mark> <mark data-status="error">Blocked</mark>
+```
+
+![Status lozenges in a table](docs/screenshots/status-lozenges.png)
+
+#### Expands
+
+`<details>` renders as a collapsible section, closed unless it has the `open` attribute. Leave a blank line after
+`<summary>` so the body is parsed as markdown.
+
+```markdown
+<details><summary>Methodology</summary>
+
+Detail a reader may skip.
+
+</details>
+```
+
+![A collapsed and an expanded section](docs/screenshots/expands.png)
+
+#### Charts
+
+A `vega-lite` code block containing a [Vega-Lite](https://vega.github.io/vega-lite/) JSON spec renders as a chart.
+Data must be inline in `data.values`; charts never fetch remote data or follow links. An invalid spec shows an
+error in place of the chart and the rest of the document still renders.
+
+````markdown
+```vega-lite
+{
+  "data": { "values": [{ "option": "Redis", "p95": 32 }, { "option": "In-process LRU", "p95": 28 }] },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "option", "type": "nominal" },
+    "y": { "field": "p95", "type": "quantitative" }
+  }
+}
+```
+````
+
+![A bar chart of p95 latency by cache option](docs/screenshots/charts.png)
+
+#### Mermaid diagrams
 
 Fenced code blocks with the `mermaid` language tag render as diagrams inline. Hover over a diagram
 and click **Open** to view it in a separate window with zoom and pan controls.
+
+````markdown
+```mermaid
+flowchart LR
+  Client --> API --> Cache[(Cache)]
+  API --> DB[(Database)]
+```
+````
+
+![A Mermaid flowchart](docs/screenshots/mermaid.png)
+
+#### Live Blocks
+
+An `html-live` code block holds HTML and script for custom visualizations. It first shows as source with a **Run**
+button; nothing executes until you click it. mdlite remembers the choice for that file and asks again if the file
+changes.
+
+````markdown
+```html-live
+<svg id="tree" width="480" height="200"></svg>
+<script>
+  const root = d3.tree().size([180, 360])(d3.hierarchy(data));
+  // ...
+</script>
+```
+````
+
+![A Live Block before running, showing its source and a Run button](docs/screenshots/live-block-run-control.png)
+
+![The same Live Block after running, showing a d3 tree](docs/screenshots/live-block.png)
+
+A Live Block runs in an isolated frame. It cannot reach mdlite, the rest of the document, or the network. The
+bundled [d3](https://d3js.org) library is available as the global `d3`, and theme colors are exposed as CSS
+variables such as `var(--mdlite-fg)`. When printed, a run block appears as a snapshot of its output and an unrun
+block as its source.
+
+#### Math
+
+Inline `$...$` and block `$$...$$` math render with [KaTeX](https://katex.org).
+
+```markdown
+The p95 estimate is $\hat{q}_{0.95}$, and the mean latency is
+
+$$
+\bar{x} = \frac{1}{n} \sum_{i=1}^{n} x_i
+$$
+```
+
+![Inline and block math](docs/screenshots/math.png)
+
+#### Footnotes, task lists, and emoji
+
+GitHub-style footnotes (`[^1]`), task lists (`- [x]`), and emoji shortcodes (`:rocket:`) are supported.
+
+```markdown
+Redis was chosen for its eviction policies.[^1]
+
+- [x] Benchmark all three options
+- [ ] Run the load test :rocket:
+
+[^1]: See the methodology section above.
+```
+
+![A task list with emoji and a footnote](docs/screenshots/footnotes-task-lists-emoji.png)
+
+Printing and PDF export wait for charts and diagrams to finish rendering.
 
 ### Interactive mode (agent decisions)
 
