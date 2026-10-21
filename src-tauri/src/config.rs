@@ -303,7 +303,6 @@ pub(crate) fn store_add_trusted_origin(app: &tauri::AppHandle, origin: &str) -> 
     Ok(list)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn store_remove_trusted_origin(app: &tauri::AppHandle, origin: &str) -> Vec<String> {
     let mut list = store_get_trusted_origins(app);
     if let Some(normalized) = normalize_origin(origin) {
@@ -331,14 +330,12 @@ pub(crate) fn store_get_safe_file_types(app: &tauri::AppHandle) -> Vec<String> {
     list
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn store_set_safe_file_types(app: &tauri::AppHandle, list: &[String]) {
     let store = app.store(STORE_FILE).expect("store");
     store.set("safe_file_types", serde_json::json!(list));
     let _ = store.save();
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn store_add_safe_file_type(app: &tauri::AppHandle, ext: &str) -> Result<Vec<String>, String> {
     let mut list = store_get_safe_file_types(app);
     if add_file_type_to_list(&mut list, ext)? {
@@ -347,7 +344,6 @@ pub(crate) fn store_add_safe_file_type(app: &tauri::AppHandle, ext: &str) -> Res
     Ok(list)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn store_remove_safe_file_type(app: &tauri::AppHandle, ext: &str) -> Vec<String> {
     let mut list = store_get_safe_file_types(app);
     if let Some(e) = normalize_extension(ext) {
@@ -360,7 +356,6 @@ pub(crate) fn store_remove_safe_file_type(app: &tauri::AppHandle, ext: &str) -> 
     list
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn store_reset_safe_file_types(app: &tauri::AppHandle) -> Vec<String> {
     let store = app.store(STORE_FILE).expect("store");
     store.delete("safe_file_types");

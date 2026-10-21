@@ -338,6 +338,7 @@ pub fn run() {
             links::resolve_link,
             links::follow_link,
             links::file_exists,
+            links::add_safe_file_type,
             updater::open_release_page
         ])
         .on_window_event(|window, event| {
@@ -505,6 +506,8 @@ pub fn run() {
                 has_frontmatter: false,
                 has_file: current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap()).is_some(),
                 image_hosts: store_get_image_allowlist(app.handle()),
+                trusted_origins: store_get_trusted_origins(app.handle()),
+                safe_file_types: store_get_safe_file_types(app.handle()),
             };
             let menu = build_menu(app.handle(), &recent, &theme, &menu_state)?;
             app.set_menu(menu)?;
@@ -564,6 +567,21 @@ pub fn run() {
                     {
                         images::remove_image_host(handle.clone(), host);
                     }
+                } else if let Some(idx) = parse_indexed_id(id, REMOVE_TRUSTED_ORIGIN_PREFIX) {
+                    if let Some(origin) = store_get_trusted_origins(handle).get(idx).cloned() {
+                        store_remove_trusted_origin(handle, &origin);
+                        refresh_menu(handle);
+                    }
+                } else if let Some(idx) = parse_indexed_id(id, REMOVE_SAFE_TYPE_PREFIX) {
+                    if let Some(ext) = store_get_safe_file_types(handle).get(idx).cloned() {
+                        store_remove_safe_file_type(handle, &ext);
+                        refresh_menu(handle);
+                    }
+                } else if id == ADD_SAFE_FILE_TYPE_ID {
+                    let _ = handle.emit(PROMPT_ADD_FILE_TYPE_EVENT, ());
+                } else if id == RESET_SAFE_FILE_TYPES_ID {
+                    store_reset_safe_file_types(handle);
+                    refresh_menu(handle);
                 } else if let Some(idx_str) = id.strip_prefix("recent-") {
                     if let Ok(idx) = idx_str.parse::<usize>() {
                         let recent = store_get_recent(handle);

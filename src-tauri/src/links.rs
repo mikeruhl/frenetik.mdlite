@@ -6,8 +6,8 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::commands::current_file_display_path;
 use crate::config::{
-    normalize_extension, normalize_origin, store_add_trusted_origin, store_get_safe_file_types,
-    store_get_trusted_origins,
+    normalize_extension, normalize_origin, store_add_safe_file_type, store_add_trusted_origin,
+    store_get_safe_file_types, store_get_trusted_origins,
 };
 use crate::scan::is_markdown_ext;
 use crate::{display_path, menu, AppMode, AppState};
@@ -274,6 +274,13 @@ fn exists_unless_network(path: &Path, folder: Option<&Path>, exists: impl Fn(&Pa
 pub(crate) async fn file_exists(path: String, app: AppHandle) -> bool {
     let folder = ContextSource::read(&app).folder;
     exists_unless_network(Path::new(&path), folder.as_deref(), Path::exists)
+}
+
+#[tauri::command]
+pub(crate) fn add_safe_file_type(app: AppHandle, ext: String) -> Result<Vec<String>, String> {
+    let types = store_add_safe_file_type(&app, &ext)?;
+    menu::refresh_menu(&app);
+    Ok(types)
 }
 
 pub(crate) fn parse_href(href: &str) -> ParsedHref {
