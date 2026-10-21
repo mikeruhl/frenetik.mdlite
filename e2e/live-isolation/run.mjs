@@ -70,7 +70,14 @@ const main = await connect(page.webSocketDebuggerUrl);
 const pagesBefore = (await targets()).filter((t) => t.type === "page").length;
 const before = await main.evaluate(MAIN_STATE);
 
-const clicked = await main.evaluate(`(() => { const b = document.querySelector(".live-run"); b?.click(); return !!b; })()`);
+const clicked = await main.evaluate(`(() => {
+  const block = document.querySelector(".live-block");
+  const button = block?.querySelector(".live-run");
+  if (!button) return false;
+  if (block.dataset.liveState === "running") button.click();
+  button.click();
+  return true;
+})()`);
 check(clicked, "Run control present");
 await new Promise((r) => setTimeout(r, 15000));
 

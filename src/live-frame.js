@@ -88,6 +88,7 @@ window.addEventListener("message", (event) => {
     run(data.source);
   } else if (data.type === "theme") {
     applyTheme(data.theme);
+    scheduleSnapshot();
   }
 });
 
