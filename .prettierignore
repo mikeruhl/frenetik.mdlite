@@ -8,3 +8,4 @@ Cargo.lock
 .playwright-mcp
 .specify
 .claude
+openspec
