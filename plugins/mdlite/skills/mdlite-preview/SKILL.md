@@ -33,6 +33,43 @@ mdlite opens a folder with a file tree, so one window can hold every file:
 - **Files that must live elsewhere** (for example plans inside the repository): open their shared folder if they
   have one; otherwise open only the main file.
 
+## Rich Document authoring
+
+These constructs need mdlite 0.4.0 or later. Run `mdlite --version` once per session; when it fails or prints an
+older version, write tables and plain alerts instead.
+
+| Construct      | Use for                                                                                             | Syntax                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Panel          | Recommendations (`[!TIP]`), risks (`[!WARNING]`, `[!CAUTION]`), context (`[!NOTE]`, `[!IMPORTANT]`) | `> [!TIP]` on its own line, then `> text`                                                        |
+| Status Lozenge | State of an option or item                                                                          | `<mark data-status="success">CHOSEN</mark>`; tones: neutral, info, success, warning, error, note |
+| Expand         | Detail a reader may skip                                                                            | `<details><summary>Benchmarks</summary>`, a blank line, the body, `</details>`                   |
+| Chart          | Quantitative comparisons and trends                                                                 | A fenced `vega-lite` block with inline `data.values`                                             |
+
+```vega-lite
+{
+  "data": { "values": [{ "option": "Redis", "p99": 2 }, { "option": "Postgres", "p99": 9 }] },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "option", "type": "nominal" },
+    "y": { "field": "p99", "type": "quantitative", "title": "p99 latency (ms)" }
+  }
+}
+```
+
+Draw bar, line, scatter, area, and heatmap visuals as Charts. Reach for an `html-live` Live Block (HTML with
+`<script>`, `d3` available as a global) only for visuals Vega-Lite cannot express, such as a force-directed graph. The
+reader must click Run before a Live Block executes, so state its findings in text too.
+
+## Rendering restrictions
+
+mdlite treats the file as untrusted:
+
+- Remote images are blocked until the user allows their host; a placeholder shows the alt text instead. Write
+  meaningful alt text for every image.
+- `<style>`, `style` attributes, form controls (`<form>`, `<input>`, `<button>`, `<select>`, `<textarea>`), and
+  custom classes are stripped. Use markdown emphasis, tables, alerts, and headings instead.
+- Never make an image or diagram the only carrier of essential information. State the key facts in text too.
+
 ## How to open
 
 Launch in the background and do not wait for it (Claude Code: Bash with `run_in_background: true`):

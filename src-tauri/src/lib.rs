@@ -1,8 +1,10 @@
 mod commands;
 mod config;
 mod export;
+mod images;
 mod interactive;
 mod jumplist;
+mod live;
 mod menu;
 mod scan;
 mod updater;
@@ -30,6 +32,17 @@ pub(crate) enum AppMode {
     Empty,
     File,
     Folder,
+}
+
+/// Text for `--help` or `--version`, which print and exit instead of opening a window.
+fn informational_output(matches: &tauri_plugin_cli::Matches) -> Option<String> {
+    if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
+        return Some(help.to_string());
+    }
+    matches
+        .args
+        .contains_key("version")
+        .then(|| format!("mdlite {}", env!("CARGO_PKG_VERSION")))
 }
 
 pub(crate) struct AppState {
@@ -257,6 +270,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(images::ImageState::new())
+        .register_asynchronous_uri_scheme_protocol(images::SCHEME, |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let allowlist = store_get_image_allowlist(&app);
+                let state = app.state::<images::ImageState>();
+                responder.respond(images::handle_request(&state, allowlist, request).await);
+            });
+        })
+        .register_uri_scheme_protocol(live::SCHEME, |ctx, request| {
+            live::handle_request(ctx.app_handle(), &request)
+        })
         .invoke_handler(tauri::generate_handler![
             read_file,
             get_mode,
@@ -273,7 +298,13 @@ pub fn run() {
             get_interactive_session,
             submit_answers,
             cancel_interactive,
-            register_interactive_ready
+            register_interactive_ready,
+            images::get_image_allowlist,
+            images::allow_image_once,
+            images::allow_image_host,
+            images::remove_image_host,
+            live::live_consent_check,
+            live::live_consent_grant
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -287,8 +318,8 @@ pub fn run() {
             migrate_store_keys(app.handle());
 
             let matches = app.cli().matches().unwrap_or_else(|e| report_cli_error(e.to_string()));
-            if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
-                println!("{help}");
+            if let Some(text) = informational_output(&matches) {
+                println!("{text}");
                 std::process::exit(0);
             }
             let arg_str = |name: &str| {
@@ -437,6 +468,7 @@ pub fn run() {
                 show_frontmatter,
                 has_frontmatter: false,
                 has_file: current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap()).is_some(),
+                image_hosts: store_get_image_allowlist(app.handle()),
             };
             let menu = build_menu(app.handle(), &recent, &theme, &menu_state)?;
             app.set_menu(menu)?;
@@ -488,6 +520,14 @@ pub fn run() {
                     jumplist::update_jump_list(&[], &[]);
                     let theme = handle.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
                     rebuild_menu(handle, &[], &theme);
+                } else if let Some(idx_str) = id.strip_prefix(REMOVE_IMAGE_HOST_PREFIX) {
+                    if let Some(host) = idx_str
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|idx| store_get_image_allowlist(handle).get(idx).cloned())
+                    {
+                        images::remove_image_host(handle.clone(), host);
+                    }
                 } else if let Some(idx_str) = id.strip_prefix("recent-") {
                     if let Ok(idx) = idx_str.parse::<usize>() {
                         let recent = store_get_recent(handle);
@@ -511,7 +551,7 @@ pub fn run() {
                 } else if id == "print" {
                     let _ = handle.emit("print", ());
                 } else if id == "export-pdf" {
-                    export::show_export_dialog(handle);
+                    let _ = handle.emit("export-pdf", ());
                 } else if id == "copy-file-path" {
                     match copy_current_file_path(handle) {
                         Ok(Some(path)) => {
@@ -594,4 +634,38 @@ pub fn run() {
             }
         });
     std::process::exit(RESULT_GATE.exit_code().unwrap_or(exit_code));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri_plugin_cli::{ArgData, Matches};
+
+    fn matches_with(name: &str, value: serde_json::Value) -> Matches {
+        let mut matches = Matches::default();
+        let mut arg = ArgData::default();
+        arg.value = value;
+        matches.args.insert(name.to_string(), arg);
+        matches
+    }
+
+    #[test]
+    fn version_flag_reports_the_package_version() {
+        let text = informational_output(&matches_with("version", serde_json::Value::Null));
+        assert_eq!(text.as_deref(), Some(concat!("mdlite ", env!("CARGO_PKG_VERSION"))));
+    }
+
+    #[test]
+    fn help_text_is_printed_verbatim() {
+        let text = informational_output(&matches_with("help", serde_json::json!("usage: mdlite")));
+        assert_eq!(text.as_deref(), Some("usage: mdlite"));
+    }
+
+    #[test]
+    fn ordinary_launch_prints_nothing() {
+        assert_eq!(
+            informational_output(&matches_with("path", serde_json::json!("a.md"))),
+            None
+        );
+    }
 }

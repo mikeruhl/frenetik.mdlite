@@ -8,47 +8,31 @@ import { gemoji } from "gemoji";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
 import "katex/dist/katex.min.css";
+import { PLACEHOLDER_CLASS, imageProxyUrl, isImageAllowed, parseRemoteUrl } from "./images.js";
+import {
+  registerRichBlock,
+  isRichBlockLang,
+  emitRichBlock,
+  resetRichBlockCounter,
+  renderRichBlocks,
+  setRichBlockTheme,
+  richBlockSelector,
+} from "./rich-blocks.js";
+import { mermaidRenderer } from "./mermaid-block.js";
+import { chartRenderer } from "./charts.js";
+import { liveBlockRenderer } from "./live-blocks.js";
 
-let mermaidInstance = null;
-let mermaidTheme = "default";
-let mermaidCounter = 0;
 let panelMode = false;
+let imagePolicy = {};
 const usedIds = new Set();
 const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
-function appThemeToMermaid(themeId) {
-  return themeId.includes("dark") ? "dark" : "default";
-}
+registerRichBlock("mermaid", mermaidRenderer);
+registerRichBlock("vega-lite", chartRenderer);
+registerRichBlock("html-live", liveBlockRenderer);
 
-async function getMermaid() {
-  if (!mermaidInstance) {
-    const { default: mermaid } = await import("mermaid");
-    mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
-    mermaidInstance = mermaid;
-  }
-  return mermaidInstance;
-}
-
-export async function setMermaidTheme(themeId) {
-  const next = appThemeToMermaid(themeId);
-  if (next === mermaidTheme && mermaidInstance) return;
-  mermaidTheme = next;
-  if (mermaidInstance) {
-    mermaidInstance.initialize({ startOnLoad: false, theme: mermaidTheme });
-    await renderMermaidBlocks();
-  }
-}
-
-async function openMermaidWindow(svgContent) {
-  const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-  const id = Date.now().toString(36);
-  localStorage.setItem("mdlite-mermaid-" + id, svgContent);
-  new WebviewWindow("mermaid-" + id, {
-    url: "/mermaid-viewer.html?id=" + id,
-    title: "Mermaid Diagram",
-    width: 800,
-    height: 600,
-  });
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function slugify(text) {
@@ -81,7 +65,7 @@ marked.use(
   markedHighlight({
     langPrefix: "hljs language-",
     highlight(code, lang) {
-      if (lang === "mermaid") return code;
+      if (isRichBlockLang(lang)) return panelMode ? escapeHtml(code) : code;
       if (lang && hljs.getLanguage(lang)) {
         return hljs.highlight(code, { language: lang }).value;
       }
@@ -105,76 +89,117 @@ marked.use(
         return `<h${depth} id="${id}">${text}</h${depth}>\n`;
       },
       code({ text, lang }) {
-        if (lang === "mermaid" && !panelMode) {
-          const idx = mermaidCounter++;
-          const bytes = new TextEncoder().encode(text);
-          const chars = new Array(bytes.length);
-          for (let i = 0; i < bytes.length; i++) chars[i] = String.fromCharCode(bytes[i]);
-          const encoded = btoa(chars.join(""));
-          return `<div class="mermaid-block" data-mermaid-idx="${idx}" data-mermaid="${encoded}">
-            <div class="mermaid-rendered" id="mermaid-render-${idx}"></div>
-            <button class="mermaid-expand" title="Open in new window">&#x26F6; Open</button>
-          </div>`;
-        }
+        if (isRichBlockLang(lang) && !panelMode) return emitRichBlock(lang, text);
         return false;
       },
     },
   }
 );
 
-DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-  if (node.hasAttribute("style") && !node.closest(".katex")) {
+const documentPurify = DOMPurify(window);
+const FORBID_TAGS = ["style", "form", "button", "select", "textarea", "option"];
+const ALLOWED_CLASSES = new Set([
+  "hljs",
+  "footnotes",
+  "sr-only",
+  "data-footnote-backref",
+  PLACEHOLDER_CLASS,
+  "remote-image-alt",
+  "remote-image-host",
+  "chart-block",
+  "chart-rendered",
+  "live-block",
+]);
+const ALLOWED_CLASS_PREFIXES = ["hljs-", "language-", "katex", "markdown-alert", "mermaid-", "octicon"];
+const TASK_CHECKBOX_ATTRS = new Set(["type", "disabled", "checked"]);
+const STATUS_TONES = new Set(["neutral", "info", "success", "warning", "error", "note"]);
+
+function isAllowedClass(token) {
+  return ALLOWED_CLASSES.has(token) || ALLOWED_CLASS_PREFIXES.some((prefix) => token.startsWith(prefix));
+}
+
+function isTaskCheckbox(node) {
+  return node.getAttribute("type") === "checkbox" && node.hasAttribute("disabled");
+}
+
+function createImagePlaceholder(img, url) {
+  const doc = img.ownerDocument;
+  const alt = img.getAttribute("alt") ?? "";
+  const placeholder = doc.createElement("span");
+  placeholder.className = PLACEHOLDER_CLASS;
+  placeholder.dataset.remoteSrc = url.href;
+  placeholder.dataset.alt = alt;
+  const altEl = doc.createElement("span");
+  altEl.className = "remote-image-alt";
+  altEl.textContent = alt || "Image";
+  const hostEl = doc.createElement("span");
+  hostEl.className = "remote-image-host";
+  hostEl.textContent = url.hostname;
+  placeholder.append(altEl, hostEl);
+  return placeholder;
+}
+
+function rewriteImage(node) {
+  if (node.nodeName === "IMG" || node.nodeName === "SOURCE") node.removeAttribute("srcset");
+  if (node.nodeName === "IMG") {
+    const url = parseRemoteUrl(node.getAttribute("src"));
+    if (!url) return false;
+    if (isImageAllowed(url, imagePolicy)) {
+      node.setAttribute("src", imageProxyUrl(url.href));
+      return false;
+    }
+    node.replaceWith(createImagePlaceholder(node, url));
+    return true;
+  }
+  if (node.nodeName.toLowerCase() === "image") {
+    const href = node.getAttribute("href") ?? node.getAttribute("xlink:href");
+    if (parseRemoteUrl(href)) {
+      node.remove();
+      return true;
+    }
+  }
+  return false;
+}
+
+documentPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (rewriteImage(node)) return;
+  if (node.nodeName === "INPUT") {
+    if (!isTaskCheckbox(node)) {
+      node.remove();
+      return;
+    }
+    for (const attr of [...node.attributes]) {
+      if (!TASK_CHECKBOX_ATTRS.has(attr.name)) node.removeAttribute(attr.name);
+    }
+  }
+  if (node.hasAttribute("data-status") && !(node.nodeName === "MARK" && STATUS_TONES.has(node.dataset.status))) {
+    node.removeAttribute("data-status");
+  }
+  const inKatex = node.closest(".katex");
+  if (node.hasAttribute("style") && !inKatex) {
     node.removeAttribute("style");
+  }
+  if (node.hasAttribute("class") && !inKatex) {
+    const kept = [...node.classList].filter(isAllowedClass);
+    if (kept.length) node.setAttribute("class", kept.join(" "));
+    else node.removeAttribute("class");
   }
 });
 
-function sanitizeMermaidSvg(svg) {
-  const doc = new DOMParser().parseFromString(svg, "text/html");
-  doc.querySelectorAll("script, iframe, object, embed").forEach((el) => el.remove());
-  const svgEl = doc.querySelector("svg");
-  if (!svgEl) return "";
-  for (const el of [svgEl, ...svgEl.querySelectorAll("*")]) {
-    for (const attr of [...el.attributes]) {
-      if (attr.name.startsWith("on")) {
-        el.removeAttribute(attr.name);
-      } else if (attr.name === "href" || attr.name === "xlink:href") {
-        // eslint-disable-next-line no-control-regex -- intentional: strip control chars browsers normalize from URLs
-        const scheme = attr.value.replace(/[\x00-\x20]+/g, "").toLowerCase();
-        if (scheme.startsWith("javascript:") || scheme.startsWith("data:") || scheme.startsWith("vbscript:")) {
-          el.removeAttribute(attr.name);
-        }
-      }
-    }
-  }
-  return svgEl.outerHTML;
-}
-
 const contentEl = document.getElementById("content");
 
-export async function renderMermaidBlocks() {
-  const blocks = contentEl.querySelectorAll(".mermaid-block");
-  if (blocks.length === 0) return;
+export function renderAllRichBlocks() {
+  return renderRichBlocks(contentEl);
+}
 
-  const mermaid = await getMermaid();
-  for (const block of blocks) {
-    const code = new TextDecoder().decode(Uint8Array.from(atob(block.dataset.mermaid), (c) => c.charCodeAt(0)));
-    const target = block.querySelector(".mermaid-rendered");
-    try {
-      const { svg } = await mermaid.render("mermaid-svg-" + block.dataset.mermaidIdx + "-" + Date.now(), code);
-      target.innerHTML = sanitizeMermaidSvg(svg);
-    } catch (e) {
-      const pre = document.createElement("pre");
-      pre.className = "mermaid-error";
-      pre.textContent = "Mermaid error: " + e.message;
-      target.appendChild(pre);
-    }
-  }
+export function setRenderTheme(themeId) {
+  return setRichBlockTheme(themeId, contentEl);
 }
 
 export function bindCopyButtons() {
   contentEl.querySelectorAll("pre > code").forEach((codeEl) => {
     const pre = codeEl.parentElement;
-    if (pre.closest(".mermaid-block")) return;
+    if (pre.closest(richBlockSelector())) return;
 
     const wrapper = document.createElement("div");
     wrapper.className = "code-block-wrapper";
@@ -209,22 +234,8 @@ export function bindCopyButtons() {
   });
 }
 
-export function bindMermaidButtons() {
-  contentEl.querySelectorAll(".mermaid-expand").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const block = btn.closest(".mermaid-block");
-      const rendered = block.querySelector(".mermaid-rendered");
-      const svg = rendered.innerHTML;
-      if (svg && !svg.includes("mermaid-error")) {
-        const sanitized = sanitizeMermaidSvg(svg);
-        await openMermaidWindow(sanitized);
-      }
-    });
-  });
-}
-
-export function resetMermaidCounter() {
-  mermaidCounter = 0;
+export function resetRenderState() {
+  resetRichBlockCounter();
   usedIds.clear();
 }
 
@@ -244,7 +255,11 @@ export function extractFrontmatter(markdown) {
   return { body: markdown.slice(match[0].length), raw, fields };
 }
 
-export function parseMarkdown(markdown, { panel = false } = {}) {
+/**
+ * Renders markdown to sanitized HTML. `images` is the remote image policy:
+ * `{ hosts: string[], urls: Set<string> }`. Remote images outside it become placeholders.
+ */
+export function parseMarkdown(markdown, { panel = false, images = {} } = {}) {
   panelMode = panel;
   let raw;
   try {
@@ -252,10 +267,19 @@ export function parseMarkdown(markdown, { panel = false } = {}) {
   } finally {
     panelMode = false;
   }
-  return DOMPurify.sanitize(raw, {
+  imagePolicy = images;
+  try {
+    return sanitizeDocument(raw);
+  } finally {
+    imagePolicy = {};
+  }
+}
+
+function sanitizeDocument(raw) {
+  return documentPurify.sanitize(raw, {
+    FORBID_TAGS,
     ADD_TAGS: [
       "div",
-      "button",
       "section",
       "svg",
       "path",

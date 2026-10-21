@@ -142,6 +142,72 @@ pub(crate) fn store_prune_recent_folders(app: &tauri::AppHandle) -> Vec<String> 
     valid
 }
 
+pub(crate) fn normalize_host(host: &str) -> Option<String> {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    if host.is_empty() {
+        return None;
+    }
+    let parsed = reqwest::Url::parse(&format!("http://{host}/")).ok()?;
+    (parsed.host_str() == Some(host.as_str())).then_some(host)
+}
+
+pub(crate) fn add_host_to_list(list: &mut Vec<String>, host: &str) -> bool {
+    match normalize_host(host) {
+        Some(h) if !list.contains(&h) => {
+            list.push(h);
+            true
+        }
+        _ => false,
+    }
+}
+
+pub(crate) fn remove_host_from_list(list: &mut Vec<String>, host: &str) -> bool {
+    let Some(h) = normalize_host(host) else {
+        return false;
+    };
+    let before = list.len();
+    list.retain(|entry| entry != &h);
+    list.len() != before
+}
+
+pub(crate) fn store_get_image_allowlist(app: &tauri::AppHandle) -> Vec<String> {
+    let store = app.store(STORE_FILE).expect("store");
+    let raw: Vec<String> = store
+        .get("image_allowlist")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let mut list = Vec::new();
+    for host in &raw {
+        add_host_to_list(&mut list, host);
+    }
+    list
+}
+
+fn store_set_image_allowlist(app: &tauri::AppHandle, list: &[String]) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("image_allowlist", serde_json::json!(list));
+    let _ = store.save();
+}
+
+pub(crate) fn store_add_image_host(app: &tauri::AppHandle, host: &str) -> Result<Vec<String>, String> {
+    let mut list = store_get_image_allowlist(app);
+    if normalize_host(host).is_none() {
+        return Err(format!("Invalid host: {host}"));
+    }
+    if add_host_to_list(&mut list, host) {
+        store_set_image_allowlist(app, &list);
+    }
+    Ok(list)
+}
+
+pub(crate) fn store_remove_image_host(app: &tauri::AppHandle, host: &str) -> Vec<String> {
+    let mut list = store_get_image_allowlist(app);
+    if remove_host_from_list(&mut list, host) {
+        store_set_image_allowlist(app, &list);
+    }
+    list
+}
+
 pub(crate) fn migrate_store_keys(app: &tauri::AppHandle) {
     let store = app.store(STORE_FILE).expect("store");
     if let Some(val) = store.get("show_dot_files") {
@@ -183,6 +249,21 @@ pub(crate) fn migrate_legacy_config(app: &tauri::AppHandle) {
 
     let _ = store.save();
     let _ = std::fs::remove_file(&old_path);
+}
+
+/// Live Block consent as `(document path, content sha256)` pairs, most recently used first.
+pub(crate) fn store_get_live_consent(app: &tauri::AppHandle) -> Vec<(String, String)> {
+    let store = app.store(STORE_FILE).expect("store");
+    store
+        .get("live_consent")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default()
+}
+
+pub(crate) fn store_set_live_consent(app: &tauri::AppHandle, list: &[(String, String)]) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("live_consent", serde_json::json!(list));
+    let _ = store.save();
 }
 
 #[cfg(test)]
@@ -245,5 +326,47 @@ mod tests {
     fn prune_empty_list_returns_empty() {
         let pruned = prune_recent_list(vec![]);
         assert!(pruned.is_empty());
+    }
+
+    #[test]
+    fn normalize_host_lowercases_and_trims() {
+        assert_eq!(normalize_host("  Example.COM. "), Some("example.com".to_string()));
+    }
+
+    #[test]
+    fn normalize_host_rejects_non_hosts() {
+        for bad in [
+            "",
+            "example.com/path",
+            "user@example.com",
+            "example.com:443",
+            "http://example.com",
+            "a b",
+        ] {
+            assert_eq!(normalize_host(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn add_host_dedupes_case_insensitively() {
+        let mut list = Vec::new();
+        assert!(add_host_to_list(&mut list, "Example.com"));
+        assert!(!add_host_to_list(&mut list, "EXAMPLE.COM"));
+        assert_eq!(list, vec!["example.com"]);
+    }
+
+    #[test]
+    fn add_host_rejects_invalid() {
+        let mut list = Vec::new();
+        assert!(!add_host_to_list(&mut list, "example.com/x"));
+        assert!(list.is_empty());
+    }
+
+    #[test]
+    fn remove_host_matches_normalized() {
+        let mut list = vec!["example.com".to_string(), "other.org".to_string()];
+        assert!(remove_host_from_list(&mut list, "EXAMPLE.com"));
+        assert_eq!(list, vec!["other.org"]);
+        assert!(!remove_host_from_list(&mut list, "missing.net"));
     }
 }

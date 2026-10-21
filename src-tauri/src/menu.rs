@@ -4,7 +4,10 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, Predefined
 use tauri::Manager;
 
 use crate::commands::current_file_display_path;
+use crate::config::{store_get_image_allowlist, store_get_recent};
 use crate::AppState;
+
+pub(crate) const REMOVE_IMAGE_HOST_PREFIX: &str = "remove-image-host-";
 
 pub(crate) struct MenuState {
     pub(crate) print_header: bool,
@@ -13,6 +16,7 @@ pub(crate) struct MenuState {
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
     pub(crate) has_file: bool,
+    pub(crate) image_hosts: Vec<String>,
 }
 
 pub(crate) const THEMES: &[(&str, &str)] = &[
@@ -42,6 +46,7 @@ pub(crate) fn build_menu(
         show_frontmatter,
         has_frontmatter,
         has_file,
+        ref image_hosts,
     } = *state;
     let mut recent_sub = SubmenuBuilder::new(app, "Recent Files");
     if recent.is_empty() {
@@ -129,6 +134,18 @@ pub(crate) fn build_menu(
         .checked(show_frontmatter)
         .enabled(has_frontmatter)
         .build(app)?;
+    let mut image_hosts_sub = SubmenuBuilder::new(app, "Allowed Image Hosts");
+    if image_hosts.is_empty() {
+        let item = MenuItemBuilder::with_id("no-image-hosts", "(No Allowed Hosts)")
+            .enabled(false)
+            .build(app)?;
+        image_hosts_sub = image_hosts_sub.item(&item);
+    } else {
+        for (i, host) in image_hosts.iter().enumerate() {
+            image_hosts_sub = image_hosts_sub.text(format!("{REMOVE_IMAGE_HOST_PREFIX}{i}"), format!("Remove {host}"));
+        }
+    }
+
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&nav_back)
         .item(&nav_forward)
@@ -141,6 +158,8 @@ pub(crate) fn build_menu(
         .item(&toggle_outline)
         .item(&show_hidden_files_item)
         .item(&show_frontmatter_item)
+        .separator()
+        .item(&image_hosts_sub.build()?)
         .build()?;
 
     let help_menu = SubmenuBuilder::new(app, "Help")
@@ -168,9 +187,15 @@ pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &st
             show_frontmatter: s.show_frontmatter,
             has_frontmatter: s.has_frontmatter,
             has_file: current_file_display_path(&s).is_some(),
+            image_hosts: store_get_image_allowlist(app),
         }
     };
     if let Ok(menu) = build_menu(app, recent, theme, &ms) {
         let _ = app.set_menu(menu);
     }
+}
+
+pub(crate) fn refresh_menu(app: &tauri::AppHandle) {
+    let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
+    rebuild_menu(app, &store_get_recent(app), &theme);
 }

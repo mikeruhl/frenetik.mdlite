@@ -9,6 +9,11 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
+  build: {
+    rollupOptions: {
+      input: { main: "index.html", liveFrame: "live-frame.html" },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

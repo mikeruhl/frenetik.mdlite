@@ -3,14 +3,17 @@ use std::os::windows::ffi::OsStrExt;
 #[cfg(target_os = "windows")]
 use std::sync::mpsc;
 
+#[cfg(target_os = "windows")]
 use std::sync::Mutex;
 #[cfg(target_os = "windows")]
-use tauri::Emitter;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+#[cfg(target_os = "windows")]
 use tauri_plugin_dialog::DialogExt;
 
+#[cfg(target_os = "windows")]
 use crate::AppState;
 
+#[cfg(target_os = "windows")]
 fn pdf_filename(app: &tauri::AppHandle) -> String {
     let state = app.state::<Mutex<AppState>>();
     let s = state.lock().unwrap();
@@ -22,7 +25,8 @@ fn pdf_filename(app: &tauri::AppHandle) -> String {
     }
 }
 
-pub(crate) fn show_export_dialog(app: &tauri::AppHandle) {
+#[cfg(target_os = "windows")]
+fn show_export_dialog(app: &tauri::AppHandle) {
     let filename = pdf_filename(app);
     let handle = app.clone();
     app.dialog()
@@ -101,9 +105,6 @@ fn do_export(app: &tauri::AppHandle, path: &std::path::Path) {
         }
     });
 }
-
-#[cfg(not(target_os = "windows"))]
-fn do_export(_app: &tauri::AppHandle, _path: &std::path::Path) {}
 
 #[cfg(target_os = "windows")]
 #[windows_implement::implement(webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2PrintToPdfCompletedHandler)]

@@ -218,7 +218,7 @@ async function loadFile(path) {
   }
   const content = await invoke("open_folder_file", { path });
   currentFilePath = path;
-  renderFn(content);
+  await renderFn(content);
   highlightCurrentFile();
 }
 
