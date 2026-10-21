@@ -11,6 +11,17 @@ body {
   text-align: left !important;
 }
 
+@media screen {
+  body.full-width #content,
+  body.full-width .markdown-body {
+    max-width: none;
+  }
+
+  body.full-width #content:not(.markdown-body) {
+    padding-inline: 2rem;
+  }
+}
+
 #attribution,
 #attribution * {
   all: initial;

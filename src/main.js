@@ -284,6 +284,10 @@ await listen("set-print-header", (event) => {
   document.body.classList.toggle("print-header-enabled", event.payload);
 });
 
+await listen("set-full-width", (event) => {
+  document.body.classList.toggle("full-width", event.payload);
+});
+
 await listen("image-allowlist-changed", () => {
   if (lastRawMarkdown) render(lastRawMarkdown);
 });
@@ -407,6 +411,9 @@ applyZoom(savedZoom);
 
 const printHeader = (await store.get("print_header")) ?? true;
 document.body.classList.toggle("print-header-enabled", printHeader);
+
+const fullWidth = (await store.get("full_width")) ?? false;
+document.body.classList.toggle("full-width", fullWidth);
 
 showFrontmatter = (await store.get("show_frontmatter")) ?? false;
 

@@ -57,6 +57,7 @@ pub(crate) struct AppState {
     pub(crate) show_outline: bool,
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
+    pub(crate) full_width: bool,
     pub(crate) debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) folder_debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) startup_error: Option<String>,
@@ -461,6 +462,7 @@ pub fn run() {
             let print_header = store_get_print_header(app.handle());
             let show_hidden_files = store_get_show_hidden_files(app.handle());
             let show_frontmatter = store_get_show_frontmatter(app.handle());
+            let full_width = store_get_full_width(app.handle());
             let recent = if is_interactive {
                 store_get_recent(app.handle())
             } else if mode == AppMode::File {
@@ -500,6 +502,7 @@ pub fn run() {
                 show_outline,
                 show_frontmatter,
                 has_frontmatter: false,
+                full_width,
                 debouncer: None,
                 folder_debouncer: None,
                 startup_error,
@@ -512,6 +515,7 @@ pub fn run() {
                 show_outline,
                 show_frontmatter,
                 has_frontmatter: false,
+                full_width,
                 has_file: current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap()).is_some(),
                 image_hosts: store_get_image_allowlist(app.handle()),
                 trusted_origins: store_get_trusted_origins(app.handle()),
@@ -662,6 +666,15 @@ pub fn run() {
                     };
                     store_set_show_frontmatter(handle, new_val);
                     let _ = handle.emit("set-frontmatter", new_val);
+                } else if id == "toggle-full-width" {
+                    let new_val = {
+                        let state = handle.state::<Mutex<AppState>>();
+                        let mut s = state.lock().unwrap();
+                        s.full_width = !s.full_width;
+                        s.full_width
+                    };
+                    store_set_full_width(handle, new_val);
+                    let _ = handle.emit("set-full-width", new_val);
                 } else if id == "about" {
                     let _ = handle.emit("show-about", ());
                 } else if id == "check-updates" {

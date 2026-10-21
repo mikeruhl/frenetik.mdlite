@@ -26,6 +26,7 @@ pub(crate) struct MenuState {
     pub(crate) show_outline: bool,
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
+    pub(crate) full_width: bool,
     pub(crate) has_file: bool,
     pub(crate) image_hosts: Vec<String>,
     pub(crate) trusted_origins: Vec<String>,
@@ -58,6 +59,7 @@ pub(crate) fn build_menu(
         show_outline,
         show_frontmatter,
         has_frontmatter,
+        full_width,
         has_file,
         ref image_hosts,
         ref trusted_origins,
@@ -142,6 +144,9 @@ pub(crate) fn build_menu(
         .accelerator("CmdOrCtrl+Shift+O")
         .checked(show_outline)
         .build(app)?;
+    let full_width_item = CheckMenuItemBuilder::with_id("toggle-full-width", "Full Width")
+        .checked(full_width)
+        .build(app)?;
     let show_hidden_files_item = CheckMenuItemBuilder::with_id("toggle-show-hidden-files", "Show Hidden Files")
         .checked(show_hidden_files)
         .build(app)?;
@@ -194,6 +199,7 @@ pub(crate) fn build_menu(
         .item(&zoom_reset)
         .separator()
         .item(&toggle_outline)
+        .item(&full_width_item)
         .item(&show_hidden_files_item)
         .item(&show_frontmatter_item)
         .separator()
@@ -226,6 +232,7 @@ pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &st
             show_outline: s.show_outline,
             show_frontmatter: s.show_frontmatter,
             has_frontmatter: s.has_frontmatter,
+            full_width: s.full_width,
             has_file: current_file_display_path(&s).is_some(),
             image_hosts: store_get_image_allowlist(app),
             trusted_origins: store_get_trusted_origins(app),

@@ -287,6 +287,7 @@ mod tests {
             show_outline: false,
             show_frontmatter: false,
             has_frontmatter: false,
+            full_width: false,
             debouncer: None,
             folder_debouncer: None,
             startup_error: startup_error.map(str::to_string),
