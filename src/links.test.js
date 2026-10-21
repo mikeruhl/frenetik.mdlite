@@ -136,16 +136,24 @@ describe("initLinks click handling", () => {
     expect(deps.invoke).toHaveBeenCalledWith("resolve_link", { href: "x.md" });
   });
 
+  it("outside https anchor is activated", async () => {
+    document.body.insertAdjacentHTML("beforeend", '<a id="web" href="HTTPS://github.com/x">w</a>');
+    const web = fire(document.getElementById("web"));
+    expect(web.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(deps.invoke).toHaveBeenCalledWith("resolve_link", { href: "HTTPS://github.com/x" }));
+    await vi.waitFor(() => expect(deps.invoke).toHaveBeenCalledTimes(1));
+  });
+
   it("fragment links scroll in place", () => {
     fire(document.getElementById("frag"));
     expect(deps.scrollToFragment).toHaveBeenCalledWith("sec");
     expect(deps.invoke).not.toHaveBeenCalled();
   });
 
-  it("ignores untrusted events", () => {
+  it("untrusted click is prevented and not activated", () => {
     deps.isTrusted = () => false;
     const e = fire(document.getElementById("in"));
-    expect(e.defaultPrevented).toBe(false);
+    expect(e.defaultPrevented).toBe(true);
     expect(deps.invoke).not.toHaveBeenCalled();
   });
 

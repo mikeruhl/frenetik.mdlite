@@ -2,6 +2,8 @@ let inFlight = false;
 
 const CONFIRM_KINDS = new Set(["confirmDocument", "confirmOpenFile", "confirmReveal", "confirmUrl", "confirmNetwork"]);
 
+const EXTERNAL_SCHEME = /^(https?|mailto):/i;
+
 export async function activateLink(href, deps) {
   if (inFlight) return;
   inFlight = true;
@@ -30,17 +32,17 @@ export async function activateLink(href, deps) {
 
 export function initLinks(deps) {
   const handle = (e) => {
-    if (!(deps.isTrusted ?? ((ev) => ev.isTrusted))(e)) return;
     if (e.type === "auxclick" && e.button !== 1) return;
     const anchor = e.target.closest?.("a[href]");
     if (!anchor) return;
     const href = anchor.getAttribute("href");
     e.preventDefault();
+    if (!(deps.isTrusted ?? ((ev) => ev.isTrusted))(e)) return;
     if (href.startsWith("#")) {
       deps.scrollToFragment(href.slice(1));
       return;
     }
-    if (!anchor.closest("#content")) return;
+    if (!anchor.closest("#content") && !EXTERNAL_SCHEME.test(href)) return;
     activateLink(href, deps);
   };
   document.addEventListener("click", handle);
