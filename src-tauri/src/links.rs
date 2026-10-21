@@ -88,6 +88,20 @@ pub(crate) fn unc_share(p: &Path) -> Option<String> {
     Some(format!(r"\\{server}\{share}").to_lowercase())
 }
 
+/// True for any path Windows routes to the network redirector: UNC or verbatim UNC,
+/// including `\\server` with no share, which `unc_share` cannot name.
+#[cfg_attr(not(test), allow(dead_code))]
+fn is_network_path(p: &Path) -> bool {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        return rest.get(..4).is_some_and(|unc| unc.eq_ignore_ascii_case(r"UNC\"));
+    }
+    let is_sep = |c: u8| c == b'/' || c == b'\\';
+    let b = s.as_bytes();
+    let device = matches!(b.get(2), Some(b'?' | b'.')) && b.get(3).is_none_or(|&c| is_sep(c));
+    b.len() >= 2 && is_sep(b[0]) && is_sep(b[1]) && !device
+}
+
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn parse_href(href: &str) -> ParsedHref {
     let href = href.trim();
@@ -151,9 +165,12 @@ fn classify_file(
     ctx: &LinkContext,
     canonicalize: impl Fn(&Path) -> Option<PathBuf>,
 ) -> (LinkAction, Option<PathBuf>) {
+    // Rust parses a shareless `\\server` as a rooted relative path, so joining or normalizing
+    // it would turn a network target into a local one. Leave network forms as written.
     let joined = match ctx.doc_dir {
-        _ if path.is_absolute() => path,
-        Some(dir) => dir.join(&path),
+        _ if is_network_path(&path) => path,
+        _ if path.is_absolute() => normalize_lexically(&path),
+        Some(dir) => normalize_lexically(&dir.join(&path)),
         None => {
             return (
                 LinkAction::NotFound {
@@ -163,18 +180,19 @@ fn classify_file(
             )
         }
     };
-    let joined = normalize_lexically(&joined);
 
     // Any file system call on a UNC path makes Windows connect to that server and offer the
     // user's NTLM credentials, and an unreachable host can block for a long time. A share the
     // user already has open (document or folder) is fair game; any other share stays untouched
     // until the user confirms.
+    let network_target = is_network_path(&joined);
     let target_share = unc_share(&joined);
-    if target_share.is_some() && !ctx.allow_network {
-        let known = [ctx.doc_dir, ctx.folder]
-            .into_iter()
-            .flatten()
-            .any(|p| unc_share(p) == target_share);
+    if network_target && !ctx.allow_network {
+        let known = target_share.is_some()
+            && [ctx.doc_dir, ctx.folder]
+                .into_iter()
+                .flatten()
+                .any(|p| unc_share(p) == target_share);
         if !known {
             return (
                 LinkAction::ConfirmNetwork {
@@ -199,7 +217,7 @@ fn classify_file(
         LinkAction::ConfirmReveal { path }
     } else if extension.is_some_and(is_markdown_ext) {
         let inside = ctx.folder.is_some_and(|f| canonical.starts_with(f));
-        let network = target_share.is_some() || unc_share(&canonical).is_some();
+        let network = network_target || is_network_path(&canonical);
         if inside && !(ctx.allow_network && network) {
             LinkAction::Navigate { path, fragment }
         } else {
@@ -814,6 +832,68 @@ mod tests {
                 path: r"\\nonexistent.example\s\x.md".into()
             }
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn shareless_unc_not_touched() {
+        let fx = Fixture::new();
+        for href in [
+            r"\\evil.example",
+            r"\\evil.example\",
+            r"\\evil.example\\x",
+            "file://evil.example",
+            "file://evil.example/",
+        ] {
+            let (action, canonical) = classify(parse_href(href), &fx.ctx(&[]), panicking);
+            assert!(
+                matches!(action, LinkAction::ConfirmNetwork { .. }),
+                "{href}: {action:?}"
+            );
+            assert_eq!(canonical, None, "{href}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn shareless_unc_never_matches_open_share() {
+        let fx = Fixture::new();
+        let ctx = LinkContext {
+            doc_dir: Some(Path::new(r"\\evil.example\docs")),
+            folder: None,
+            ..fx.ctx(&[])
+        };
+        assert!(matches!(
+            classify(parse_href(r"\\evil.example"), &ctx, panicking).0,
+            LinkAction::ConfirmNetwork { .. }
+        ));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn shareless_unc_stays_network_after_confirm() {
+        let fx = Fixture::new();
+        let calls = std::cell::RefCell::new(Vec::new());
+        let ctx = LinkContext {
+            allow_network: true,
+            ..fx.ctx(&[])
+        };
+        let (action, _) = classify(parse_href(r"\\evil.example"), &ctx, |p: &Path| {
+            calls.borrow_mut().push(p.to_string_lossy().into_owned());
+            None
+        });
+        assert_eq!(*calls.borrow(), vec![r"\\evil.example".to_string()]);
+        assert!(matches!(action, LinkAction::NotFound { .. }));
+    }
+
+    #[test]
+    fn detects_network_paths() {
+        assert!(is_network_path(Path::new(r"\\srv")));
+        assert!(is_network_path(Path::new(r"\\srv\share\x")));
+        assert!(is_network_path(Path::new(r"\\?\UNC\srv\share")));
+        assert!(!is_network_path(Path::new(r"\\?\C:\x")));
+        assert!(!is_network_path(Path::new(r"\\.\pipe\x")));
+        assert!(!is_network_path(Path::new(r"C:\x")));
     }
 
     #[cfg(windows)]
