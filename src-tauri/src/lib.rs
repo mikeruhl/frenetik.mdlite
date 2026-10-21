@@ -63,6 +63,35 @@ pub(crate) struct AppState {
     pub(crate) interactive: Option<InteractiveSession>,
 }
 
+const DEV_SERVER_HOST: &str = "localhost";
+const DEV_SERVER_PORT: u16 = 1420;
+
+/// D8 allow-list: the app's own pages, Live Block frames, and the dev server in dev builds.
+pub(crate) fn is_app_navigation(url: &tauri::Url) -> bool {
+    let host = url.host_str();
+    let live_host = format!("{}.localhost", live::SCHEME);
+    let app_origin = match url.scheme() {
+        "tauri" => host == Some("localhost"),
+        s if s == live::SCHEME => host == Some("localhost"),
+        "http" | "https" => host == Some("tauri.localhost") || host == Some(live_host.as_str()),
+        _ => false,
+    };
+    let dev_origin =
+        cfg!(dev) && url.scheme() == "http" && host == Some(DEV_SERVER_HOST) && url.port() == Some(DEV_SERVER_PORT);
+    (app_origin && url.port().is_none()) || dev_origin
+}
+
+fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
+    let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main").cloned() else {
+        return Ok(());
+    };
+    tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+        .on_navigation(is_app_navigation)
+        .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
+        .build()?;
+    Ok(())
+}
+
 pub(crate) fn display_path(p: &Path) -> String {
     let s = p.to_string_lossy();
     if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
@@ -305,7 +334,11 @@ pub fn run() {
             images::allow_image_host,
             images::remove_image_host,
             live::live_consent_check,
-            live::live_consent_grant
+            live::live_consent_grant,
+            links::resolve_link,
+            links::follow_link,
+            links::file_exists,
+            updater::open_release_page
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -352,6 +385,8 @@ pub fn run() {
                     .unwrap_or_else(|msg| interactive::fail_startup(msg, output_arg.as_deref().map(Path::new)))
             });
             let is_interactive = interactive_session.is_some();
+
+            build_main_window(app)?;
 
             let (mode, file_path, folder_path, startup_error) = if let Some(ref session) = interactive_session {
                 (AppMode::File, session.document.clone(), None, None)
@@ -668,5 +703,27 @@ mod tests {
             informational_output(&matches_with("path", serde_json::json!("a.md"))),
             None
         );
+    }
+
+    #[test]
+    fn navigation_guard_allows_only_app_origins() {
+        for ok in [
+            "tauri://localhost/index.html",
+            "http://tauri.localhost/",
+            "mdlive://localhost/live-frame.html",
+            "http://mdlive.localhost/live-frame.html",
+        ] {
+            assert!(is_app_navigation(&ok.parse().unwrap()), "{ok}");
+        }
+        for bad in [
+            "https://evil.example/",
+            "file:///C:/x.md",
+            "http://localhost:9999/",
+            "http://tauri.localhost.evil.example/",
+            "http://tauri.localhost:8080/",
+            "tauri://evil.example/",
+        ] {
+            assert!(!is_app_navigation(&bad.parse().unwrap()), "{bad}");
+        }
     }
 }

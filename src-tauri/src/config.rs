@@ -208,13 +208,11 @@ pub(crate) fn store_remove_image_host(app: &tauri::AppHandle, host: &str) -> Vec
     list
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) const DEFAULT_SAFE_FILE_TYPES: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "pdf", "txt", "csv", "json", "yaml", "yml", "log", "mp3", "wav",
     "mp4", "webm", "mov", "docx", "xlsx", "pptx",
 ];
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) const EXECUTABLE_EXTENSIONS: &[&str] = &[
     "exe",
     "com",
@@ -258,7 +256,6 @@ pub(crate) fn normalize_extension(ext: &str) -> Option<String> {
     valid.then_some(ext)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn add_file_type_to_list(list: &mut Vec<String>, ext: &str) -> Result<bool, String> {
     let Some(e) = normalize_extension(ext) else {
         return Err(format!("Invalid file type: {ext}"));
@@ -273,7 +270,6 @@ pub(crate) fn add_file_type_to_list(list: &mut Vec<String>, ext: &str) -> Result
     Ok(true)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn store_get_trusted_origins(app: &tauri::AppHandle) -> Vec<String> {
     let store = app.store(STORE_FILE).expect("store");
     let raw: Vec<String> = store
@@ -289,14 +285,12 @@ pub(crate) fn store_get_trusted_origins(app: &tauri::AppHandle) -> Vec<String> {
     list
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn store_set_trusted_origins(app: &tauri::AppHandle, list: &[String]) {
     let store = app.store(STORE_FILE).expect("store");
     store.set("trusted_link_domains", serde_json::json!(list));
     let _ = store.save();
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn store_add_trusted_origin(app: &tauri::AppHandle, origin: &str) -> Result<Vec<String>, String> {
     let Some(normalized) = normalize_origin(origin) else {
         return Err(format!("Invalid origin: {origin}"));
@@ -322,7 +316,6 @@ pub(crate) fn store_remove_trusted_origin(app: &tauri::AppHandle, origin: &str) 
     list
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn store_get_safe_file_types(app: &tauri::AppHandle) -> Vec<String> {
     let store = app.store(STORE_FILE).expect("store");
     let Some(raw) = store

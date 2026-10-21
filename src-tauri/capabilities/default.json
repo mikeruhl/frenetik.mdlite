@@ -6,7 +6,6 @@
   "permissions": [
     "core:default",
     "cli:default",
-    "opener:default",
     "dialog:default",
     "core:event:default",
     "core:webview:allow-create-webview-window",

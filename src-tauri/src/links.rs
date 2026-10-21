@@ -1,11 +1,17 @@
 use serde::Serialize;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
+use tauri::{AppHandle, Manager};
+use tauri_plugin_opener::OpenerExt;
 
-use crate::config::{normalize_extension, normalize_origin};
-use crate::display_path;
+use crate::commands::current_file_display_path;
+use crate::config::{
+    normalize_extension, normalize_origin, store_add_trusted_origin, store_get_safe_file_types,
+    store_get_trusted_origins,
+};
 use crate::scan::is_markdown_ext;
+use crate::{display_path, menu, AppMode, AppState};
 
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub(crate) enum LinkAction {
@@ -41,7 +47,6 @@ pub(crate) enum LinkAction {
     },
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, PartialEq)]
 pub(crate) enum ParsedHref {
     /// `path` is relative to the open document's directory unless absolute.
@@ -62,7 +67,6 @@ pub(crate) enum ParsedHref {
     },
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct LinkContext<'a> {
     /// Parent of the open document; `None` when no document is open.
     pub doc_dir: Option<&'a Path>,
@@ -75,7 +79,6 @@ pub(crate) struct LinkContext<'a> {
 }
 
 /// Lowercase `\\server\share` for a UNC path (including verbatim UNC), else `None`.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn unc_share(p: &Path) -> Option<String> {
     let s = p.to_string_lossy();
     let rest = s.strip_prefix(r"\\?\UNC\").or_else(|| {
@@ -90,7 +93,6 @@ pub(crate) fn unc_share(p: &Path) -> Option<String> {
 
 /// True for any path Windows routes to the network redirector: UNC or verbatim UNC,
 /// including `\\server` with no share, which `unc_share` cannot name.
-#[cfg_attr(not(test), allow(dead_code))]
 fn is_network_path(p: &Path) -> bool {
     let s = p.to_string_lossy();
     if let Some(rest) = s.strip_prefix(r"\\?\") {
@@ -102,7 +104,178 @@ fn is_network_path(p: &Path) -> bool {
     b.len() >= 2 && is_sep(b[0]) && is_sep(b[1]) && !device
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
+const CANNOT_OPEN: &str = "Link cannot be opened";
+
+pub(crate) trait LinkOpener {
+    fn open_document(&self, p: &Path) -> Result<(), String>;
+    fn open_path(&self, p: &Path) -> Result<(), String>;
+    fn reveal(&self, p: &Path) -> Result<(), String>;
+    fn open_url(&self, url: &str) -> Result<(), String>;
+}
+
+struct TauriOpener(AppHandle);
+
+impl LinkOpener for TauriOpener {
+    fn open_document(&self, p: &Path) -> Result<(), String> {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        std::process::Command::new(exe)
+            .args(document_args(p))
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    fn open_path(&self, p: &Path) -> Result<(), String> {
+        self.0
+            .opener()
+            .open_path(display_path(p), None::<&str>)
+            .map_err(|e| e.to_string())
+    }
+
+    fn reveal(&self, p: &Path) -> Result<(), String> {
+        self.0
+            .opener()
+            .reveal_item_in_dir(display_path(p))
+            .map_err(|e| e.to_string())
+    }
+
+    fn open_url(&self, url: &str) -> Result<(), String> {
+        self.0.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+    }
+}
+
+/// Arguments for a new mdlite instance showing `p`; `--` keeps a path like `-x.md` from parsing as a flag.
+fn document_args(p: &Path) -> Vec<String> {
+    vec!["--".to_string(), display_path(p)]
+}
+
+pub(crate) fn perform(action: &LinkAction, target: Option<&Path>, opener: &impl LinkOpener) -> Result<(), String> {
+    let file = |path: &str| target.map_or_else(|| PathBuf::from(path), Path::to_path_buf);
+    match action {
+        LinkAction::ConfirmDocument { path } => opener.open_document(&file(path)),
+        LinkAction::ConfirmOpenFile { path } => opener.open_path(&file(path)),
+        LinkAction::ConfirmReveal { path } => opener.reveal(&file(path)),
+        LinkAction::OpenUrl { url } | LinkAction::ConfirmUrl { url, .. } => opener.open_url(url),
+        LinkAction::Navigate { .. }
+        | LinkAction::NotFound { .. }
+        | LinkAction::Blocked { .. }
+        | LinkAction::ConfirmNetwork { .. } => Err(CANNOT_OPEN.into()),
+    }
+}
+
+/// Re-resolves `href` from Rust state rather than trusting anything the frontend sends back.
+/// `ctx` must have `allow_network: false`; network access is enabled only for a second pass
+/// once the first pass reports an unconfirmed network target.
+fn follow(
+    href: &str,
+    trust_origin: bool,
+    ctx: LinkContext,
+    canonicalize: impl Fn(&Path) -> Option<PathBuf>,
+    opener: &impl LinkOpener,
+    trust: impl FnOnce(&str) -> Result<(), String>,
+) -> Result<(), String> {
+    let (mut action, mut target) = classify(parse_href(href), &ctx, &canonicalize);
+    if matches!(action, LinkAction::ConfirmNetwork { .. }) {
+        let ctx = LinkContext {
+            allow_network: true,
+            ..ctx
+        };
+        (action, target) = classify(parse_href(href), &ctx, &canonicalize);
+        if let LinkAction::NotFound { path } = &action {
+            return Err(format!("File not found: {path}"));
+        }
+    }
+    if let (true, LinkAction::ConfirmUrl { origin, .. }) = (trust_origin, &action) {
+        trust(origin)?;
+    }
+    perform(&action, target.as_deref(), opener)
+}
+
+struct ContextSource {
+    doc_dir: Option<PathBuf>,
+    folder: Option<PathBuf>,
+    safe_types: Vec<String>,
+    trusted_origins: Vec<String>,
+}
+
+impl ContextSource {
+    fn read(app: &AppHandle) -> Self {
+        let (doc_dir, folder) = {
+            let state = app.state::<Mutex<AppState>>();
+            let s = state.lock().unwrap();
+            let doc_dir = current_file_display_path(&s).and_then(|_| s.file_path.parent().map(Path::to_path_buf));
+            let folder = s.folder_path.clone().filter(|_| s.mode == AppMode::Folder);
+            (doc_dir, folder)
+        };
+        ContextSource {
+            doc_dir,
+            folder,
+            safe_types: store_get_safe_file_types(app),
+            trusted_origins: store_get_trusted_origins(app),
+        }
+    }
+
+    fn ctx(&self) -> LinkContext<'_> {
+        LinkContext {
+            doc_dir: self.doc_dir.as_deref(),
+            folder: self.folder.as_deref(),
+            safe_types: &self.safe_types,
+            trusted_origins: &self.trusted_origins,
+            allow_network: false,
+        }
+    }
+}
+
+fn fs_canonicalize(p: &Path) -> Option<PathBuf> {
+    std::fs::canonicalize(p).ok()
+}
+
+#[tauri::command]
+pub(crate) async fn resolve_link(href: String, app: AppHandle) -> LinkAction {
+    let source = ContextSource::read(&app);
+    classify(parse_href(&href), &source.ctx(), fs_canonicalize).0
+}
+
+#[tauri::command]
+pub(crate) async fn follow_link(href: String, trust_origin: bool, app: AppHandle) -> Result<(), String> {
+    let source = ContextSource::read(&app);
+    let trust = |origin: &str| {
+        store_add_trusted_origin(&app, origin)?;
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || menu::refresh_menu(&handle));
+        Ok(())
+    };
+    follow(
+        &href,
+        trust_origin,
+        source.ctx(),
+        fs_canonicalize,
+        &TauriOpener(app.clone()),
+        trust,
+    )
+}
+
+/// Like `exists`, but never touches a network path outside the open folder's share, since
+/// any file system call on one connects to that server with the user's credentials.
+fn exists_unless_network(path: &Path, folder: Option<&Path>, exists: impl Fn(&Path) -> bool) -> bool {
+    if blocked_prefix(&path.to_string_lossy()).is_some() {
+        return false;
+    }
+    if is_network_path(path) {
+        let share = unc_share(path);
+        if share.is_none() || folder.and_then(unc_share) != share {
+            return false;
+        }
+    }
+    exists(path)
+}
+
+#[tauri::command]
+pub(crate) async fn file_exists(path: String, app: AppHandle) -> bool {
+    let folder = ContextSource::read(&app).folder;
+    exists_unless_network(Path::new(&path), folder.as_deref(), Path::exists)
+}
+
 pub(crate) fn parse_href(href: &str) -> ParsedHref {
     let href = href.trim();
     if let Some(blocked) = blocked_prefix(href) {
@@ -132,7 +305,6 @@ pub(crate) fn parse_href(href: &str) -> ParsedHref {
     file_href(percent_decode(path), fragment)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn classify(
     parsed: ParsedHref,
     ctx: &LinkContext,
@@ -158,7 +330,6 @@ pub(crate) fn classify(
     }
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn classify_file(
     path: PathBuf,
     fragment: Option<String>,
@@ -234,7 +405,6 @@ fn classify_file(
     (action, Some(canonical))
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn is_safe(ext: &str, ctx: &LinkContext) -> bool {
     ctx.safe_types
         .iter()
@@ -242,7 +412,6 @@ fn is_safe(ext: &str, ctx: &LinkContext) -> bool {
 }
 
 /// `//` (protocol-relative) and Windows device namespaces (`\\?\`, `\\.\`, `\??\`).
-#[cfg_attr(not(test), allow(dead_code))]
 fn blocked_prefix(s: &str) -> Option<ParsedHref> {
     let is_sep = |b: u8| b == b'/' || b == b'\\';
     let b = s.as_bytes();
@@ -260,7 +429,6 @@ fn blocked_prefix(s: &str) -> Option<ParsedHref> {
     })
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn scheme_of(s: &str) -> Option<&str> {
     let scheme = &s[..s.find(':')?];
     let mut chars = scheme.chars();
@@ -269,7 +437,6 @@ fn scheme_of(s: &str) -> Option<&str> {
     valid.then_some(scheme)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn split_fragment_and_query(s: &str) -> (&str, Option<String>) {
     let (before, fragment) = match s.split_once('#') {
         Some((before, f)) => (before, Some(percent_decode(f)).filter(|f| !f.is_empty())),
@@ -278,7 +445,6 @@ fn split_fragment_and_query(s: &str) -> (&str, Option<String>) {
     (before.split_once('?').map_or(before, |(path, _)| path), fragment)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn parse_file_url(rest: &str) -> ParsedHref {
     let (rest, fragment) = split_fragment_and_query(rest);
     let (host, path) = match rest.strip_prefix("//") {
@@ -301,7 +467,6 @@ fn parse_file_url(rest: &str) -> ParsedHref {
     file_href(path, fragment)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn file_href(path: String, fragment: Option<String>) -> ParsedHref {
     if path.is_empty() {
         return ParsedHref::Blocked { scheme: "#".into() };
@@ -317,7 +482,6 @@ fn file_href(path: String, fragment: Option<String>) -> ParsedHref {
 }
 
 /// Decodes `%XX` escapes; returns the input unchanged when the result is not UTF-8.
-#[cfg_attr(not(test), allow(dead_code))]
 fn percent_decode(s: &str) -> String {
     let hex = |c: u8| (c as char).to_digit(16);
     let b = s.as_bytes();
@@ -339,7 +503,6 @@ fn percent_decode(s: &str) -> String {
 
 /// Resolves `.` and `..` without touching the disk. Canonical Windows paths are verbatim
 /// (`\\?\`), which the OS takes literally, so `..` must be resolved before canonicalizing.
-#[cfg_attr(not(test), allow(dead_code))]
 fn normalize_lexically(p: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in p.components() {
@@ -937,6 +1100,214 @@ mod tests {
             }
         );
         assert_eq!(canonical, Some(local));
+    }
+
+    #[derive(Default)]
+    struct FakeOpener {
+        calls: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl LinkOpener for FakeOpener {
+        fn open_document(&self, p: &Path) -> Result<(), String> {
+            self.calls.borrow_mut().push(format!("doc:{}", p.display()));
+            Ok(())
+        }
+        fn open_path(&self, p: &Path) -> Result<(), String> {
+            self.calls.borrow_mut().push(format!("open:{}", p.display()));
+            Ok(())
+        }
+        fn reveal(&self, p: &Path) -> Result<(), String> {
+            self.calls.borrow_mut().push(format!("reveal:{}", p.display()));
+            Ok(())
+        }
+        fn open_url(&self, url: &str) -> Result<(), String> {
+            self.calls.borrow_mut().push(format!("url:{url}"));
+            Ok(())
+        }
+    }
+
+    impl FakeOpener {
+        fn last(&self) -> Option<String> {
+            self.calls.borrow().last().cloned()
+        }
+    }
+
+    #[test]
+    fn perform_routes_each_action() {
+        let o = FakeOpener::default();
+        let t = Path::new("t");
+        perform(&LinkAction::ConfirmDocument { path: "d".into() }, Some(t), &o).unwrap();
+        assert_eq!(o.last().as_deref(), Some("doc:t"));
+        perform(&LinkAction::ConfirmOpenFile { path: "f".into() }, Some(t), &o).unwrap();
+        assert_eq!(o.last().as_deref(), Some("open:t"));
+        perform(&LinkAction::ConfirmReveal { path: "r".into() }, Some(t), &o).unwrap();
+        assert_eq!(o.last().as_deref(), Some("reveal:t"));
+        perform(
+            &LinkAction::OpenUrl {
+                url: "mailto:a@b.c".into(),
+            },
+            None,
+            &o,
+        )
+        .unwrap();
+        assert_eq!(o.last().as_deref(), Some("url:mailto:a@b.c"));
+        let confirm = LinkAction::ConfirmUrl {
+            url: "https://x.example/a".into(),
+            origin: "https://x.example".into(),
+            insecure: false,
+        };
+        perform(&confirm, None, &o).unwrap();
+        assert_eq!(o.last().as_deref(), Some("url:https://x.example/a"));
+        assert_eq!(o.calls.borrow().len(), 5);
+    }
+
+    #[test]
+    fn perform_refuses_non_openable() {
+        for a in [
+            LinkAction::NotFound { path: "x".into() },
+            LinkAction::Blocked { scheme: "js".into() },
+            LinkAction::Navigate {
+                path: "x".into(),
+                fragment: None,
+            },
+            LinkAction::ConfirmNetwork { path: "x".into() },
+        ] {
+            let o = FakeOpener::default();
+            assert_eq!(perform(&a, None, &o), Err("Link cannot be opened".into()));
+            assert!(o.calls.borrow().is_empty());
+        }
+    }
+
+    #[test]
+    fn document_launch_args_end_options() {
+        assert_eq!(
+            document_args(Path::new(r"C:\a\-x.md")),
+            vec!["--".to_string(), r"C:\a\-x.md".to_string()]
+        );
+        assert_eq!(
+            document_args(Path::new(r"\\?\C:\a\b.md")),
+            vec!["--".to_string(), r"C:\a\b.md".to_string()]
+        );
+    }
+
+    fn no_trust(_: &str) -> Result<(), String> {
+        panic!("trust must not be called")
+    }
+
+    #[test]
+    fn follow_refuses_what_reclassifies_as_unopenable() {
+        let fx = Fixture::new();
+        for href in ["sub/b.md", "nope.md", "javascript:alert(1)", "//evil.example/x"] {
+            let o = FakeOpener::default();
+            assert_eq!(
+                follow(href, true, fx.ctx(&[]), fs_canon, &o, no_trust),
+                Err("Link cannot be opened".into()),
+                "{href}"
+            );
+            assert!(o.calls.borrow().is_empty(), "{href}");
+        }
+    }
+
+    #[test]
+    fn follow_opens_confirmed_targets_from_rust_resolution() {
+        let fx = Fixture::new();
+        let o = FakeOpener::default();
+        follow("img.png", false, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
+        follow("../outside/notes.md", false, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
+        let png = fs::canonicalize(fx.folder.join("img.png")).unwrap();
+        let notes = fs::canonicalize(fx.root.join("outside/notes.md")).unwrap();
+        assert_eq!(
+            *o.calls.borrow(),
+            vec![format!("open:{}", png.display()), format!("doc:{}", notes.display())]
+        );
+    }
+
+    #[test]
+    fn follow_trusts_origin_only_for_confirmed_urls() {
+        let fx = Fixture::new();
+        let o = FakeOpener::default();
+        let trusted = std::cell::RefCell::new(Vec::new());
+        let record = |origin: &str| {
+            trusted.borrow_mut().push(origin.to_string());
+            Ok(())
+        };
+        follow("https://x.example/a", true, fx.ctx(&[]), fs_canon, &o, record).unwrap();
+        follow("https://y.example/a", false, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
+        follow("mailto:a@b.c", true, fx.ctx(&[]), fs_canon, &o, no_trust).unwrap();
+        assert_eq!(*trusted.borrow(), vec!["https://x.example".to_string()]);
+        assert_eq!(
+            *o.calls.borrow(),
+            vec!["url:https://x.example/a", "url:https://y.example/a", "url:mailto:a@b.c"]
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn follow_network_reclassifies_and_reports_missing() {
+        let fx = Fixture::new();
+        let o = FakeOpener::default();
+        let calls = std::cell::RefCell::new(Vec::new());
+        let canon = |p: &Path| {
+            calls.borrow_mut().push(p.to_path_buf());
+            None
+        };
+        assert_eq!(
+            follow(
+                r"\\nonexistent.example\share\x.md",
+                false,
+                fx.ctx(&[]),
+                canon,
+                &o,
+                no_trust
+            ),
+            Err(r"File not found: \\nonexistent.example\share\x.md".into())
+        );
+        assert_eq!(
+            *calls.borrow(),
+            vec![PathBuf::from(r"\\nonexistent.example\share\x.md")]
+        );
+        assert!(o.calls.borrow().is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn follow_network_opens_existing_document_in_new_instance() {
+        let fx = Fixture::new();
+        let o = FakeOpener::default();
+        let local = fs::canonicalize(fx.folder.join("a.md")).unwrap();
+        follow(
+            r"\\srv\s\x.md",
+            false,
+            fx.ctx(&[]),
+            |_: &Path| Some(local.clone()),
+            &o,
+            no_trust,
+        )
+        .unwrap();
+        assert_eq!(*o.calls.borrow(), vec![format!("doc:{}", local.display())]);
+    }
+
+    #[test]
+    fn exists_check_skips_network_paths_off_the_folder_share() {
+        let never = |_: &Path| -> bool { panic!("must not touch the file system") };
+        for p in [
+            r"\\evil.example\share\a.md",
+            r"\\evil.example",
+            r"\\.\pipe\x",
+            r"\\?\UNC\evil\s\a.md",
+        ] {
+            assert!(
+                !exists_unless_network(Path::new(p), Some(Path::new(r"\\?\UNC\srv\docs")), never),
+                "{p}"
+            );
+        }
+        assert!(!exists_unless_network(Path::new(r"\\srv\docs\a.md"), None, never));
+        assert!(exists_unless_network(
+            Path::new(r"\\SRV\Docs\a.md"),
+            Some(Path::new(r"\\?\UNC\srv\docs")),
+            |_| true
+        ));
+        assert!(exists_unless_network(Path::new(r"C:\x\a.md"), None, |_| true));
     }
 
     #[test]
