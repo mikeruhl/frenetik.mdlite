@@ -175,7 +175,7 @@ your agent's skills directory.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org) 20+
+- [Node.js](https://nodejs.org) 22.22.2+ or 24.15+
 - [pnpm](https://pnpm.io)
 - [Rust](https://rustup.rs) stable
 - Platform-specific dependencies:
