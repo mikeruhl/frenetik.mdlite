@@ -243,7 +243,6 @@ pub(crate) const EXECUTABLE_EXTENSIONS: &[&str] = &[
     "command",
 ];
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn normalize_origin(origin: &str) -> Option<String> {
     let url = reqwest::Url::parse(origin.trim()).ok()?;
     if !matches!(url.scheme(), "http" | "https") {
@@ -253,7 +252,6 @@ pub(crate) fn normalize_origin(origin: &str) -> Option<String> {
     Some(format!("{}://{host}", url.scheme()))
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn normalize_extension(ext: &str) -> Option<String> {
     let ext = ext.trim().trim_start_matches('.').to_ascii_lowercase();
     let valid = !ext.is_empty() && ext.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');

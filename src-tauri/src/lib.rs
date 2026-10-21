@@ -4,6 +4,7 @@ mod export;
 mod images;
 mod interactive;
 mod jumplist;
+mod links;
 mod live;
 mod menu;
 mod scan;
