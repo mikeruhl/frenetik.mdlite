@@ -82,6 +82,17 @@ describe("charts", () => {
     expect(root.querySelector(".chart-rendered [href], .chart-rendered a")).toBeNull();
   });
 
+  it("keeps inline data fields named href and url", async () => {
+    const values = [
+      { href: "A", url: "https://example.com", b: 28 },
+      { href: "B", url: "https://example.org", b: 55 },
+    ];
+    const encoding = { x: { field: "href", type: "nominal" }, y: { field: "b", type: "quantitative" } };
+    const root = await show(chart({ data: { values }, mark: "bar", encoding }));
+    expect(root.querySelector(".rich-block-error")).toBeNull();
+    expect(root.querySelector(".chart-rendered svg").textContent).toContain("A");
+  });
+
   it("re-renders Charts when the theme changes", async () => {
     const root = await show(chart(bar));
     const before = root.querySelector(".chart-rendered svg");

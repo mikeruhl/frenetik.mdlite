@@ -72,4 +72,30 @@ describe("awaitRichRender", () => {
     finish();
     await expect(result).resolves.toBe(true);
   });
+  it("waits for work joined after waiting starts", async () => {
+    let finishRender;
+    let finishTheme;
+    trackRichRender(new Promise((r) => (finishRender = r)));
+    let settled = false;
+    const result = awaitRichRender(10000).then((v) => {
+      settled = true;
+      return v;
+    });
+    joinRichRender(new Promise((r) => (finishTheme = r)));
+    finishRender();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(settled).toBe(false);
+    finishTheme();
+    await expect(result).resolves.toBe(true);
+  });
+
+  it("still times out when replacement work never settles", async () => {
+    let finish;
+    trackRichRender(new Promise((r) => (finish = r)));
+    const result = awaitRichRender(10000);
+    trackRichRender(new Promise(() => {}));
+    finish();
+    await vi.advanceTimersByTimeAsync(10000);
+    await expect(result).resolves.toBe(false);
+  });
 });

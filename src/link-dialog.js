@@ -52,6 +52,33 @@ function hostStart(url) {
   return start + authority.lastIndexOf("@") + 1;
 }
 
+function focusableControls() {
+  return [...byId("link-dialog").querySelectorAll("input, button")].filter(
+    (el) => !el.hidden && !el.closest("[hidden]") && !el.disabled
+  );
+}
+
+function trapTab(e) {
+  const controls = focusableControls();
+  if (!controls.length) return;
+  const first = controls[0];
+  const last = controls[controls.length - 1];
+  const inside = controls.includes(document.activeElement);
+  if (e.shiftKey && (document.activeElement === first || !inside)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+function makeBackgroundInert(overlay) {
+  const changed = [...document.body.children].filter((el) => el !== overlay && !el.inert);
+  changed.forEach((el) => (el.inert = true));
+  return () => changed.forEach((el) => (el.inert = false));
+}
+
 function show({ title, primary, destination, note, warning, trustLabel, withInput, initialFocus, result }) {
   if (dismissActive) dismissActive();
 
@@ -86,8 +113,10 @@ function show({ title, primary, destination, note, warning, trustLabel, withInpu
   input.value = "";
 
   return new Promise((resolve) => {
+    let restoreBackground = () => {};
     function close(value) {
       overlay.classList.add("link-dialog-hidden");
+      restoreBackground();
       document.removeEventListener("keydown", onKeydown, true);
       overlay.removeEventListener("click", onOverlayClick);
       cancel.removeEventListener("click", onCancel);
@@ -106,6 +135,8 @@ function show({ title, primary, destination, note, warning, trustLabel, withInpu
       if (e.key === "Escape") {
         e.preventDefault();
         onCancel();
+      } else if (e.key === "Tab") {
+        trapTab(e);
       }
     };
     const onInputKeydown = (e) => {
@@ -123,6 +154,7 @@ function show({ title, primary, destination, note, warning, trustLabel, withInpu
     input.addEventListener("keydown", onInputKeydown);
 
     overlay.classList.remove("link-dialog-hidden");
+    restoreBackground = makeBackgroundInert(overlay);
     (initialFocus === "input" ? input : cancel).focus();
   });
 }

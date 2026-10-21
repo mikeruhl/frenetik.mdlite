@@ -217,4 +217,27 @@ describe("promptFileType", () => {
     $("link-dialog-input").dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await expect(p).resolves.toBe("txt");
   });
+
+  it("keeps Tab focus inside the dialog", async () => {
+    const p = confirmLink({ kind: "confirmOpenFile", path: "C:\\a.pdf" });
+    $("link-dialog-ok").focus();
+    document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+    expect(document.activeElement.id).toBe("link-dialog-cancel");
+    document.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true })
+    );
+    expect(document.activeElement.id).toBe("link-dialog-ok");
+    $("link-dialog-cancel").click();
+    await p;
+  });
+
+  it("makes the background inert while open and restores it on close", async () => {
+    const background = document.createElement("main");
+    document.body.prepend(background);
+    const p = confirmLink({ kind: "confirmOpenFile", path: "C:\\a.pdf" });
+    expect(background.inert).toBe(true);
+    $("link-dialog-cancel").click();
+    await p;
+    expect(background.inert).toBe(false);
+  });
 });

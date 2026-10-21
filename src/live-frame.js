@@ -30,10 +30,19 @@ function reportSize() {
   }
 }
 
+function withThemeVariables(svg) {
+  const clone = svg.cloneNode(true);
+  const rootStyle = document.documentElement.style;
+  for (const name of rootStyle) {
+    if (name.startsWith("--mdlite-")) clone.style.setProperty(name, rootStyle.getPropertyValue(name));
+  }
+  return clone;
+}
+
 function snapshot() {
   const svg = root.querySelector("svg");
   if (svg) {
-    const markup = new XMLSerializer().serializeToString(svg);
+    const markup = new XMLSerializer().serializeToString(withThemeVariables(svg));
     if (markup.length <= SNAPSHOT_LIMIT) return { type: "snapshot", svg: markup };
   }
   const canvas = root.querySelector("canvas");

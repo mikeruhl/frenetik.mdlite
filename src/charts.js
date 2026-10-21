@@ -20,20 +20,32 @@ function rejectingLoader() {
   return { options: {}, load: refuse, sanitize: refuse, http: refuse, file: refuse, fileAccess: false };
 }
 
-function hasExternalUrl(value) {
-  if (Array.isArray(value)) return value.some(hasExternalUrl);
-  if (!value || typeof value !== "object") return false;
-  return Object.entries(value).some(([key, v]) => (key === "url" && typeof v === "string") || hasExternalUrl(v));
+/** Visits every specification object, skipping inline data records (`data.values`, `datasets`). */
+function visitSpec(value, visit, parentKey = null) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => visitSpec(item, visit, parentKey));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  visit(value);
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "datasets" || (parentKey === "data" && key === "values")) continue;
+    visitSpec(child, visit, key);
+  }
 }
 
-/** Removes every `href` so no mark becomes a link. */
-function stripHrefs(value) {
-  if (Array.isArray(value)) value.forEach(stripHrefs);
-  else if (value && typeof value === "object") {
-    delete value.href;
-    Object.values(value).forEach(stripHrefs);
-  }
-  return value;
+function hasExternalUrl(spec) {
+  let found = false;
+  visitSpec(spec, (node) => {
+    if (typeof node.url === "string") found = true;
+  });
+  return found;
+}
+
+/** Removes every specification `href` so no mark becomes a link. */
+function stripHrefs(spec) {
+  visitSpec(spec, (node) => delete node.href);
+  return spec;
 }
 
 function withAlpha(color, alpha) {
