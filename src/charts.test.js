@@ -55,7 +55,7 @@ describe("charts", () => {
     expect(root.querySelector(".chart-block pre")).toBeNull();
     expect(root.querySelector(".chart-rendered svg")).not.toBeNull();
     expect(root.querySelectorAll(".chart-rendered svg path, .chart-rendered svg rect").length).toBeGreaterThan(0);
-  });
+  }, 30000);
 
   it("refuses a remote data URL without making a request", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");

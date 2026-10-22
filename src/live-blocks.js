@@ -20,6 +20,7 @@ export function setLiveDocument(content) {
   documentContent = content;
   consentCheck = null;
   generation++;
+  for (const [win, entry] of frames) forget(win, entry);
 }
 
 function hasConsent() {

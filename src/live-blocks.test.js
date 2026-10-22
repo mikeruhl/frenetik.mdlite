@@ -186,6 +186,22 @@ describe("print readiness", () => {
     expect(state).toEqual({ done: true, ready: true });
   });
 
+  it("forgets running frames when a document without Live Blocks replaces them", async () => {
+    consent(true);
+    const [block] = mount();
+    await renderBlocks([block]);
+    const pending = await readiness();
+    const old = vi.spyOn(block.querySelector(".live-frame").contentWindow, "postMessage");
+    live.setLiveDocument("plain");
+    document.body.innerHTML = "";
+    await flush();
+    expect(pending).toEqual({ done: true, ready: true });
+    live.requestLiveSnapshots();
+    expect(old).not.toHaveBeenCalled();
+    const state = await readiness();
+    expect(state).toEqual({ done: true, ready: true });
+  });
+
   it("tracks frames started from the Run button", async () => {
     consent(false);
     const [block] = mount();

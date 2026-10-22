@@ -119,11 +119,14 @@ export function collectSvgRules(svg, doc = document) {
 }
 
 /**
- * Clones `svg` for a standalone snapshot: copies the document's `--mdlite-*` theme variables and, when `withRules`
- * is set, embeds the stylesheet rules that apply to it in a `<style>` element.
+ * Clones `svg` for a standalone snapshot: copies the document's `--mdlite-*` theme variables and the SVG's inherited
+ * color and font family and, when `withRules` is set, embeds the stylesheet rules that apply to it in a `<style>` element.
  */
 export function cloneSvgForSnapshot(svg, { doc = document, withRules = true } = {}) {
   const clone = svg.cloneNode(true);
+  const computed = doc.defaultView.getComputedStyle(svg);
+  clone.style.setProperty("color", computed.color);
+  clone.style.setProperty("font-family", computed.fontFamily);
   const rootStyle = doc.documentElement.style;
   for (const name of rootStyle) {
     if (name.startsWith("--mdlite-")) clone.style.setProperty(name, rootStyle.getPropertyValue(name));

@@ -1,8 +1,14 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { cloneSvgForSnapshot, collectSvgRules } from "./svg-snapshot.js";
 
+function setStyles(css) {
+  const style = document.createElement("style");
+  style.textContent = css;
+  document.head.replaceChildren(style);
+}
+
 function mount(css, svgMarkup) {
-  document.head.innerHTML = `<style>${css}</style>`;
+  setStyles(css);
   document.body.innerHTML = `<div id="root">${svgMarkup}</div>`;
   return document.querySelector("svg");
 }
@@ -28,6 +34,19 @@ describe("cloneSvgForSnapshot", () => {
     expect(svg.querySelector("style")).toBeNull();
   });
 
+  it("carries the inherited color and font family onto the standalone clone", () => {
+    const svg = mount(
+      "html, body { color: rgb(1, 2, 3); font-family: Georgia, serif; }",
+      '<svg xmlns="http://www.w3.org/2000/svg"><path stroke="currentColor"/></svg>'
+    );
+    const clone = cloneSvgForSnapshot(svg);
+    expect(clone.style.color).toBe("rgb(1, 2, 3)");
+    expect(clone.style.fontFamily).toBe("Georgia, serif");
+    document.head.innerHTML = "";
+    document.body.replaceChildren(clone);
+    expect(getComputedStyle(clone.querySelector("path")).color).toBe("rgb(1, 2, 3)");
+  });
+
   it("keeps matching rules nested in media blocks", () => {
     const svg = mount(
       "@media screen { .series { stroke: red; } .unused { stroke: blue; } }",
@@ -49,7 +68,7 @@ describe("cloneSvgForSnapshot", () => {
     expect(text).not.toContain("#root");
     expect(clone.id).toBe("mdlite-snapshot-root");
     document.body.innerHTML = "";
-    document.head.innerHTML = `<style>${text}</style>`;
+    setStyles(text);
     document.body.appendChild(clone);
     expect(getComputedStyle(clone.querySelector(".series")).stroke).toBe("rgb(255, 0, 0)");
     expect(svg.id).toBe("");
