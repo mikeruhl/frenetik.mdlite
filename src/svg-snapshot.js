@@ -1,5 +1,6 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SNAPSHOT_ID = "mdlite-snapshot-root";
+const INHERITED_PROPERTIES = ["color", "fill", "font-family", "font-size", "font-style", "font-weight"];
 
 function splitTopLevel(selector, isSeparator) {
   const parts = [];
@@ -120,13 +121,12 @@ export function collectSvgRules(svg, doc = document) {
 
 /**
  * Clones `svg` for a standalone snapshot: copies the document's `--mdlite-*` theme variables and the SVG's inherited
- * color and font family and, when `withRules` is set, embeds the stylesheet rules that apply to it in a `<style>` element.
+ * color, fill, and font styles and, when `withRules` is set, embeds the stylesheet rules that apply to it in a `<style>` element.
  */
 export function cloneSvgForSnapshot(svg, { doc = document, withRules = true } = {}) {
   const clone = svg.cloneNode(true);
   const computed = doc.defaultView.getComputedStyle(svg);
-  clone.style.setProperty("color", computed.color);
-  clone.style.setProperty("font-family", computed.fontFamily);
+  for (const name of INHERITED_PROPERTIES) clone.style.setProperty(name, computed.getPropertyValue(name));
   const rootStyle = doc.documentElement.style;
   for (const name of rootStyle) {
     if (name.startsWith("--mdlite-")) clone.style.setProperty(name, rootStyle.getPropertyValue(name));

@@ -151,12 +151,15 @@ function snapshotSrc(data) {
 
 function showSnapshot(block, data) {
   const src = snapshotSrc(data);
-  if (!src) return;
+  block.querySelector(".live-snapshot")?.remove();
+  if (!src) {
+    delete block.dataset.hasSnapshot;
+    return;
+  }
   const node = document.createElement("img");
   node.alt = "Live Block output";
   node.src = src;
   node.classList.add("live-snapshot");
-  block.querySelector(".live-snapshot")?.remove();
   block.appendChild(node);
   block.dataset.hasSnapshot = "true";
 }

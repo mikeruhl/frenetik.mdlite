@@ -35,18 +35,27 @@ describe("parseRemoteUrl", () => {
     ["https://example.com/a.png", "https://example.com/a.png"],
     ["  http://Example.com/a.png", "http://example.com/a.png"],
     ["//example.com/a.png", "https://example.com/a.png"],
+    ["https:example.com/a.png", "https://example.com/a.png"],
+    ["https:/example.com/a.png", "https://example.com/a.png"],
+    ["http:example.com/a.png", "http://example.com/a.png"],
   ])("parses %s", async (src, expected) => {
     const { parseRemoteUrl } = await loadImages();
     expect(parseRemoteUrl(src).href).toBe(expected);
   });
 
-  it.each([undefined, "", "a.png", "/a.png", "data:image/png;base64,AA", "file:///c:/a.png", "javascript:x"])(
-    "rejects %s",
-    async (src) => {
-      const { parseRemoteUrl } = await loadImages();
-      expect(parseRemoteUrl(src)).toBeNull();
-    }
-  );
+  it.each([
+    undefined,
+    "",
+    "a.png",
+    "./a.png",
+    "/a.png",
+    "data:image/png;base64,AA",
+    "file:///c:/a.png",
+    "javascript:x",
+  ])("rejects %s", async (src) => {
+    const { parseRemoteUrl } = await loadImages();
+    expect(parseRemoteUrl(src)).toBeNull();
+  });
 });
 
 describe("placeholder actions", () => {

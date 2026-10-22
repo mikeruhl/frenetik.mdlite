@@ -47,6 +47,18 @@ describe("cloneSvgForSnapshot", () => {
     expect(getComputedStyle(clone.querySelector("path")).color).toBe("rgb(1, 2, 3)");
   });
 
+  it("carries fill and font styles inherited from ancestors outside the SVG", () => {
+    const svg = mount(
+      "#root { fill: rgb(255, 0, 0); font-size: 24px; font-weight: 700; }",
+      '<span style="font-style: italic"><svg xmlns="http://www.w3.org/2000/svg"><text>label</text></svg></span>'
+    );
+    const clone = cloneSvgForSnapshot(svg);
+    expect(clone.style.fill).toBe("rgb(255, 0, 0)");
+    expect(clone.style.fontSize).toBe("24px");
+    expect(clone.style.fontWeight).toBe("700");
+    expect(clone.style.fontStyle).toBe("italic");
+  });
+
   it("keeps matching rules nested in media blocks", () => {
     const svg = mount(
       "@media screen { .series { stroke: red; } .unused { stroke: blue; } }",

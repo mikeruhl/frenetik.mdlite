@@ -3,7 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 export const IMAGE_SCHEME = "mdimg";
 export const PLACEHOLDER_CLASS = "remote-image-placeholder";
 
-const REMOTE_RE = /^\s*(https?:)?\/\//i;
+const PROTOCOL_RELATIVE_RE = /^\/\//;
 
 let proxyBase = null;
 
@@ -18,9 +18,10 @@ export function imageProxyUrl(url) {
 
 /** Returns the parsed URL when `src` targets a remote http(s) host, otherwise null. */
 export function parseRemoteUrl(src) {
-  if (!src || !REMOTE_RE.test(src)) return null;
+  if (!src) return null;
+  const trimmed = src.trim();
   try {
-    const url = new URL(src.trim(), "https://invalid.invalid");
+    const url = new URL(PROTOCOL_RELATIVE_RE.test(trimmed) ? `https:${trimmed}` : trimmed);
     return url.protocol === "http:" || url.protocol === "https:" ? url : null;
   } catch {
     return null;

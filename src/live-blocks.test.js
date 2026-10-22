@@ -89,6 +89,16 @@ describe("snapshots", () => {
     expect(block.querySelector("img.live-snapshot").getAttribute("src")).toBe("data:image/png;base64,AAAA");
   });
 
+  it("clears the previous snapshot when a reply has no usable image", async () => {
+    consent(true);
+    const [block] = mount();
+    await renderBlocks([block]);
+    post(block, { type: "snapshot", png: "data:image/png;base64,AAAA" });
+    post(block, { type: "snapshot" });
+    expect(block.querySelector(".live-snapshot")).toBeNull();
+    expect(block.dataset.hasSnapshot).toBeUndefined();
+  });
+
   it("ignores a PNG snapshot with another scheme", async () => {
     consent(true);
     const [block] = mount();
