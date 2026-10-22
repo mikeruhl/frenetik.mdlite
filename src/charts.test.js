@@ -57,6 +57,13 @@ describe("charts", () => {
     expect(root.querySelectorAll(".chart-rendered svg path, .chart-rendered svg rect").length).toBeGreaterThan(0);
   }, 30000);
 
+  it("renders a valid chart after an empty chart container from raw HTML", async () => {
+    const root = await show('<div class="chart-block"></div>\n\n' + chart(bar));
+    const blocks = root.querySelectorAll(".chart-block");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[1].querySelector(".chart-rendered svg")).not.toBeNull();
+  }, 30000);
+
   it("refuses a remote data URL without making a request", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const root = await show(chart({ ...bar, data: { url: "https://example.com/d.csv" } }));

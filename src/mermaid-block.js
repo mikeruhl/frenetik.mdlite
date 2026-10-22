@@ -79,7 +79,8 @@ export const mermaidRenderer = {
           </div>`;
   },
 
-  async render(blocks) {
+  async render(allBlocks) {
+    const blocks = [...allBlocks].filter((block) => block.querySelector(".mermaid-rendered"));
     for (const block of blocks) {
       if (!block.querySelector(".mermaid-expand")) block.appendChild(createExpandButton(block));
     }
@@ -93,9 +94,9 @@ export const mermaidRenderer = {
       mermaid.initialize(config());
     }
     for (const block of blocks) {
-      const code = decodeSource(block.dataset.mermaid);
       const target = block.querySelector(".mermaid-rendered");
       try {
+        const code = decodeSource(block.dataset.mermaid);
         const { svg } = await mermaid.render("mermaid-svg-" + block.dataset.mermaidIdx + "-" + Date.now(), code);
         target.innerHTML = sanitizeRendererSvg(svg);
       } catch (e) {

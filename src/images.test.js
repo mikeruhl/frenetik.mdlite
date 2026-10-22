@@ -92,6 +92,32 @@ describe("placeholder actions", () => {
     expect(onAllowHost).toHaveBeenCalledWith("example.com");
   });
 
+  it("keeps placeholder action clicks from activating an enclosing link", () => {
+    document.body.innerHTML = `
+      <a id="root" href="https://example.com/page">
+        <span class="remote-image-placeholder" data-remote-src="https://example.com/logo.png"></span>
+      </a>`;
+    const onLoadOnce = vi.fn();
+    const linkHandler = vi.fn();
+    document.addEventListener("click", linkHandler);
+    document.addEventListener("auxclick", linkHandler);
+    const root = document.getElementById("root");
+    images.bindImagePlaceholders(root, { onLoadOnce, onAllowHost: vi.fn() });
+
+    const button = root.querySelector("button");
+    const click = new window.MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(click);
+    const middle = new window.MouseEvent("auxclick", { bubbles: true, cancelable: true, button: 1 });
+    button.dispatchEvent(middle);
+    document.removeEventListener("click", linkHandler);
+    document.removeEventListener("auxclick", linkHandler);
+
+    expect(onLoadOnce).toHaveBeenCalledWith("https://example.com/logo.png");
+    expect(linkHandler).not.toHaveBeenCalled();
+    expect(click.defaultPrevented).toBe(true);
+    expect(middle.defaultPrevented).toBe(true);
+  });
+
   it("reveals every placeholder for the loaded URL through the proxy", () => {
     const root = document.getElementById("root");
     images.revealPlaceholders(root, "https://example.com/a.png");

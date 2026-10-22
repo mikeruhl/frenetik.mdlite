@@ -38,7 +38,15 @@ function placeholderButton(label, onClick) {
   btn.type = "button";
   btn.className = "remote-image-action";
   btn.textContent = label;
-  btn.addEventListener("click", onClick);
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClick();
+  });
+  btn.addEventListener("auxclick", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
   return btn;
 }
 

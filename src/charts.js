@@ -93,6 +93,7 @@ function showError(target, message) {
 
 async function renderChart(block, { vega, vegaLite, expr }) {
   const target = block.querySelector(".chart-rendered");
+  if (!target) return;
   views.get(block)?.finalize();
   views.delete(block);
 

@@ -186,6 +186,25 @@ describe("mermaid controls", () => {
     expect(contentEl.querySelectorAll(".mermaid-error")).toHaveLength(1);
     mermaid.render.mockReset();
   });
+
+  it("renders a valid diagram after malformed Mermaid containers from raw HTML", async () => {
+    const { default: mermaid } = await import("mermaid");
+    mermaid.render.mockResolvedValue({ svg: "<svg><g></g></svg>" });
+    resetRenderState();
+    contentEl.innerHTML = parseMarkdown(
+      '<div class="mermaid-block"></div>\n\n' +
+        '<div class="mermaid-block" data-mermaid="%%%"><div class="mermaid-rendered"></div></div>\n\n' +
+        "```mermaid\ngraph TD; A-->B\n```"
+    );
+
+    await renderAllRichBlocks();
+
+    const blocks = contentEl.querySelectorAll(".mermaid-block");
+    expect(blocks).toHaveLength(3);
+    expect(blocks[1].querySelector(".mermaid-error")).not.toBeNull();
+    expect(blocks[2].querySelector(".mermaid-rendered svg")).not.toBeNull();
+    mermaid.render.mockReset();
+  });
 });
 
 describe("parseMarkdown sanitization", () => {
