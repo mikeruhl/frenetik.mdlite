@@ -42,7 +42,10 @@ async function connect(wsUrl) {
   const pending = new Map();
   ws.addEventListener("message", (m) => {
     const msg = JSON.parse(m.data);
-    pending.get(msg.id)?.(msg);
+    const resolve = pending.get(msg.id);
+    if (typeof resolve !== "function") return;
+    pending.delete(msg.id);
+    resolve(msg);
   });
   const send = (method, params = {}) =>
     new Promise((resolve) => {

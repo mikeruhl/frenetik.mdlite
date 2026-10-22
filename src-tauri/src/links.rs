@@ -556,6 +556,11 @@ fn parse_file_url(rest: &str) -> ParsedHref {
     };
     let host = percent_decode(host);
     let mut path = percent_decode(path);
+    if host == "." || host == "?" {
+        return ParsedHref::Blocked {
+            scheme: "device".into(),
+        };
+    }
     if !host.is_empty() && !host.eq_ignore_ascii_case("localhost") {
         if !cfg!(windows) {
             return ParsedHref::Blocked { scheme: "file".into() };
