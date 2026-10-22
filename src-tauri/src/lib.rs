@@ -1,8 +1,11 @@
 mod commands;
 mod config;
 mod export;
+mod images;
 mod interactive;
 mod jumplist;
+mod links;
+mod live;
 mod menu;
 mod scan;
 mod updater;
@@ -32,6 +35,17 @@ pub(crate) enum AppMode {
     Folder,
 }
 
+/// Text for `--help` or `--version`, which print and exit instead of opening a window.
+fn informational_output(matches: &tauri_plugin_cli::Matches) -> Option<String> {
+    if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
+        return Some(help.to_string());
+    }
+    matches
+        .args
+        .contains_key("version")
+        .then(|| format!("mdlite {}", env!("CARGO_PKG_VERSION")))
+}
+
 pub(crate) struct AppState {
     pub(crate) mode: AppMode,
     pub(crate) file_path: PathBuf,
@@ -43,10 +57,48 @@ pub(crate) struct AppState {
     pub(crate) show_outline: bool,
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
+    pub(crate) full_width: bool,
     pub(crate) debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) folder_debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) startup_error: Option<String>,
     pub(crate) interactive: Option<InteractiveSession>,
+}
+
+const DEV_SERVER_HOST: &str = "localhost";
+const DEV_SERVER_PORT: u16 = 1420;
+
+/// D8 allow-list: the app's own pages, Live Block frames, and the dev server in dev builds.
+pub(crate) fn is_app_navigation(url: &tauri::Url) -> bool {
+    let host = url.host_str();
+    let live_host = format!("{}.localhost", live::SCHEME);
+    let app_origin = match url.scheme() {
+        "tauri" => host == Some("localhost"),
+        s if s == live::SCHEME => host == Some("localhost"),
+        "http" | "https" => host == Some("tauri.localhost") || host == Some(live_host.as_str()),
+        _ => false,
+    };
+    let dev_origin =
+        cfg!(dev) && url.scheme() == "http" && host == Some(DEV_SERVER_HOST) && url.port() == Some(DEV_SERVER_PORT);
+    (app_origin && url.port().is_none()) || dev_origin
+}
+
+fn main_window_config(
+    windows: &[tauri::utils::config::WindowConfig],
+) -> tauri::Result<tauri::utils::config::WindowConfig> {
+    windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .ok_or(tauri::Error::WindowNotFound)
+}
+
+fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
+    let config = main_window_config(&app.config().app.windows)?;
+    tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+        .on_navigation(is_app_navigation)
+        .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
+        .build()?;
+    Ok(())
 }
 
 pub(crate) fn display_path(p: &Path) -> String {
@@ -257,6 +309,19 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(images::ImageState::new())
+        .manage(links::PendingLinks::default())
+        .register_asynchronous_uri_scheme_protocol(images::SCHEME, |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let allowlist = store_get_image_allowlist(&app);
+                let state = app.state::<images::ImageState>();
+                responder.respond(images::handle_request(&state, allowlist, request).await);
+            });
+        })
+        .register_uri_scheme_protocol(live::SCHEME, |ctx, request| {
+            live::handle_request(ctx.app_handle(), &request)
+        })
         .invoke_handler(tauri::generate_handler![
             read_file,
             get_mode,
@@ -273,7 +338,18 @@ pub fn run() {
             get_interactive_session,
             submit_answers,
             cancel_interactive,
-            register_interactive_ready
+            register_interactive_ready,
+            images::get_image_allowlist,
+            images::allow_image_once,
+            images::allow_image_host,
+            images::remove_image_host,
+            live::live_consent_check,
+            live::live_consent_grant,
+            links::resolve_link,
+            links::follow_link,
+            links::file_exists,
+            links::add_safe_file_type,
+            updater::open_release_page
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -287,8 +363,8 @@ pub fn run() {
             migrate_store_keys(app.handle());
 
             let matches = app.cli().matches().unwrap_or_else(|e| report_cli_error(e.to_string()));
-            if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
-                println!("{help}");
+            if let Some(text) = informational_output(&matches) {
+                println!("{text}");
                 std::process::exit(0);
             }
             let arg_str = |name: &str| {
@@ -320,6 +396,8 @@ pub fn run() {
                     .unwrap_or_else(|msg| interactive::fail_startup(msg, output_arg.as_deref().map(Path::new)))
             });
             let is_interactive = interactive_session.is_some();
+
+            build_main_window(app)?;
 
             let (mode, file_path, folder_path, startup_error) = if let Some(ref session) = interactive_session {
                 (AppMode::File, session.document.clone(), None, None)
@@ -385,6 +463,7 @@ pub fn run() {
             let print_header = store_get_print_header(app.handle());
             let show_hidden_files = store_get_show_hidden_files(app.handle());
             let show_frontmatter = store_get_show_frontmatter(app.handle());
+            let full_width = store_get_full_width(app.handle());
             let recent = if is_interactive {
                 store_get_recent(app.handle())
             } else if mode == AppMode::File {
@@ -424,6 +503,7 @@ pub fn run() {
                 show_outline,
                 show_frontmatter,
                 has_frontmatter: false,
+                full_width,
                 debouncer: None,
                 folder_debouncer: None,
                 startup_error,
@@ -436,7 +516,11 @@ pub fn run() {
                 show_outline,
                 show_frontmatter,
                 has_frontmatter: false,
+                full_width,
                 has_file: current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap()).is_some(),
+                image_hosts: store_get_image_allowlist(app.handle()),
+                trusted_origins: store_get_trusted_origins(app.handle()),
+                safe_file_types: store_get_safe_file_types(app.handle()),
             };
             let menu = build_menu(app.handle(), &recent, &theme, &menu_state)?;
             app.set_menu(menu)?;
@@ -488,6 +572,29 @@ pub fn run() {
                     jumplist::update_jump_list(&[], &[]);
                     let theme = handle.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
                     rebuild_menu(handle, &[], &theme);
+                } else if let Some(idx_str) = id.strip_prefix(REMOVE_IMAGE_HOST_PREFIX) {
+                    if let Some(host) = idx_str
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|idx| store_get_image_allowlist(handle).get(idx).cloned())
+                    {
+                        images::remove_image_host(handle.clone(), host);
+                    }
+                } else if let Some(idx) = parse_indexed_id(id, REMOVE_TRUSTED_ORIGIN_PREFIX) {
+                    if let Some(origin) = store_get_trusted_origins(handle).get(idx).cloned() {
+                        store_remove_trusted_origin(handle, &origin);
+                        refresh_menu(handle);
+                    }
+                } else if let Some(idx) = parse_indexed_id(id, REMOVE_SAFE_TYPE_PREFIX) {
+                    if let Some(ext) = store_get_safe_file_types(handle).get(idx).cloned() {
+                        store_remove_safe_file_type(handle, &ext);
+                        refresh_menu(handle);
+                    }
+                } else if id == ADD_SAFE_FILE_TYPE_ID {
+                    let _ = handle.emit(PROMPT_ADD_FILE_TYPE_EVENT, ());
+                } else if id == RESET_SAFE_FILE_TYPES_ID {
+                    store_reset_safe_file_types(handle);
+                    refresh_menu(handle);
                 } else if let Some(idx_str) = id.strip_prefix("recent-") {
                     if let Ok(idx) = idx_str.parse::<usize>() {
                         let recent = store_get_recent(handle);
@@ -511,7 +618,7 @@ pub fn run() {
                 } else if id == "print" {
                     let _ = handle.emit("print", ());
                 } else if id == "export-pdf" {
-                    export::show_export_dialog(handle);
+                    let _ = handle.emit("export-pdf", ());
                 } else if id == "copy-file-path" {
                     match copy_current_file_path(handle) {
                         Ok(Some(path)) => {
@@ -560,6 +667,15 @@ pub fn run() {
                     };
                     store_set_show_frontmatter(handle, new_val);
                     let _ = handle.emit("set-frontmatter", new_val);
+                } else if id == "toggle-full-width" {
+                    let new_val = {
+                        let state = handle.state::<Mutex<AppState>>();
+                        let mut s = state.lock().unwrap();
+                        s.full_width = !s.full_width;
+                        s.full_width
+                    };
+                    store_set_full_width(handle, new_val);
+                    let _ = handle.emit("set-full-width", new_val);
                 } else if id == "about" {
                     let _ = handle.emit("show-about", ());
                 } else if id == "check-updates" {
@@ -594,4 +710,78 @@ pub fn run() {
             }
         });
     std::process::exit(RESULT_GATE.exit_code().unwrap_or(exit_code));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::utils::config::WindowConfig;
+    use tauri_plugin_cli::{ArgData, Matches};
+
+    #[test]
+    fn main_window_config_is_required() {
+        let other = WindowConfig {
+            label: "other".into(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            main_window_config(std::slice::from_ref(&other)),
+            Err(tauri::Error::WindowNotFound)
+        ));
+        let main = WindowConfig {
+            label: "main".into(),
+            ..Default::default()
+        };
+        assert_eq!(main_window_config(&[other, main]).unwrap().label, "main");
+    }
+
+    fn matches_with(name: &str, value: serde_json::Value) -> Matches {
+        let mut matches = Matches::default();
+        let mut arg = ArgData::default();
+        arg.value = value;
+        matches.args.insert(name.to_string(), arg);
+        matches
+    }
+
+    #[test]
+    fn version_flag_reports_the_package_version() {
+        let text = informational_output(&matches_with("version", serde_json::Value::Null));
+        assert_eq!(text.as_deref(), Some(concat!("mdlite ", env!("CARGO_PKG_VERSION"))));
+    }
+
+    #[test]
+    fn help_text_is_printed_verbatim() {
+        let text = informational_output(&matches_with("help", serde_json::json!("usage: mdlite")));
+        assert_eq!(text.as_deref(), Some("usage: mdlite"));
+    }
+
+    #[test]
+    fn ordinary_launch_prints_nothing() {
+        assert_eq!(
+            informational_output(&matches_with("path", serde_json::json!("a.md"))),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_guard_allows_only_app_origins() {
+        for ok in [
+            "tauri://localhost/index.html",
+            "http://tauri.localhost/",
+            "mdlive://localhost/live-frame.html",
+            "http://mdlive.localhost/live-frame.html",
+        ] {
+            assert!(is_app_navigation(&ok.parse().unwrap()), "{ok}");
+        }
+        for bad in [
+            "https://evil.example/",
+            "file:///C:/x.md",
+            "http://localhost:9999/",
+            "http://tauri.localhost.evil.example/",
+            "http://tauri.localhost:8080/",
+            "tauri://evil.example/",
+        ] {
+            assert!(!is_app_navigation(&bad.parse().unwrap()), "{bad}");
+        }
+    }
 }

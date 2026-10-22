@@ -4,7 +4,21 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, Predefined
 use tauri::Manager;
 
 use crate::commands::current_file_display_path;
+use crate::config::{
+    store_get_image_allowlist, store_get_recent, store_get_safe_file_types, store_get_trusted_origins,
+};
 use crate::AppState;
+
+pub(crate) const REMOVE_IMAGE_HOST_PREFIX: &str = "remove-image-host-";
+pub(crate) const REMOVE_TRUSTED_ORIGIN_PREFIX: &str = "remove-trusted-origin-";
+pub(crate) const REMOVE_SAFE_TYPE_PREFIX: &str = "remove-safe-type-";
+pub(crate) const ADD_SAFE_FILE_TYPE_ID: &str = "add-safe-file-type";
+pub(crate) const RESET_SAFE_FILE_TYPES_ID: &str = "reset-safe-file-types";
+pub(crate) const PROMPT_ADD_FILE_TYPE_EVENT: &str = "prompt-add-file-type";
+
+pub(crate) fn parse_indexed_id(id: &str, prefix: &str) -> Option<usize> {
+    id.strip_prefix(prefix)?.parse().ok()
+}
 
 pub(crate) struct MenuState {
     pub(crate) print_header: bool,
@@ -12,7 +26,11 @@ pub(crate) struct MenuState {
     pub(crate) show_outline: bool,
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
+    pub(crate) full_width: bool,
     pub(crate) has_file: bool,
+    pub(crate) image_hosts: Vec<String>,
+    pub(crate) trusted_origins: Vec<String>,
+    pub(crate) safe_file_types: Vec<String>,
 }
 
 pub(crate) const THEMES: &[(&str, &str)] = &[
@@ -41,7 +59,11 @@ pub(crate) fn build_menu(
         show_outline,
         show_frontmatter,
         has_frontmatter,
+        full_width,
         has_file,
+        ref image_hosts,
+        ref trusted_origins,
+        ref safe_file_types,
     } = *state;
     let mut recent_sub = SubmenuBuilder::new(app, "Recent Files");
     if recent.is_empty() {
@@ -122,6 +144,9 @@ pub(crate) fn build_menu(
         .accelerator("CmdOrCtrl+Shift+O")
         .checked(show_outline)
         .build(app)?;
+    let full_width_item = CheckMenuItemBuilder::with_id("toggle-full-width", "Full Width")
+        .checked(full_width)
+        .build(app)?;
     let show_hidden_files_item = CheckMenuItemBuilder::with_id("toggle-show-hidden-files", "Show Hidden Files")
         .checked(show_hidden_files)
         .build(app)?;
@@ -129,6 +154,41 @@ pub(crate) fn build_menu(
         .checked(show_frontmatter)
         .enabled(has_frontmatter)
         .build(app)?;
+    let mut image_hosts_sub = SubmenuBuilder::new(app, "Allowed Image Hosts");
+    if image_hosts.is_empty() {
+        let item = MenuItemBuilder::with_id("no-image-hosts", "(No Allowed Hosts)")
+            .enabled(false)
+            .build(app)?;
+        image_hosts_sub = image_hosts_sub.item(&item);
+    } else {
+        for (i, host) in image_hosts.iter().enumerate() {
+            image_hosts_sub = image_hosts_sub.text(format!("{REMOVE_IMAGE_HOST_PREFIX}{i}"), format!("Remove {host}"));
+        }
+    }
+
+    let mut trusted_sub = SubmenuBuilder::new(app, "Trusted Domains");
+    if trusted_origins.is_empty() {
+        let item = MenuItemBuilder::with_id("no-trusted-origins", "(No Trusted Domains)")
+            .enabled(false)
+            .build(app)?;
+        trusted_sub = trusted_sub.item(&item);
+    } else {
+        for (i, origin) in trusted_origins.iter().enumerate() {
+            trusted_sub = trusted_sub.text(format!("{REMOVE_TRUSTED_ORIGIN_PREFIX}{i}"), format!("Remove {origin}"));
+        }
+    }
+
+    let mut safe_types_sub = SubmenuBuilder::new(app, "Safe File Types");
+    for (i, ext) in safe_file_types.iter().enumerate() {
+        safe_types_sub = safe_types_sub.text(format!("{REMOVE_SAFE_TYPE_PREFIX}{i}"), format!("Remove .{ext}"));
+    }
+    if !safe_file_types.is_empty() {
+        safe_types_sub = safe_types_sub.separator();
+    }
+    safe_types_sub = safe_types_sub
+        .text(ADD_SAFE_FILE_TYPE_ID, "Add File Type…")
+        .text(RESET_SAFE_FILE_TYPES_ID, "Reset to Defaults");
+
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&nav_back)
         .item(&nav_forward)
@@ -139,8 +199,13 @@ pub(crate) fn build_menu(
         .item(&zoom_reset)
         .separator()
         .item(&toggle_outline)
+        .item(&full_width_item)
         .item(&show_hidden_files_item)
         .item(&show_frontmatter_item)
+        .separator()
+        .item(&image_hosts_sub.build()?)
+        .item(&trusted_sub.build()?)
+        .item(&safe_types_sub.build()?)
         .build()?;
 
     let help_menu = SubmenuBuilder::new(app, "Help")
@@ -167,10 +232,34 @@ pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &st
             show_outline: s.show_outline,
             show_frontmatter: s.show_frontmatter,
             has_frontmatter: s.has_frontmatter,
+            full_width: s.full_width,
             has_file: current_file_display_path(&s).is_some(),
+            image_hosts: store_get_image_allowlist(app),
+            trusted_origins: store_get_trusted_origins(app),
+            safe_file_types: store_get_safe_file_types(app),
         }
     };
     if let Ok(menu) = build_menu(app, recent, theme, &ms) {
         let _ = app.set_menu(menu);
+    }
+}
+
+pub(crate) fn refresh_menu(app: &tauri::AppHandle) {
+    let theme = app.state::<Mutex<AppState>>().lock().unwrap().current_theme.clone();
+    rebuild_menu(app, &store_get_recent(app), &theme);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn menu_index_ids_round_trip() {
+        assert_eq!(parse_indexed_id("remove-safe-type-3", REMOVE_SAFE_TYPE_PREFIX), Some(3));
+        assert_eq!(parse_indexed_id("remove-safe-type-x", REMOVE_SAFE_TYPE_PREFIX), None);
+        assert_eq!(
+            parse_indexed_id("remove-trusted-origin-0", REMOVE_TRUSTED_ORIGIN_PREFIX),
+            Some(0)
+        );
     }
 }

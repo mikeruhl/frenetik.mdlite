@@ -1,20 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { LazyStore } from "@tauri-apps/plugin-store";
 
 import { applyTheme } from "./themes.js";
 import { applyZoom, getZoom } from "./zoom.js";
 import { showToast, isEditableTarget } from "./toast.js";
+import { trackRichRender, joinRichRender, awaitRichRender } from "./rich-render.js";
 import {
   parseMarkdown,
   extractFrontmatter,
-  renderMermaidBlocks,
-  bindMermaidButtons,
+  renderAllRichBlocks,
   bindCopyButtons,
-  resetMermaidCounter,
-  setMermaidTheme,
+  resetRenderState,
+  setRenderTheme,
 } from "./markdown.js";
+import { bindImagePlaceholders, revealPlaceholders } from "./images.js";
+import { setLiveDocument, requestLiveSnapshots } from "./live-blocks.js";
 import { highlightSearchMatches, openSearch, isSearchActive, getSearchQuery, bindSearchEvents } from "./search.js";
 import { toggleToc, refreshToc, bindTocEvents } from "./toc.js";
 import { initInteractive, refreshInteractive } from "./interactive.js";
@@ -30,7 +31,10 @@ import {
   initFolderStartup,
   getCurrentFilePath,
   navigateToFile,
+  navigateToFolderLink,
 } from "./sidebar.js";
+import { initLinks } from "./links.js";
+import { confirmLink, promptFileType } from "./link-dialog.js";
 
 const store = new LazyStore("settings.json");
 
@@ -40,6 +44,8 @@ const mainContentEl = document.getElementById("main-content");
 let startupErrorMsg = null;
 let showFrontmatter = false;
 let lastRawMarkdown = "";
+let renderSeq = 0;
+const sessionImageUrls = new Set();
 
 function renderFrontmatterPanel(fields) {
   if (!fields || fields.length === 0 || !showFrontmatter) return "";
@@ -53,7 +59,58 @@ function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function render(markdown) {
+async function loadImageOnce(url) {
+  try {
+    await invoke("allow_image_once", { url });
+    sessionImageUrls.add(url);
+    revealPlaceholders(contentEl, url);
+  } catch (err) {
+    showToast("Could not load image: " + err);
+  }
+}
+
+async function allowImageHost(host) {
+  try {
+    await invoke("allow_image_host", { host });
+    await render(lastRawMarkdown);
+  } catch (err) {
+    showToast("Could not allow " + host + ": " + err);
+  }
+}
+
+const RICH_RENDER_TIMEOUT_MS = 10000;
+
+async function whenRichBlocksReady() {
+  requestLiveSnapshots();
+  if (!(await awaitRichRender(RICH_RENDER_TIMEOUT_MS))) {
+    showToast("Diagrams may be incomplete");
+  }
+}
+
+async function printWhenReady() {
+  await whenRichBlocksReady();
+  window.print();
+}
+
+async function exportPdfWhenReady() {
+  await whenRichBlocksReady();
+  invoke("export_pdf");
+}
+
+async function render(markdown) {
+  const seq = ++renderSeq;
+  let settleRichRender;
+  trackRichRender(new Promise((resolve) => (settleRichRender = resolve)));
+  try {
+    const result = await renderDocument(markdown, seq);
+    settleRichRender(result?.richRender);
+  } catch (err) {
+    settleRichRender();
+    throw err;
+  }
+}
+
+async function renderDocument(markdown, seq) {
   if (startupErrorMsg) {
     const startupErrorEl = document.createElement("div");
     startupErrorEl.className = "startup-error";
@@ -62,13 +119,16 @@ function render(markdown) {
     return;
   }
   lastRawMarkdown = markdown;
+  const hosts = await invoke("get_image_allowlist").catch(() => []);
+  if (seq !== renderSeq) return;
   const { body, raw, fields } = extractFrontmatter(markdown);
   const hasFm = raw !== null;
   const panelHtml = renderFrontmatterPanel(fields);
-  resetMermaidCounter();
-  contentEl.innerHTML = panelHtml + parseMarkdown(body);
-  renderMermaidBlocks();
-  bindMermaidButtons();
+  resetRenderState();
+  setLiveDocument(markdown);
+  contentEl.innerHTML = panelHtml + parseMarkdown(body, { images: { hosts, urls: sessionImageUrls } });
+  bindImagePlaceholders(contentEl, { onLoadOnce: loadImageOnce, onAllowHost: allowImageHost });
+  const richRender = renderAllRichBlocks();
   bindCopyButtons();
   if (isSearchActive()) {
     highlightSearchMatches(getSearchQuery());
@@ -76,6 +136,7 @@ function render(markdown) {
   refreshToc();
   refreshInteractive();
   invoke("notify_has_frontmatter", { has: hasFm });
+  return { richRender };
 }
 
 initSidebar(render);
@@ -128,7 +189,7 @@ A lightweight markdown previewer.
 
 await listen("set-theme", (event) => {
   applyTheme(event.payload);
-  setMermaidTheme(event.payload).catch((e) => console.error("Mermaid theme update failed:", e));
+  joinRichRender(setRenderTheme(event.payload).catch((e) => console.error("Rich Block theme update failed:", e)));
 });
 
 await listen("set-zoom", (event) => {
@@ -200,9 +261,9 @@ await listen("navigate-forward", () => {
   navigateForward();
 });
 
-await listen("print", () => {
-  window.print();
-});
+await listen("print", printWhenReady);
+
+await listen("export-pdf", exportPdfWhenReady);
 
 await listen("export-pdf-error", (event) => {
   window.alert("PDF export failed: " + event.payload);
@@ -222,6 +283,14 @@ await listen("file-path-copy-error", (event) => {
 
 await listen("set-print-header", (event) => {
   document.body.classList.toggle("print-header-enabled", event.payload);
+});
+
+await listen("set-full-width", (event) => {
+  document.body.classList.toggle("full-width", event.payload);
+});
+
+await listen("image-allowlist-changed", () => {
+  if (lastRawMarkdown) render(lastRawMarkdown);
 });
 
 await listen("set-frontmatter", (event) => {
@@ -255,6 +324,16 @@ function hideAboutModal() {
   }
 }
 
+await listen("prompt-add-file-type", async () => {
+  const ext = await promptFileType();
+  if (!ext) return;
+  try {
+    await invoke("add_safe_file_type", { ext });
+  } catch (err) {
+    showToast(String(err));
+  }
+});
+
 await listen("show-about", () => {
   showAboutModal();
 });
@@ -283,7 +362,7 @@ async function checkForUpdates() {
       );
       document.getElementById("about-download-link").addEventListener("click", (e) => {
         e.preventDefault();
-        openUrl(result.release_url);
+        invoke("open_release_page").catch((err) => showToast("Could not open link: " + err));
       });
     } else {
       aboutUpdateResult.textContent = "You're on the latest version.";
@@ -326,13 +405,16 @@ window.addEventListener("beforeprint", updatePrintHeader);
 
 const savedTheme = (await store.get("theme")) ?? "github";
 applyTheme(savedTheme);
-setMermaidTheme(savedTheme).catch((e) => console.error("Mermaid theme init failed:", e));
+setRenderTheme(savedTheme).catch((e) => console.error("Rich Block theme init failed:", e));
 
 const savedZoom = (await store.get("zoom")) ?? 100;
 applyZoom(savedZoom);
 
 const printHeader = (await store.get("print_header")) ?? true;
 document.body.classList.toggle("print-header-enabled", printHeader);
+
+const fullWidth = (await store.get("full_width")) ?? false;
+document.body.classList.toggle("full-width", fullWidth);
 
 showFrontmatter = (await store.get("show_frontmatter")) ?? false;
 
@@ -343,23 +425,23 @@ const startupError = await invoke("get_startup_error");
 
 if (startupError) {
   startupErrorMsg = startupError;
-  render("");
+  await render("");
 } else if (modeInfo.mode === "empty") {
-  render(WELCOME_MD);
+  await render(WELCOME_MD);
 } else if (modeInfo.mode === "folder") {
   initFolderStartup(modeInfo);
 
   if (modeInfo.current_file) {
     try {
       const content = await invoke("read_file");
-      render(content);
+      await render(content);
     } catch {
-      render("");
+      await render("");
     }
   }
 } else {
   const content = await invoke("read_file");
-  render(content);
+  await render(content);
 }
 
 // --- Global event handlers ---
@@ -396,11 +478,11 @@ document.addEventListener("keydown", (e) => {
   }
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "p") {
     e.preventDefault();
-    window.print();
+    printWhenReady();
   }
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "E") {
     e.preventDefault();
-    invoke("export_pdf");
+    exportPdfWhenReady();
   }
   if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyC" && !isEditableTarget(e.target)) {
     e.preventDefault();
@@ -418,21 +500,18 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-document.addEventListener("click", (e) => {
-  const anchor = e.target.closest("a[href]");
-  if (!anchor) return;
-  const href = anchor.getAttribute("href");
-  if (href && href.startsWith("#")) {
-    e.preventDefault();
-    const target = document.getElementById(href.slice(1));
+initLinks({
+  invoke,
+  navigate: navigateToFolderLink,
+  confirm: confirmLink,
+  notify: showToast,
+  scrollToFragment: (id) => {
+    const target = document.getElementById(id);
     if (target) {
       pushNavigation();
       target.scrollIntoView({ behavior: "smooth" });
     }
-  } else if (href && href.startsWith("http")) {
-    e.preventDefault();
-    openUrl(href);
-  }
+  },
 });
 
 window.addEventListener("mouseup", (e) => {

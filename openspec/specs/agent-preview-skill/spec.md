@@ -69,3 +69,58 @@ of the session. Window-close exit notifications SHALL otherwise be ignored.
 
 - **WHEN** the first launch exits with 127
 - **THEN** the agent reports the setup and install links once and does not attempt further launches that session
+
+### Requirement: Skill states rendering restrictions
+
+The skill SHALL tell agents that remote images are blocked until the reader allows their host and that `<style>`, form
+controls, inline `style` attributes, and arbitrary classes are stripped.
+
+#### Scenario: Agent writes a report with a remote image
+
+- **WHEN** an agent embeds a remote image in a report Document
+- **THEN** the skill has directed it to provide meaningful alt text so the placeholder is informative
+
+### Requirement: Skill teaches rich Document authoring
+
+The skill SHALL include the same authoring section as the decision skill, covering Panels, Status Lozenges, Expands, and
+Charts with one minimal example each and guidance on when to use each.
+
+#### Scenario: Report with metrics
+
+- **WHEN** an agent writes a report Document containing a metric trend over time
+- **THEN** the skill directs it to present the trend as a `vega-lite` line Chart with inline data
+
+#### Scenario: Sections stay identical
+
+- **WHEN** the authoring section in either skill is changed
+- **THEN** an automated check fails until both skills contain identical authoring sections
+
+### Requirement: Skill prefers Charts over Live Blocks
+
+The skill SHALL direct agents to use Charts for data visualization and a Live Block only when a Chart cannot express the
+visualization.
+
+#### Scenario: Custom network diagram
+
+- **WHEN** an agent needs a force-directed graph that Vega-Lite cannot express
+- **THEN** the skill permits a Live Block using `d3` and tells the agent the reader must click Run
+
+### Requirement: Skill handles older mdlite versions
+
+The skill SHALL state the minimum mdlite version for rich constructs and direct agents to fall back to tables and plain
+alerts on older versions.
+
+#### Scenario: Older mdlite installed
+
+- **WHEN** the installed mdlite version is below the stated minimum
+- **THEN** the agent writes the report without `vega-lite` blocks or Status Lozenges
+
+### Requirement: Skill recommends relative links between related files
+
+The preview skill SHALL tell agents that when they write several related markdown files into one folder, they SHOULD
+link them with relative links, because mdlite opens those links directly in folder view.
+
+#### Scenario: Multi-file guidance
+
+- **WHEN** an agent reads the skill's guidance for several files
+- **THEN** it finds a line recommending relative links between files in the same folder

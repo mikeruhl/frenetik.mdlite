@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "mdlite",
         "width": 900,
         "height": 700,
@@ -21,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src * data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: mdimg: http://mdimg.localhost; font-src 'self' data:; connect-src ipc: http://ipc.localhost; frame-src mdlive: http://mdlive.localhost",
       "dangerousDisableAssetCspModification": ["style-src"]
     }
   },
