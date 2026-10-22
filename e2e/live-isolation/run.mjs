@@ -1,7 +1,32 @@
 // Live Block isolation test (Windows). Requires an mdlite debug build whose main window exposes
 // --remote-debugging-port, with e2e/live-isolation/isolation.md open. Usage: node run.mjs [port]
+import { readFileSync } from "node:fs";
+
 const port = process.argv[2] ?? "9333";
 const PROBE = "isolation-test.invalid";
+const read = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
+
+function registeredCommands() {
+  const handler = read("../../src-tauri/src/lib.rs").match(/generate_handler!\[([^\]]*)\]/);
+  if (!handler) throw new Error("generate_handler! not found in src-tauri/src/lib.rs");
+  return handler[1]
+    .split(",")
+    .map((entry) => entry.trim().split("::").pop())
+    .filter(Boolean)
+    .sort();
+}
+
+function probedCommands() {
+  const block = read("isolation.md").match(/const commands = \{([\s\S]*?)\r?\n {4}\};/);
+  if (!block) throw new Error("commands map not found in isolation.md");
+  let depth = 0;
+  const topLevel = [...block[1]].map((ch) => {
+    if (ch === "{") depth++;
+    if (ch === "}") depth--;
+    return depth === 0 && ch !== "}" ? ch : " ";
+  });
+  return [...topLevel.join("").matchAll(/(?:^|[\s,])([a-z_][a-z0-9_]*)\s*:/g)].map((m) => m[1]).sort();
+}
 
 async function targets() {
   return (await fetch(`http://127.0.0.1:${port}/json`)).json();
@@ -65,6 +90,16 @@ const check = (ok, label, detail) => {
   if (!ok) failures.push(label);
 };
 
+const registered = registeredCommands();
+const probed = probedCommands();
+const unprobed = registered.filter((c) => !probed.includes(c));
+const unregistered = probed.filter((c) => !registered.includes(c));
+check(
+  unprobed.length === 0 && unregistered.length === 0,
+  "fixture probes exactly the registered commands",
+  `unprobed: [${unprobed}] unregistered: [${unregistered}]`
+);
+
 const page = (await targets()).find((t) => t.type === "page");
 const main = await connect(page.webSocketDebuggerUrl);
 const pagesBefore = (await targets()).filter((t) => t.type === "page").length;
@@ -88,11 +123,21 @@ const out = frame.text && frame.text !== "running" ? JSON.parse(frame.text) : {}
 for (const [key, value] of Object.entries(out).filter(([k]) => k.startsWith("invoke "))) {
   check(!String(value).startsWith("RESOLVED"), key, value);
 }
+for (const cmd of registered) check(out["invoke " + cmd] !== undefined, `probe ran: ${cmd}`);
+check(
+  /^(THREW|REJECTED|NO_INTERNALS)/.test(out["invoke follow_link"] ?? ""),
+  "follow_link rejects bogus token",
+  out["invoke follow_link"]
+);
 check(/^(THREW|REJECTED)/.test(out.parentDocument ?? ""), "parent document unreachable", out.parentDocument);
 check(/^(THREW|REJECTED)/.test(out.fetchRemote ?? ""), "remote fetch blocked", out.fetchRemote);
 check(/^(THREW|REJECTED)/.test(out.fetchIpc ?? ""), "direct IPC fetch blocked", out.fetchIpc);
 check(out.remoteImage === "BLOCKED", "remote image blocked", out.remoteImage);
-check(out.windowOpen === 'RESOLVED "null"' || /^THREW/.test(out.windowOpen ?? ""), "window.open blocked", out.windowOpen);
+check(
+  out.windowOpen === 'RESOLVED "null"' || /^THREW/.test(out.windowOpen ?? ""),
+  "window.open blocked",
+  out.windowOpen
+);
 check(
   out.formSubmit === undefined || /^(THREW|REJECTED|RESOLVED "submitted")/.test(out.formSubmit),
   "form submission attempted",
@@ -104,11 +149,19 @@ const pagesAfter = (await targets()).filter((t) => t.type === "page").length;
 check(after.href === before.href, "main window not navigated", after.href);
 check(after.title === before.title, "window title unchanged", after.title);
 check(after.theme === before.theme, "theme unchanged");
-check(JSON.stringify(after.allowlist) === JSON.stringify(before.allowlist), "image allow-list unchanged", JSON.stringify(after.allowlist));
+check(
+  JSON.stringify(after.allowlist) === JSON.stringify(before.allowlist),
+  "image allow-list unchanged",
+  JSON.stringify(after.allowlist)
+);
 check(after.probeConsent === false, "consent store untouched by the frame");
 check(pagesAfter === pagesBefore, "no new windows", `${pagesBefore} -> ${pagesAfter}`);
 const frameAfter = await readFrameResults(main);
-check(frameAfter.url && /mdlive/.test(frameAfter.url), "frame still on mdlive origin after navigation attempts", frameAfter.url);
+check(
+  frameAfter.url && /mdlive/.test(frameAfter.url),
+  "frame still on mdlive origin after navigation attempts",
+  frameAfter.url
+);
 
 main.ws.close();
 console.log(failures.length ? `\n${failures.length} isolation check(s) failed` : "\nAll isolation checks passed");

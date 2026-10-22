@@ -93,6 +93,20 @@ describe("charts", () => {
     expect(root.querySelector(".chart-rendered svg").textContent).toContain("A");
   });
 
+  it("finalizes Chart views when render state resets and before re-rendering", async () => {
+    const { View } = await import("vega");
+    const finalize = vi.spyOn(View.prototype, "finalize");
+    await show(chart(bar) + "\n\n" + chart(bar));
+    finalize.mockClear();
+    await setRenderTheme("github");
+    await setRenderTheme("github-dark");
+    expect(finalize).toHaveBeenCalledTimes(2);
+    resetRenderState();
+    expect(finalize).toHaveBeenCalledTimes(4);
+    resetRenderState();
+    expect(finalize).toHaveBeenCalledTimes(4);
+  });
+
   it("re-renders Charts when the theme changes", async () => {
     const root = await show(chart(bar));
     const before = root.querySelector(".chart-rendered svg");

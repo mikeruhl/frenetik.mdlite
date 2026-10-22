@@ -3,6 +3,10 @@
 This Document is the fixture for `e2e/live-isolation/run.mjs`. Its Live Block attempts every escape the
 isolation model must prevent and writes the outcome of each attempt into `#results`.
 
+The `commands` map must probe every command registered in `generate_handler!` in `src-tauri/src/lib.rs`;
+the runner fails when the two sets differ. `follow_link` accepts only an opaque single-use token issued by
+`resolve_link`, so it is probed with a bogus token and must not resolve.
+
 ```html-live
 <pre id="results">running</pre>
 <script>
@@ -33,6 +37,8 @@ isolation model must prevent and writes the outcome of each attempt into `#resul
       allow_image_once: { url: "https://" + probe + "/a.png" }, allow_image_host: { host: probe },
       remove_image_host: { host: probe }, live_consent_check: { path: "x", content: "y" },
       live_consent_grant: { path: probe, content: probe },
+      resolve_link: { href: "https://" + probe + "/" }, follow_link: { token: "isolation-probe-bogus-token", trustOrigin: true },
+      file_exists: { path: "C:/Windows/win.ini" }, add_safe_file_type: { ext: "isoprobe" }, open_release_page: {},
       "plugin:event|emit": { event: "set-theme", payload: "retro" },
       "plugin:event|listen": { event: "set-theme", target: { kind: "Any" }, handler: 1 },
       "plugin:store|load": { path: "settings.json" },

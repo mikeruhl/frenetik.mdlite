@@ -19,7 +19,7 @@ import {
   richBlockSelector,
 } from "./rich-blocks.js";
 import { mermaidRenderer } from "./mermaid-block.js";
-import { chartRenderer } from "./charts.js";
+import { chartRenderer, disposeCharts } from "./charts.js";
 import { liveBlockRenderer } from "./live-blocks.js";
 
 let panelMode = false;
@@ -235,6 +235,7 @@ export function bindCopyButtons() {
 }
 
 export function resetRenderState() {
+  disposeCharts();
   resetRichBlockCounter();
   usedIds.clear();
 }

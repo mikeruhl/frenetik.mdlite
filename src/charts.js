@@ -4,7 +4,7 @@ const NO_EXTERNAL_DATA = "Charts support inline data only (data.values); externa
 
 let engine = null;
 let themeId = null;
-const views = new WeakMap();
+const views = new Map();
 
 async function getEngine() {
   if (!engine) {
@@ -76,6 +76,12 @@ export function themeConfig(element) {
     view: { stroke: grid },
     text: { color: fg },
   };
+}
+
+/** Finalizes every live Chart view so its listeners and timers are released. */
+export function disposeCharts() {
+  for (const view of views.values()) view.finalize();
+  views.clear();
 }
 
 function showError(target, message) {

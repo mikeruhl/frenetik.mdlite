@@ -1,5 +1,7 @@
 import { parseRemoteUrl } from "./images.js";
 
+const RASTER_DATA_URL = /^data:image\/(png|jpeg|gif|webp)[;,]/;
+
 /** Returns the first `<svg>` in renderer output with scripts, handlers, unsafe links, and remote images removed. */
 export function sanitizeRendererSvg(svg) {
   const doc = new DOMParser().parseFromString(svg, "text/html");
@@ -17,6 +19,7 @@ export function sanitizeRendererSvg(svg) {
       } else if (attr.name === "href" || attr.name === "xlink:href") {
         // eslint-disable-next-line no-control-regex -- intentional: strip control chars browsers normalize from URLs
         const scheme = attr.value.replace(/[\x00-\x20]+/g, "").toLowerCase();
+        if (el.localName === "image" && RASTER_DATA_URL.test(scheme)) continue;
         if (scheme.startsWith("javascript:") || scheme.startsWith("data:") || scheme.startsWith("vbscript:")) {
           el.removeAttribute(attr.name);
         }
