@@ -106,7 +106,8 @@ body.toc-visible #attribution {
   height: auto;
 }
 
-.mermaid-error {
+.mermaid-error,
+#content .live-error {
   color: #c00;
   font-size: 13px;
   margin: 0;

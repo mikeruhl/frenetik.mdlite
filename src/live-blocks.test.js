@@ -238,6 +238,18 @@ describe("consent", () => {
     return () => release();
   }
 
+  it("runs every valid block and skips one with invalid source", async () => {
+    const blocks = mount(2);
+    blocks[0].dataset.live = "not base64!";
+    const release = deferGrant();
+    await renderBlocks(blocks);
+    blocks[1].querySelector(".live-run").click();
+    release();
+    await flush();
+    expect(blocks[0].querySelector(".live-frame")).toBeNull();
+    expect(blocks[1].querySelector(".live-frame")).not.toBeNull();
+  });
+
   it("runs every block in the document once granted", async () => {
     const blocks = mount(2);
     const release = deferGrant();
@@ -311,5 +323,21 @@ describe("consent", () => {
     answer(true);
     await pending;
     expect(blocks[0].querySelector(".live-frame")).toBeNull();
+  });
+});
+
+describe("invalid source", () => {
+  it("shows an error for an undecodable block and still renders and runs later blocks", async () => {
+    consent(true);
+    const host = document.createElement("div");
+    host.id = "content";
+    host.innerHTML = '<div class="live-block"></div>';
+    document.body.appendChild(host);
+    const blocks = mount(1, host);
+    await renderBlocks(blocks);
+    expect(blocks[0].querySelector(".live-error").textContent).toBe("Live Block error: invalid source");
+    expect(blocks[0].querySelector(".live-frame, .live-run")).toBeNull();
+    expect(blocks[1].querySelector(".live-source")).not.toBeNull();
+    expect(blocks[1].querySelector(".live-frame")).not.toBeNull();
   });
 });

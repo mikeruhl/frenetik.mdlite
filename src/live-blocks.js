@@ -14,6 +14,7 @@ let documentContent = "";
 let consentCheck = null;
 let generation = 0;
 const frames = new Map();
+const sources = new WeakMap();
 
 /** Records the content being rendered; consent for the open Document is checked against it. */
 export function setLiveDocument(content) {
@@ -63,6 +64,26 @@ function buildSourceView(block, source) {
   setButton(block, false);
 }
 
+function showError(block) {
+  const pre = document.createElement("pre");
+  pre.className = "live-error";
+  pre.textContent = "Live Block error: invalid source";
+  block.replaceChildren(pre);
+}
+
+function prepare(block) {
+  let source;
+  try {
+    source = decodeSource(block.dataset.live);
+  } catch {
+    sources.delete(block);
+    showError(block);
+    return;
+  }
+  sources.set(block, source);
+  buildSourceView(block, source);
+}
+
 function setButton(block, running) {
   const button = block.querySelector(".live-run");
   button.textContent = running ? "Stop" : "Run";
@@ -93,7 +114,7 @@ async function runAll(trigger) {
   const root = trigger.closest("#content");
   if (!root) return;
   for (const block of root.querySelectorAll(".live-block")) {
-    if (block.dataset.liveState !== "running") run(block);
+    if (sources.has(block) && block.dataset.liveState !== "running") run(block);
   }
 }
 
@@ -108,7 +129,7 @@ function run(block) {
   iframe.setAttribute("allow", "");
   iframe.src = frameUrl;
   block.insertBefore(iframe, block.querySelector(".live-source"));
-  const entry = { block, iframe, source: decodeSource(block.dataset.live), pending: new Set() };
+  const entry = { block, iframe, source: sources.get(block), pending: new Set() };
   awaitSnapshot(entry);
   frames.set(iframe.contentWindow, entry);
   setButton(block, true);
@@ -193,9 +214,9 @@ export const liveBlockRenderer = {
     for (const [win, entry] of frames) {
       if (!entry.block.isConnected) forget(win, entry);
     }
-    for (const block of blocks) buildSourceView(block, decodeSource(block.dataset.live));
+    blocks.forEach(prepare);
     if ((await hasConsent()) && rendering === generation) {
-      blocks.filter((block) => block.isConnected).forEach(run);
+      blocks.filter((block) => block.isConnected && sources.has(block)).forEach(run);
     }
   },
 

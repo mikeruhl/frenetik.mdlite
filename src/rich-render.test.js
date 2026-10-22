@@ -89,6 +89,21 @@ describe("awaitRichRender", () => {
     await expect(result).resolves.toBe(true);
   });
 
+  it("stops waiting on a superseded render once a replacement settles", async () => {
+    trackRichRender(new Promise(() => {}));
+    let settled = false;
+    const result = awaitRichRender(10000).then((v) => {
+      settled = true;
+      return v;
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(settled).toBe(false);
+    trackRichRender(Promise.resolve());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(true);
+    await expect(result).resolves.toBe(true);
+  });
+
   it("still times out when replacement work never settles", async () => {
     let finish;
     trackRichRender(new Promise((r) => (finish = r)));

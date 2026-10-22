@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { cloneSvgForSnapshot, collectSvgRules } from "./svg-snapshot.js";
+import { cloneSvgForSnapshot, collectSvgRules, specificity } from "./svg-snapshot.js";
 
 function setStyles(css) {
   const style = document.createElement("style");
@@ -59,6 +59,30 @@ describe("cloneSvgForSnapshot", () => {
     expect(clone.style.fontStyle).toBe("italic");
   });
 
+  it("carries stroke styles inherited from an inline-styled wrapper outside the SVG", () => {
+    const svg = mount(
+      "",
+      '<div style="stroke: rgb(255, 0, 0); stroke-width: 2px; stroke-dasharray: 4px; fill: none">' +
+        '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg></div>'
+    );
+    const clone = cloneSvgForSnapshot(svg);
+    expect(clone.style.stroke).toBe("rgb(255, 0, 0)");
+    expect(clone.style.strokeWidth).toBe("2px");
+    expect(clone.style.strokeDasharray).toBe("4px");
+  });
+
+  it("keeps the removed ancestor's specificity when rewriting a selector", () => {
+    const svg = mount(
+      ".frame .series { stroke: red; } .series.selected { stroke: blue; }",
+      '<div class="frame"><svg xmlns="http://www.w3.org/2000/svg"><path class="series selected"/></svg></div>'
+    );
+    const text = cloneSvgForSnapshot(svg).querySelector("style").textContent;
+    const rewritten = ".series:where(#mdlite-snapshot-root, #mdlite-snapshot-root *):not(.mdlite-specificity-pad)";
+    expect(text).toContain(rewritten);
+    expect(specificity(rewritten)).toEqual(specificity(".frame .series"));
+    expect(text).toContain(".series.selected");
+  });
+
   it("keeps matching rules nested in media blocks", () => {
     const svg = mount(
       "@media screen { .series { stroke: red; } .unused { stroke: blue; } }",
@@ -92,8 +116,8 @@ describe("cloneSvgForSnapshot", () => {
       '<div><svg xmlns="http://www.w3.org/2000/svg" id="chart"><g><path class="series"/></g></svg></div>'
     );
     const text = cloneSvgForSnapshot(svg).querySelector("style").textContent;
-    expect(text).toContain("svg:is(#chart, #chart *) .series");
-    expect(text).toContain("g:is(#chart, #chart *) > .series");
+    expect(text).toContain("svg:where(#chart, #chart *):not(mdlite-specificity-pad #mdlite-specificity-pad) .series");
+    expect(text).toContain("g:where(#chart, #chart *):not(#mdlite-specificity-pad) > .series");
     expect(text).not.toContain(".other");
     expect(text).not.toContain("#root");
   });
@@ -105,7 +129,9 @@ describe("cloneSvgForSnapshot", () => {
     );
     const text = cloneSvgForSnapshot(svg).querySelector("style").textContent;
     expect(text).toMatch(/@media screen\s*\{/);
-    expect(text).toContain(".series:is(#mdlite-snapshot-root, #mdlite-snapshot-root *)");
+    expect(text).toContain(
+      ".series:where(#mdlite-snapshot-root, #mdlite-snapshot-root *):not(#mdlite-specificity-pad)"
+    );
     expect(text).not.toContain(".unused");
   });
 
@@ -149,5 +175,21 @@ describe("cloneSvgForSnapshot", () => {
     };
     const doc = { styleSheets: [blocked, ...document.styleSheets] };
     expect(collectSvgRules(svg, doc).join("")).toContain(".series");
+  });
+});
+
+describe("specificity", () => {
+  it.each([
+    ["*", [0, 0, 0]],
+    ["svg g > path", [0, 0, 3]],
+    ["#root .series[data-x='a]b']", [1, 2, 0]],
+    ["a:hover::before", [0, 1, 2]],
+    ["p:first-line", [0, 0, 2]],
+    [".a:is(#x, .y) :where(#z) .b", [1, 2, 0]],
+    [":not(.a, #b.c)", [1, 1, 0]],
+    ["li:nth-child(2n of .item, #first)", [1, 1, 1]],
+    ["svg\\:rect.x", [0, 1, 1]],
+  ])("%s", (selector, expected) => {
+    expect(specificity(selector)).toEqual(expected);
   });
 });
