@@ -9,6 +9,7 @@ window.d3 = d3;
 const root = document.getElementById("root");
 let settleTimer;
 let lastHeight = 0;
+let hasRun = false;
 
 function post(message) {
   window.parent.postMessage(message, "*");
@@ -23,8 +24,14 @@ function applyTheme(theme) {
   }
 }
 
+function contentHeight() {
+  const body = getComputedStyle(document.body);
+  const rootHeight = Math.max(root.getBoundingClientRect().height, root.scrollHeight);
+  return rootHeight + (parseFloat(body.marginTop) || 0) + (parseFloat(body.marginBottom) || 0);
+}
+
 function reportSize() {
-  const height = Math.ceil(document.documentElement.scrollHeight);
+  const height = Math.ceil(contentHeight());
   if (height !== lastHeight) {
     lastHeight = height;
     post({ type: "size", height });
@@ -51,14 +58,18 @@ function snapshot() {
   return null;
 }
 
+function postSnapshot() {
+  clearTimeout(settleTimer);
+  post(snapshot() ?? { type: "snapshot" });
+}
+
 function scheduleSnapshot() {
   clearTimeout(settleTimer);
-  settleTimer = setTimeout(() => {
-    post(snapshot() ?? { type: "snapshot" });
-  }, SETTLE_MS);
+  settleTimer = setTimeout(postSnapshot, SETTLE_MS);
 }
 
 function run(source) {
+  hasRun = true;
   root.innerHTML = source;
   for (const original of root.querySelectorAll("script")) {
     const script = document.createElement("script");
@@ -70,7 +81,7 @@ function run(source) {
   scheduleSnapshot();
 }
 
-new ResizeObserver(reportSize).observe(document.documentElement);
+new ResizeObserver(reportSize).observe(root);
 new MutationObserver(scheduleSnapshot).observe(root, { childList: true, subtree: true, attributes: true });
 
 window.addEventListener("message", (event) => {
@@ -83,6 +94,8 @@ window.addEventListener("message", (event) => {
   } else if (data.type === "theme") {
     applyTheme(data.theme);
     scheduleSnapshot();
+  } else if (data.type === "snapshot-request" && hasRun) {
+    postSnapshot();
   }
 });
 

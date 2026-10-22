@@ -71,7 +71,7 @@ function setButton(block, running) {
 
 function forget(win, entry) {
   frames.delete(win);
-  entry.settleFirstSnapshot();
+  settleSnapshots(entry);
 }
 
 function stop(block) {
@@ -107,22 +107,35 @@ function run(block) {
   iframe.setAttribute("allow", "");
   iframe.src = frameUrl;
   block.insertBefore(iframe, block.querySelector(".live-source"));
-  let settleFirstSnapshot;
-  const firstSnapshot = new Promise((resolve) => {
-    const timer = setTimeout(resolve, FIRST_SNAPSHOT_TIMEOUT_MS);
-    settleFirstSnapshot = () => {
+  const entry = { block, iframe, source: decodeSource(block.dataset.live), pending: new Set() };
+  awaitSnapshot(entry);
+  frames.set(iframe.contentWindow, entry);
+  setButton(block, true);
+}
+
+function awaitSnapshot(entry) {
+  const snapshot = new Promise((resolve) => {
+    const settle = () => {
       clearTimeout(timer);
+      entry.pending.delete(settle);
       resolve();
     };
+    const timer = setTimeout(settle, FIRST_SNAPSHOT_TIMEOUT_MS);
+    entry.pending.add(settle);
   });
-  joinRichRender(firstSnapshot);
-  frames.set(iframe.contentWindow, {
-    block,
-    iframe,
-    source: decodeSource(block.dataset.live),
-    settleFirstSnapshot,
-  });
-  setButton(block, true);
+  joinRichRender(snapshot);
+}
+
+function settleSnapshots(entry) {
+  for (const settle of entry.pending) settle();
+}
+
+/** Asks each running Live Block for a fresh snapshot and adds the replies to the in-flight Rich Block render. */
+export function requestLiveSnapshots() {
+  for (const entry of frames.values()) {
+    awaitSnapshot(entry);
+    entry.iframe.contentWindow?.postMessage({ type: "snapshot-request" }, "*");
+  }
 }
 
 function snapshotSrc(data) {
@@ -160,7 +173,7 @@ window.addEventListener("message", (event) => {
     entry.iframe.style.height = Math.min(Math.ceil(data.height), MAX_HEIGHT) + "px";
   } else if (data.type === "snapshot") {
     showSnapshot(entry.block, data);
-    entry.settleFirstSnapshot();
+    settleSnapshots(entry);
   }
 });
 

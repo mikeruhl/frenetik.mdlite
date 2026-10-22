@@ -39,6 +39,54 @@ describe("cloneSvgForSnapshot", () => {
     expect(text).not.toContain(".unused");
   });
 
+  it("rewrites selectors scoped to the frame root so they apply in the standalone snapshot", () => {
+    const svg = mount(
+      "#root .series { stroke: red; fill: none; }",
+      '<svg xmlns="http://www.w3.org/2000/svg"><path class="series"/></svg>'
+    );
+    const clone = cloneSvgForSnapshot(svg);
+    const text = clone.querySelector("style").textContent;
+    expect(text).not.toContain("#root");
+    expect(clone.id).toBe("mdlite-snapshot-root");
+    document.body.innerHTML = "";
+    document.head.innerHTML = `<style>${text}</style>`;
+    document.body.appendChild(clone);
+    expect(getComputedStyle(clone.querySelector(".series")).stroke).toBe("rgb(255, 0, 0)");
+    expect(svg.id).toBe("");
+  });
+
+  it("keeps the part of an ancestor selector that lies inside the SVG", () => {
+    const svg = mount(
+      "#root > div svg .series, .other, #root g > .series { stroke: red; }",
+      '<div><svg xmlns="http://www.w3.org/2000/svg" id="chart"><g><path class="series"/></g></svg></div>'
+    );
+    const text = cloneSvgForSnapshot(svg).querySelector("style").textContent;
+    expect(text).toContain("svg:is(#chart, #chart *) .series");
+    expect(text).toContain("g:is(#chart, #chart *) > .series");
+    expect(text).not.toContain(".other");
+    expect(text).not.toContain("#root");
+  });
+
+  it("rewrites frame-scoped selectors nested in media blocks", () => {
+    const svg = mount(
+      "@media screen { #root .series { stroke: red; } #root .unused { stroke: blue; } }",
+      '<svg xmlns="http://www.w3.org/2000/svg"><path class="series"/></svg>'
+    );
+    const text = cloneSvgForSnapshot(svg).querySelector("style").textContent;
+    expect(text).toMatch(/@media screen\s*\{/);
+    expect(text).toContain(".series:is(#mdlite-snapshot-root, #mdlite-snapshot-root *)");
+    expect(text).not.toContain(".unused");
+  });
+
+  it("leaves selectors that already apply within the SVG unchanged", () => {
+    const svg = mount(
+      "svg .series { stroke: red; }",
+      '<svg xmlns="http://www.w3.org/2000/svg"><path class="series"/></svg>'
+    );
+    const clone = cloneSvgForSnapshot(svg);
+    expect(clone.querySelector("style").textContent).toMatch(/^svg \.series \{/);
+  });
+
   it("adds no style element when no rule applies or rules are disabled", () => {
     const svg = mount(
       ".other { stroke: red; }",

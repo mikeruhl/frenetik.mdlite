@@ -133,6 +133,49 @@ describe("print readiness", () => {
     expect(state).toEqual({ done: true, ready: true });
   });
 
+  it("requests a fresh snapshot from each running frame and waits for the reply", async () => {
+    consent(true);
+    const blocks = mount(2);
+    await renderBlocks(blocks);
+    blocks.forEach((block) => post(block, { type: "snapshot" }));
+    const sent = blocks.map((block) => vi.spyOn(block.querySelector(".live-frame").contentWindow, "postMessage"));
+    live.requestLiveSnapshots();
+    for (const spy of sent) expect(spy).toHaveBeenCalledWith({ type: "snapshot-request" }, "*");
+    const state = await readiness();
+    expect(state.done).toBe(false);
+    post(blocks[0], { type: "snapshot", png: "data:image/png;base64,AAAA" });
+    await flush();
+    expect(state.done).toBe(false);
+    post(blocks[1], { type: "snapshot" });
+    await flush();
+    expect(state).toEqual({ done: true, ready: true });
+    expect(blocks[0].querySelector("img.live-snapshot").getAttribute("src")).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("stops waiting for a requested snapshot after the snapshot timeout", async () => {
+    consent(true);
+    const [block] = mount();
+    await renderBlocks([block]);
+    post(block, { type: "snapshot" });
+    live.requestLiveSnapshots();
+    const state = await readiness();
+    await vi.advanceTimersByTimeAsync(live.FIRST_SNAPSHOT_TIMEOUT_MS - 1);
+    expect(state.done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(state).toEqual({ done: true, ready: true });
+  });
+
+  it("one snapshot settles both a pending first snapshot and a requested one", async () => {
+    consent(true);
+    const [block] = mount();
+    await renderBlocks([block]);
+    live.requestLiveSnapshots();
+    const state = await readiness();
+    post(block, { type: "snapshot" });
+    await flush();
+    expect(state).toEqual({ done: true, ready: true });
+  });
+
   it("stopping a frame releases the wait", async () => {
     consent(true);
     const [block] = mount();

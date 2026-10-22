@@ -15,7 +15,7 @@ import {
   setRenderTheme,
 } from "./markdown.js";
 import { bindImagePlaceholders, revealPlaceholders } from "./images.js";
-import { setLiveDocument } from "./live-blocks.js";
+import { setLiveDocument, requestLiveSnapshots } from "./live-blocks.js";
 import { highlightSearchMatches, openSearch, isSearchActive, getSearchQuery, bindSearchEvents } from "./search.js";
 import { toggleToc, refreshToc, bindTocEvents } from "./toc.js";
 import { initInteractive, refreshInteractive } from "./interactive.js";
@@ -81,6 +81,7 @@ async function allowImageHost(host) {
 const RICH_RENDER_TIMEOUT_MS = 10000;
 
 async function whenRichBlocksReady() {
+  requestLiveSnapshots();
   if (!(await awaitRichRender(RICH_RENDER_TIMEOUT_MS))) {
     showToast("Diagrams may be incomplete");
   }
