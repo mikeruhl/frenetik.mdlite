@@ -13,7 +13,10 @@ const INSECURE_WARNING = "This link is not encrypted (http).";
 
 let dismissActive = null;
 
-const byId = (id) => document.getElementById(id);
+function byId(id) {
+  const overlay = document.body.querySelector(":scope > #link-dialog-overlay");
+  return id === "link-dialog-overlay" ? overlay : overlay?.querySelector(`#${id}`);
+}
 
 function fillDestination(el, action) {
   el.replaceChildren();

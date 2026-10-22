@@ -240,4 +240,19 @@ describe("promptFileType", () => {
     await p;
     expect(background.inert).toBe(false);
   });
+
+  it("ignores Document elements that reuse dialog IDs", async () => {
+    const content = document.createElement("div");
+    content.id = "content";
+    content.innerHTML =
+      '<div id="link-dialog-overlay"><a id="link-dialog-destination"></a><button id="link-dialog-cancel"></button></div>';
+    document.body.prepend(content);
+    const dialog = document.body.querySelector(":scope > #link-dialog-overlay");
+    const p = confirmLink({ kind: "confirmOpenFile", path: "C:\\real.pdf" });
+    expect(dialog.querySelector("#link-dialog-destination").textContent).toBe("C:\\real.pdf");
+    expect(dialog.querySelector("#link-dialog-destination").hidden).toBe(false);
+    expect(content.querySelector("#link-dialog-destination").textContent).toBe("");
+    dialog.querySelector("#link-dialog-cancel").click();
+    await expect(p).resolves.toEqual(CANCELLED);
+  });
 });

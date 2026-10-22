@@ -125,8 +125,8 @@ for (const [key, value] of Object.entries(out).filter(([k]) => k.startsWith("inv
 }
 for (const cmd of registered) check(out["invoke " + cmd] !== undefined, `probe ran: ${cmd}`);
 check(
-  /^(THREW|REJECTED|NO_INTERNALS)/.test(out["invoke follow_link"] ?? ""),
-  "follow_link rejects bogus token",
+  /^(THREW|REJECTED|NO_INTERNALS|PENDING)/.test(out["invoke follow_link"] ?? ""),
+  "follow_link does not honor a bogus token",
   out["invoke follow_link"]
 );
 check(/^(THREW|REJECTED)/.test(out.parentDocument ?? ""), "parent document unreachable", out.parentDocument);

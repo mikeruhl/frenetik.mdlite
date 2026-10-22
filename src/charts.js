@@ -144,7 +144,9 @@ export const chartRenderer = {
   async render(blocks) {
     const loaded = await getEngine();
     await nextFrame();
-    for (const block of blocks) await renderChart(block, loaded);
+    for (const block of blocks) {
+      if (block.isConnected) await renderChart(block, loaded);
+    }
   },
 
   setTheme(next) {

@@ -107,6 +107,18 @@ describe("charts", () => {
     expect(finalize).toHaveBeenCalledTimes(4);
   });
 
+  it("does not create views for blocks detached while the engine loads", async () => {
+    const { View } = await import("vega");
+    const run = vi.spyOn(View.prototype, "runAsync");
+    resetRenderState();
+    contentEl.innerHTML = parseMarkdown(chart(bar) + "\n\n" + chart(bar));
+    const pending = renderAllRichBlocks();
+    resetRenderState();
+    contentEl.replaceChildren();
+    await pending;
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("re-renders Charts when the theme changes", async () => {
     const root = await show(chart(bar));
     const before = root.querySelector(".chart-rendered svg");
