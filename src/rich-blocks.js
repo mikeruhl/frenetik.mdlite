@@ -44,9 +44,16 @@ function blocksFor(root, renderer) {
   return [...root.querySelectorAll(renderer.selector)];
 }
 
+/** Waits for every promise to settle, then rethrows the first rejection. */
+async function settleAll(promises) {
+  const results = await Promise.allSettled(promises);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) throw failed.reason;
+}
+
 /** Renders every Rich Block under `root`; resolves when all renderers finish. */
 export async function renderRichBlocks(root) {
-  await Promise.all(
+  await settleAll(
     [...renderers.values()].map((renderer) => {
       const blocks = blocksFor(root, renderer);
       return blocks.length ? renderer.render(blocks) : undefined;
@@ -56,7 +63,7 @@ export async function renderRichBlocks(root) {
 
 /** Applies the app theme to every renderer and re-renders the blocks whose output depends on it. */
 export async function setRichBlockTheme(themeId, root) {
-  await Promise.all(
+  await settleAll(
     [...renderers.values()].map((renderer) => {
       if (!renderer.setTheme(themeId)) return undefined;
       const blocks = blocksFor(root, renderer);

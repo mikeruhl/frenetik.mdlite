@@ -172,4 +172,27 @@ describe("initLinks click handling", () => {
     expect(middle.defaultPrevented).toBe(true);
     await vi.waitFor(() => expect(deps.invoke).toHaveBeenCalledTimes(1));
   });
+
+  describe("SVG anchor with only xlink:href", () => {
+    beforeEach(() => {
+      document
+        .getElementById("content")
+        .insertAdjacentHTML(
+          "beforeend",
+          '<svg xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="z.md"><text id="svg-text">z</text></a></svg>'
+        );
+    });
+
+    it("click is prevented and activated", async () => {
+      const e = fire(document.getElementById("svg-text"));
+      expect(e.defaultPrevented).toBe(true);
+      await vi.waitFor(() => expect(deps.invoke).toHaveBeenCalledWith("resolve_link", { href: "z.md" }));
+    });
+
+    it("middle click is prevented and activated", async () => {
+      const e = fire(document.getElementById("svg-text"), "auxclick", { button: 1 });
+      expect(e.defaultPrevented).toBe(true);
+      await vi.waitFor(() => expect(deps.invoke).toHaveBeenCalledWith("resolve_link", { href: "z.md" }));
+    });
+  });
 });

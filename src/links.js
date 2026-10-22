@@ -33,9 +33,9 @@ export async function activateLink(href, deps) {
 export function initLinks(deps) {
   const handle = (e) => {
     if (e.type === "auxclick" && e.button !== 1) return;
-    const anchor = e.target.closest?.("a[href]");
-    if (!anchor) return;
-    const href = anchor.getAttribute("href");
+    const anchor = e.target.closest?.("a");
+    const href = anchor?.getAttribute("href") ?? anchor?.getAttribute("xlink:href");
+    if (href == null) return;
     e.preventDefault();
     if (!(deps.isTrusted ?? ((ev) => ev.isTrusted))(e)) return;
     if (href.startsWith("#")) {

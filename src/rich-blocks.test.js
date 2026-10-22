@@ -71,6 +71,41 @@ describe("rich block registry", () => {
     expect(beta.render).not.toHaveBeenCalled();
   });
 
+  describe("when one renderer rejects while another is pending", () => {
+    function deferred() {
+      let resolve;
+      const promise = new Promise((r) => (resolve = r));
+      return { promise, resolve };
+    }
+
+    async function expectWaitsForPending(run) {
+      const pending = deferred();
+      alpha.render.mockImplementationOnce(() => Promise.reject(new Error("import failed")));
+      beta.render.mockImplementationOnce(() => pending.promise);
+      let settled = false;
+      const done = run().then(
+        () => (settled = "resolved"),
+        (err) => (settled = err.message)
+      );
+      await new Promise((r) => setTimeout(r, 0));
+      expect(settled).toBe(false);
+      pending.resolve();
+      await done;
+      expect(settled).toBe("import failed");
+    }
+
+    it("renderRichBlocks waits for every renderer, then rejects", async () => {
+      const root = mount(emitRichBlock("alpha", "a") + emitRichBlock("beta", "b"));
+      await expectWaitsForPending(() => renderRichBlocks(root));
+    });
+
+    it("setRichBlockTheme waits for every renderer, then rejects", async () => {
+      beta.setTheme.mockReturnValueOnce(true);
+      const root = mount(emitRichBlock("alpha", "a") + emitRichBlock("beta", "b"));
+      await expectWaitsForPending(() => setRichBlockTheme("github-dark", root));
+    });
+  });
+
   it("builds a selector covering every registered container", () => {
     const root = mount(emitRichBlock("alpha", "a") + emitRichBlock("beta", "b") + "<div class='other'></div>");
     expect(root.querySelectorAll(richBlockSelector())).toHaveLength(2);
