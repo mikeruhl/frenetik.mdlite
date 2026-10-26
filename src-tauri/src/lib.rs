@@ -638,6 +638,8 @@ pub fn run() {
                         s.show_outline = !s.show_outline;
                     }
                     let _ = handle.emit("toggle-outline", ());
+                } else if id == "toggle-sidebar" {
+                    let _ = handle.emit("toggle-sidebar", ());
                 } else if id == "toggle-print-header" {
                     let new_val = {
                         let state = handle.state::<Mutex<AppState>>();

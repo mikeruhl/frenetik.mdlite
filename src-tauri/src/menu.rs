@@ -144,6 +144,9 @@ pub(crate) fn build_menu(
         .accelerator("CmdOrCtrl+Shift+O")
         .checked(show_outline)
         .build(app)?;
+    let toggle_sidebar = MenuItemBuilder::with_id("toggle-sidebar", "Toggle Sidebar")
+        .accelerator("CmdOrCtrl+B")
+        .build(app)?;
     let full_width_item = CheckMenuItemBuilder::with_id("toggle-full-width", "Full Width")
         .checked(full_width)
         .build(app)?;
@@ -199,6 +202,7 @@ pub(crate) fn build_menu(
         .item(&zoom_reset)
         .separator()
         .item(&toggle_outline)
+        .item(&toggle_sidebar)
         .item(&full_width_item)
         .item(&show_hidden_files_item)
         .item(&show_frontmatter_item)

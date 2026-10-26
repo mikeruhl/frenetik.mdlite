@@ -33,6 +33,7 @@ import {
   navigateToFile,
   navigateToFolderLink,
 } from "./sidebar.js";
+import { initSidebarLayout, toggleSidebar } from "./sidebar-layout.js";
 import { initLinks } from "./links.js";
 import { confirmLink, promptFileType } from "./link-dialog.js";
 
@@ -173,6 +174,7 @@ A lightweight markdown previewer.
 | Zoom out | Ctrl+- |
 | Reset zoom | Ctrl+0 |
 | Toggle outline | Ctrl+Shift+O |
+| Toggle sidebar (folder mode) | Ctrl+B |
 | Print | Ctrl+P |
 | Export to PDF | Ctrl+Shift+E |
 | Copy file path | Shift+Alt+C |
@@ -205,6 +207,7 @@ await listen("enter-folder-mode", async () => {
   startupErrorMsg = null;
   clearTimeout(folderChangedTimer);
   pendingFolderChanges = [];
+  initSidebarLayout("folder");
   await enterFolderMode();
 });
 
@@ -246,6 +249,10 @@ await listen("enter-file-mode", () => {
 
 await listen("toggle-outline", () => {
   toggleToc();
+});
+
+await listen("toggle-sidebar", () => {
+  toggleSidebar();
 });
 
 await listen("open-search", () => {
@@ -418,7 +425,9 @@ document.body.classList.toggle("full-width", fullWidth);
 
 showFrontmatter = (await store.get("show_frontmatter")) ?? false;
 
-await initInteractive({ contentEl, scrollRoot: mainContentEl });
+if (await initInteractive({ contentEl, scrollRoot: mainContentEl })) {
+  initSidebarLayout("interactive");
+}
 
 const modeInfo = await invoke("get_mode");
 const startupError = await invoke("get_startup_error");
@@ -429,6 +438,7 @@ if (startupError) {
 } else if (modeInfo.mode === "empty") {
   await render(WELCOME_MD);
 } else if (modeInfo.mode === "folder") {
+  initSidebarLayout("folder");
   initFolderStartup(modeInfo);
 
   if (modeInfo.current_file) {
@@ -475,6 +485,9 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     applyZoom(100);
     store.set("zoom", 100);
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "KeyB" && toggleSidebar()) {
+    e.preventDefault();
   }
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "p") {
     e.preventDefault();

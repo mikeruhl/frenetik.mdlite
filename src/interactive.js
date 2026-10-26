@@ -5,6 +5,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { parseMarkdown } from "./markdown.js";
 import { initialState, toPayload, missingRequired, isDirty } from "./answers.js";
 import { createAnchorLinks, flash } from "./anchors.js";
+import { expandSidebar } from "./sidebar-layout.js";
 
 const OTHER = "";
 
@@ -15,7 +16,6 @@ const statusEl = document.getElementById("interactive-status");
 const errorEl = document.getElementById("interactive-error");
 const submitBtn = document.getElementById("interactive-submit");
 const cancelBtn = document.getElementById("interactive-cancel");
-const collapseBtn = document.getElementById("interactive-collapse");
 
 let questions = [];
 let state = {};
@@ -192,16 +192,10 @@ function activateQuestions(ids) {
   if (fieldsets.length && !editing) fieldsets[0].scrollIntoView({ block: "nearest" });
 }
 
-function setCollapsed(collapsed) {
-  document.body.classList.toggle("interactive-collapsed", collapsed);
-  collapseBtn.title = collapsed ? "Show questions" : "Hide questions";
-  collapseBtn.setAttribute("aria-label", collapseBtn.title);
-}
-
 function goToQuestion(id) {
   const fieldset = fieldsetFor(id);
   if (!fieldset) return;
-  setCollapsed(false);
+  expandSidebar();
   fieldset.scrollIntoView({ behavior: "smooth", block: "center" });
   flash(fieldset);
   fieldset.querySelector("input:not([disabled]), textarea")?.focus({ preventScroll: true });
@@ -236,7 +230,6 @@ export async function initInteractive({ contentEl, scrollRoot }) {
 
   submitBtn.addEventListener("click", submit);
   cancelBtn.addEventListener("click", cancel);
-  collapseBtn.addEventListener("click", () => setCollapsed(!document.body.classList.contains("interactive-collapsed")));
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
