@@ -30,7 +30,7 @@
 - [x] 4.4 Verify rendering in all 11 bundled themes (divider, hover, focus, expand tab)
 - [x] 4.5 Verify print output is unchanged; verify mermaid/chart blocks reflow after resize
 - [x] 4.6 Verify live file watcher updates still add and remove tree entries while collapsed and after resizing
-- [ ] 4.7 Include a manual test plan in the PR description for the UI behavior not covered by unit tests
+- [x] 4.7 Include a manual test plan in the PR description for the UI behavior not covered by unit tests
 
 ## 5. Interactive parity, icon, attribution
 

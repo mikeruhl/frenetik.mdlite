@@ -174,7 +174,7 @@ A lightweight markdown previewer.
 | Zoom out | Ctrl+- |
 | Reset zoom | Ctrl+0 |
 | Toggle outline | Ctrl+Shift+O |
-| Toggle sidebar (folder mode) | Ctrl+B |
+| Toggle sidebar | Ctrl+B |
 | Print | Ctrl+P |
 | Export to PDF | Ctrl+Shift+E |
 | Copy file path | Shift+Alt+C |

@@ -13,7 +13,7 @@ const MODES = {
     widthKey: "mdlite-sidebar-width",
     collapsedKey: "mdlite-sidebar-collapsed",
     collapseId: "sidebar-collapse",
-    expandLabel: "Show sidebar (Ctrl+B)",
+    expandLabel: "Show sidebar",
   },
   interactive: {
     bodyClass: "interactive-mode",
@@ -21,7 +21,7 @@ const MODES = {
     widthKey: "mdlite-interactive-width",
     collapsedKey: null,
     collapseId: "interactive-collapse",
-    expandLabel: "Show questions (Ctrl+B)",
+    expandLabel: "Show questions",
   },
 };
 
@@ -51,7 +51,7 @@ function writeStorage(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch {
-    // Layout is presentational; losing persistence is acceptable.
+    return;
   }
 }
 
@@ -93,7 +93,7 @@ function setCollapsed(value) {
 }
 
 function layoutControlsActive() {
-  return document.body.classList.contains("folder-mode") || document.body.classList.contains("interactive-mode");
+  return Object.values(MODES).some((m) => document.body.classList.contains(m.bodyClass));
 }
 
 export function toggleSidebar() {
@@ -167,8 +167,8 @@ function bindKeyboard() {
 function loadStored() {
   preferredWidth = parseStoredWidth(readStorage(mode.widthKey), window.innerWidth, mode.defaultWidth);
   collapsed = mode.collapsedKey ? readStorage(mode.collapsedKey) === "true" : false;
-  expandBtn.title = mode.expandLabel;
-  expandBtn.setAttribute("aria-label", mode.expandLabel.replace(/ \(.*\)$/, ""));
+  expandBtn.title = `${mode.expandLabel} (Ctrl+B)`;
+  expandBtn.setAttribute("aria-label", mode.expandLabel);
   renderWidth();
   renderCollapsed();
 }

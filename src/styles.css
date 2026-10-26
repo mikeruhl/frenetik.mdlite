@@ -389,7 +389,6 @@ body.dark-sidebar .tree-item.active {
   color: #fff;
 }
 
-/* Sidebar layout controls (folder mode and interactive mode) */
 #sidebar-title {
   flex: 1;
   min-width: 0;
