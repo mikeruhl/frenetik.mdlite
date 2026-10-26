@@ -31,7 +31,7 @@
 
 - [x] 5.1 `cargo clippy -- -D warnings` and `cargo test` pass
 - [x] 5.2 ESLint passes
-- [ ] 5.3 Confirm Windows build shows no new menu items and Linux/Windows compile with the macOS code gated out
-- [ ] 5.4 Manual test on macOS: install, new terminal runs `mdlite --help`, reinstall repoints, uninstall removes,
+- [x] 5.3 Confirm Windows build shows no new menu items and Linux/Windows compile with the macOS code gated out
+- [x] 5.4 Manual test on macOS: install, new terminal runs `mdlite --help`, reinstall repoints, uninstall removes,
   uninstall again reports not installed, cancel at prompt is silent, foreign file at the path is left alone
-- [ ] 5.5 Include the macOS manual test plan in the PR description
+- [x] 5.5 Include the macOS manual test plan in the PR description
