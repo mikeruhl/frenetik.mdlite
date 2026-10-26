@@ -53,8 +53,10 @@ changes.
 On macOS the system SHALL provide **File → Install Command Line Tool** and **File → Uninstall Command Line Tool**
 menu items. Install SHALL create the symlink `/usr/local/bin/mdlite` pointing at the running app bundle executable
 (`<bundle>.app/Contents/MacOS/mdlite`), creating `/usr/local/bin` if it does not exist, after obtaining
-administrator authorization through the native macOS password prompt. Uninstall SHALL remove `/usr/local/bin/mdlite`
-only when it is a symlink pointing into an mdlite app bundle. These items SHALL NOT appear on Windows or Linux.
+administrator authorization through the native macOS password prompt. Install SHALL replace an existing symlink at
+that path without following it, and SHALL refuse when a directory is there. Uninstall SHALL remove
+`/usr/local/bin/mdlite` only when it is a symlink pointing into an mdlite app bundle, and SHALL check this again after
+authorization. These items SHALL NOT appear on Windows or Linux.
 
 #### Scenario: Install succeeds
 
@@ -66,6 +68,12 @@ only when it is a symlink pointing into an mdlite app bundle. These items SHALL 
 
 - **WHEN** `/usr/local/bin/mdlite` already exists and the user selects **File → Install Command Line Tool**
 - **THEN** the link is replaced so it points at the running app bundle executable
+
+#### Scenario: Install does not write through a directory
+
+- **WHEN** `/usr/local/bin/mdlite` is a directory, or a symlink to a directory, and the user installs
+- **THEN** nothing is written inside that directory; a symlink is replaced with the new link, and a real directory is
+  left unchanged with an error shown to the user
 
 #### Scenario: Install refused for a non-bundle executable
 
@@ -88,6 +96,12 @@ only when it is a symlink pointing into an mdlite app bundle. These items SHALL 
 
 - **WHEN** `/usr/local/bin/mdlite` is a regular file, or a symlink that does not point into an mdlite app bundle
 - **THEN** nothing is removed and the user sees an error stating the file was not installed by mdlite
+
+#### Scenario: Link changes while the password prompt is open
+
+- **WHEN** `/usr/local/bin/mdlite` is replaced or repointed after the user selects **Uninstall Command Line Tool** and
+  before they authorize
+- **THEN** nothing is removed and the user sees an error stating the file changed and was left unchanged
 
 #### Scenario: Uninstall when not installed
 

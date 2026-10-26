@@ -12,11 +12,13 @@ const UNINSTALLED_EVENT: &str = "cli-tool-uninstalled";
 const ERROR_EVENT: &str = "cli-tool-error";
 
 const NOT_IN_BUNDLE_ERROR: &str = "The command line tool can only be installed from the installed mdlite app.";
+const IS_DIRECTORY_ERROR: &str = "/usr/local/bin/mdlite is a directory, so it was left unchanged.";
+const CHANGED_ERROR: &str = "/usr/local/bin/mdlite changed before it could be removed, so it was left unchanged.";
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum LinkState {
     Missing,
-    Ours,
+    Ours(PathBuf),
     Foreign,
 }
 
@@ -43,7 +45,7 @@ pub(crate) fn classify_link(link: &Path) -> LinkState {
         Err(_) => LinkState::Missing,
         Ok(meta) if !meta.file_type().is_symlink() => LinkState::Foreign,
         Ok(_) => match std::fs::read_link(link) {
-            Ok(target) if is_bundle_executable(&target) => LinkState::Ours,
+            Ok(target) if is_bundle_executable(&target) => LinkState::Ours(target),
             _ => LinkState::Foreign,
         },
     }
@@ -57,21 +59,29 @@ fn escape_applescript(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// Refuses a real directory at the link path and uses `ln -h` so an existing symlink is replaced, not followed.
 pub(crate) fn build_install_command(target: &Path) -> String {
     let dir = Path::new(LINK_PATH)
         .parent()
         .and_then(Path::to_str)
         .unwrap_or("/usr/local/bin");
+    let link = shell_quote(LINK_PATH);
     format!(
-        "/bin/mkdir -p {} && /bin/ln -sf {} {}",
-        shell_quote(dir),
-        shell_quote(&target.to_string_lossy()),
-        shell_quote(LINK_PATH)
+        "/bin/mkdir -p {dir} && if [ -d {link} ] && [ ! -L {link} ]; then echo {err} >&2; exit 1; fi && /bin/ln -sfh {target} {link}",
+        dir = shell_quote(dir),
+        err = shell_quote(IS_DIRECTORY_ERROR),
+        target = shell_quote(&target.to_string_lossy()),
     )
 }
 
-pub(crate) fn build_uninstall_command() -> String {
-    format!("/bin/rm -f {}", shell_quote(LINK_PATH))
+/// Rechecks the link after authorization so a path replaced while the prompt was open is left alone.
+pub(crate) fn build_uninstall_command(expected_target: &Path) -> String {
+    let link = shell_quote(LINK_PATH);
+    format!(
+        "if [ -L {link} ] && [ \"$(/usr/bin/readlink {link})\" = {target} ]; then /bin/rm -f {link}; else echo {err} >&2; exit 1; fi",
+        target = shell_quote(&expected_target.to_string_lossy()),
+        err = shell_quote(CHANGED_ERROR),
+    )
 }
 
 pub(crate) fn build_apple_script(shell_command: &str) -> String {
@@ -89,7 +99,16 @@ pub(crate) fn osascript_error(stderr: &str) -> Option<String> {
     } else if trimmed.is_empty() {
         Some("The administrator command failed.".to_string())
     } else {
-        Some(trimmed.to_string())
+        Some(strip_osascript_wrapping(trimmed).to_string())
+    }
+}
+
+/// Reduces `0:100: execution error: <message> (1)` to `<message>`.
+fn strip_osascript_wrapping(stderr: &str) -> &str {
+    let message = stderr.split_once("execution error: ").map_or(stderr, |(_, rest)| rest);
+    match message.rsplit_once(" (") {
+        Some((text, code)) if code.ends_with(')') && code[..code.len() - 1].parse::<i32>().is_ok() => text,
+        _ => message,
     }
 }
 
@@ -125,7 +144,9 @@ fn run_uninstall() -> Result<Option<String>, String> {
         LinkState::Foreign => Err(format!(
             "{LINK_PATH} was not installed by mdlite, so it was left unchanged."
         )),
-        LinkState::Ours => Ok(run_elevated(&build_uninstall_command())?.then(|| format!("Removed {LINK_PATH}"))),
+        LinkState::Ours(target) => {
+            Ok(run_elevated(&build_uninstall_command(&target))?.then(|| format!("Removed {LINK_PATH}")))
+        }
     }
 }
 
@@ -194,13 +215,21 @@ mod tests {
         let cmd = build_install_command(Path::new("/Users/o'neil/My Apps/mdlite.app/Contents/MacOS/mdlite"));
         assert_eq!(
             cmd,
-            "/bin/mkdir -p '/usr/local/bin' && /bin/ln -sf '/Users/o'\\''neil/My Apps/mdlite.app/Contents/MacOS/mdlite' '/usr/local/bin/mdlite'"
+            "/bin/mkdir -p '/usr/local/bin' && if [ -d '/usr/local/bin/mdlite' ] && [ ! -L '/usr/local/bin/mdlite' ]; \
+             then echo '/usr/local/bin/mdlite is a directory, so it was left unchanged.' >&2; exit 1; fi && \
+             /bin/ln -sfh '/Users/o'\\''neil/My Apps/mdlite.app/Contents/MacOS/mdlite' '/usr/local/bin/mdlite'"
         );
     }
 
     #[test]
-    fn uninstall_command_removes_only_the_link() {
-        assert_eq!(build_uninstall_command(), "/bin/rm -f '/usr/local/bin/mdlite'");
+    fn uninstall_command_removes_only_the_expected_link() {
+        assert_eq!(
+            build_uninstall_command(Path::new("/Applications/mdlite.app/Contents/MacOS/mdlite")),
+            "if [ -L '/usr/local/bin/mdlite' ] && \
+             [ \"$(/usr/bin/readlink '/usr/local/bin/mdlite')\" = '/Applications/mdlite.app/Contents/MacOS/mdlite' ]; \
+             then /bin/rm -f '/usr/local/bin/mdlite'; \
+             else echo '/usr/local/bin/mdlite changed before it could be removed, so it was left unchanged.' >&2; exit 1; fi"
+        );
     }
 
     #[test]
@@ -222,7 +251,17 @@ mod tests {
     fn osascript_failures_carry_the_message() {
         assert_eq!(
             osascript_error("execution error: ln: Permission denied (1)\n"),
-            Some("execution error: ln: Permission denied (1)".to_string())
+            Some("ln: Permission denied".to_string())
+        );
+        assert_eq!(
+            osascript_error(
+                "0:100: execution error: /usr/local/bin/mdlite is a directory, so it was left unchanged. (1)\n"
+            ),
+            Some(IS_DIRECTORY_ERROR.to_string())
+        );
+        assert_eq!(
+            osascript_error("something unexpected (not a code)"),
+            Some("something unexpected (not a code)".to_string())
         );
         assert_eq!(
             osascript_error("  "),
@@ -256,6 +295,12 @@ mod tests {
         std::os::unix::fs::symlink("/usr/bin/true", &foreign).unwrap();
         let results = (classify_link(&ours), classify_link(&foreign));
         std::fs::remove_dir_all(&dir).unwrap();
-        assert_eq!(results, (LinkState::Ours, LinkState::Foreign));
+        assert_eq!(
+            results,
+            (
+                LinkState::Ours(PathBuf::from("/Applications/mdlite.app/Contents/MacOS/mdlite")),
+                LinkState::Foreign
+            )
+        );
     }
 }
