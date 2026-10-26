@@ -152,6 +152,7 @@ function bindDrag() {
 
 function bindKeyboard() {
   dividerEl.addEventListener("keydown", (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const step = e.shiftKey ? KEY_STEP_LARGE : KEY_STEP;
     let next;
     if (e.key === "ArrowLeft") next = appliedWidth() - step;
