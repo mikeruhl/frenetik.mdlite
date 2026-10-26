@@ -206,6 +206,8 @@ mod dock {
         fn class_addMethod(cls: Class, sel: Sel, imp: *const c_void, types: *const c_char) -> bool;
     }
 
+    // objc_msgSend is deliberately declared once per call signature.
+    #[allow(clashing_extern_declarations)]
     extern "C" {
         #[link_name = "objc_msgSend"]
         fn msg0(obj: Id, sel: Sel) -> Id;
@@ -247,8 +249,8 @@ mod dock {
 
     fn register_handler_class() {
         unsafe {
-            let super_cls = objc_getClass(b"NSObject\0".as_ptr().cast());
-            let new_cls = objc_allocateClassPair(super_cls, b"MdliteDockHandler\0".as_ptr().cast(), 0);
+            let super_cls = objc_getClass(c"NSObject".as_ptr());
+            let new_cls = objc_allocateClassPair(super_cls, c"MdliteDockHandler".as_ptr(), 0);
             if new_cls.is_null() {
                 return;
             }
@@ -257,13 +259,13 @@ mod dock {
                 new_cls,
                 sel(b"openFile:\0"),
                 handle_open_file as *const c_void,
-                b"v@:@\0".as_ptr().cast(),
+                c"v@:@".as_ptr(),
             );
             class_addMethod(
                 new_cls,
                 sel(b"openFolder:\0"),
                 handle_open_folder as *const c_void,
-                b"v@:@\0".as_ptr().cast(),
+                c"v@:@".as_ptr(),
             );
 
             objc_registerClassPair(new_cls);
