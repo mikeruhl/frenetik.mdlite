@@ -11,14 +11,37 @@
   <body>
     <div id="app-container">
       <nav id="sidebar">
-        <div id="sidebar-header"></div>
+        <div id="sidebar-header">
+          <button
+            id="sidebar-collapse"
+            class="sidebar-collapse-btn"
+            type="button"
+            title="Hide sidebar (Ctrl+B)"
+            aria-label="Hide sidebar"
+            aria-expanded="true"
+          >
+            <svg class="sidebar-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2 2.5v11M14 8H5.5M8.5 4.5 5 8l3.5 3.5" />
+            </svg>
+          </button>
+          <span id="sidebar-title"></span>
+        </div>
         <div id="sidebar-tree"></div>
         <section id="interactive-panel" aria-label="Questions" hidden>
           <div id="interactive-header">
-            <span id="interactive-title"></span>
-            <button id="interactive-collapse" type="button" title="Hide questions" aria-label="Hide questions">
-              &#x25C0;
+            <button
+              id="interactive-collapse"
+              class="sidebar-collapse-btn"
+              type="button"
+              title="Hide questions (Ctrl+B)"
+              aria-label="Hide questions"
+              aria-expanded="true"
+            >
+              <svg class="sidebar-icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2 2.5v11M14 8H5.5M8.5 4.5 5 8l3.5 3.5" />
+              </svg>
             </button>
+            <span id="interactive-title"></span>
           </div>
           <div id="interactive-questions"></div>
           <div id="interactive-footer">
@@ -31,6 +54,24 @@
           </div>
         </section>
       </nav>
+      <div
+        id="sidebar-divider"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        tabindex="0"
+      ></div>
+      <button
+        id="sidebar-expand"
+        type="button"
+        title="Show sidebar (Ctrl+B)"
+        aria-label="Show sidebar"
+        aria-expanded="true"
+      >
+        <svg class="sidebar-icon sidebar-icon-flip" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 2.5v11M14 8H5.5M8.5 4.5 5 8l3.5 3.5" />
+        </svg>
+      </button>
       <div id="main-content">
         <div id="search-bar" class="search-hidden">
           <input id="search-input" type="text" placeholder="Search..." spellcheck="false" autocomplete="off" />

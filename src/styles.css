@@ -70,15 +70,16 @@ body.dark-sidebar #attribution a {
 }
 
 body.folder-mode #attribution {
-  left: 250px;
+  left: var(--sidebar-width, 250px);
 }
 
 body.interactive-mode #attribution {
-  left: 340px;
+  left: var(--sidebar-width, 340px);
 }
 
-body.interactive-mode.interactive-collapsed #attribution {
-  left: 36px;
+body.folder-mode.sidebar-collapsed #attribution,
+body.interactive-mode.sidebar-collapsed #attribution {
+  left: 0;
 }
 
 body.toc-visible #attribution {
@@ -307,7 +308,15 @@ body.interactive-mode #sidebar {
   display: flex;
 }
 
+body.folder-mode:not(.interactive-mode) #sidebar {
+  width: var(--sidebar-width, 250px);
+}
+
 #sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 10px 12px;
   font-size: 11px;
   font-weight: 600;
@@ -378,6 +387,169 @@ body.dark-sidebar .tree-item:hover {
 body.dark-sidebar .tree-item.active {
   background: #37373d;
   color: #fff;
+}
+
+#sidebar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sidebar-collapse,
+#interactive-collapse,
+#sidebar-expand,
+#sidebar-divider {
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+#sidebar-collapse,
+#interactive-collapse,
+#sidebar-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e0e0e0;
+  background: #f5f5f5;
+  color: #555;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sidebar-icon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.sidebar-icon-flip {
+  transform: scaleX(-1);
+}
+
+#sidebar-collapse,
+#interactive-collapse {
+  width: 22px;
+  height: 22px;
+  margin: 0 0 0 -10px;
+  flex-shrink: 0;
+  border-color: transparent;
+  background: transparent;
+  border-radius: 3px;
+}
+
+#sidebar-collapse:hover,
+#interactive-collapse:hover {
+  background: #e0e0e0;
+}
+
+#sidebar-expand {
+  display: none;
+  position: fixed;
+  top: 8px;
+  left: 0;
+  z-index: 30;
+  width: 18px;
+  height: 32px;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+
+#sidebar-expand:hover {
+  background: #e0e0e0;
+}
+
+#sidebar-collapse:focus-visible,
+#interactive-collapse:focus-visible,
+#sidebar-expand:focus-visible {
+  outline: 2px solid #0366d6;
+  outline-offset: -2px;
+}
+
+#sidebar-divider {
+  display: none;
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+  width: 6px;
+  margin-right: -5px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+#sidebar-divider::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: transparent;
+}
+
+#sidebar-divider:hover::before,
+#sidebar-divider:focus-visible::before,
+body.sidebar-resizing #sidebar-divider::before {
+  background: #0366d6;
+}
+
+body.folder-mode #sidebar-divider,
+body.interactive-mode #sidebar-divider {
+  display: block;
+}
+
+body.folder-mode.sidebar-collapsed #sidebar,
+body.folder-mode.sidebar-collapsed #sidebar-divider,
+body.interactive-mode.sidebar-collapsed #sidebar,
+body.interactive-mode.sidebar-collapsed #sidebar-divider {
+  display: none;
+}
+
+body.folder-mode.sidebar-collapsed #sidebar-expand,
+body.interactive-mode.sidebar-collapsed #sidebar-expand {
+  display: inline-flex;
+}
+
+body.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.dark-sidebar #sidebar-collapse,
+body.dark-sidebar #interactive-collapse,
+body.dark-sidebar #sidebar-expand {
+  color: #ccc;
+}
+
+body.dark-sidebar #sidebar-collapse:hover,
+body.dark-sidebar #interactive-collapse:hover,
+body.dark-sidebar #sidebar-expand:hover {
+  background: #2a2d2e;
+}
+
+body.dark-sidebar #sidebar-expand {
+  background: #1e1e1e;
+  border-color: #333;
+}
+
+body.dark-sidebar #sidebar-divider:hover::before,
+body.dark-sidebar #sidebar-divider:focus-visible::before,
+body.dark-sidebar.sidebar-resizing #sidebar-divider::before {
+  background: #4fa3ff;
+}
+
+body.dark-sidebar #sidebar-collapse:focus-visible,
+body.dark-sidebar #interactive-collapse:focus-visible,
+body.dark-sidebar #sidebar-expand:focus-visible {
+  outline-color: #4fa3ff;
 }
 
 /* Search bar */
@@ -781,7 +953,7 @@ body.dark-sidebar .toc-empty {
 
 /* Interactive mode: questions panel in the sidebar slot */
 body.interactive-mode #sidebar {
-  width: 340px;
+  width: var(--sidebar-width, 340px);
   margin: 0;
   padding: 0;
   max-width: none;
@@ -792,10 +964,6 @@ body.interactive-mode #sidebar {
 body.interactive-mode #sidebar-header,
 body.interactive-mode #sidebar-tree {
   display: none;
-}
-
-body.interactive-mode.interactive-collapsed #sidebar {
-  width: 36px;
 }
 
 #interactive-panel {
@@ -826,7 +994,6 @@ body.interactive-mode.interactive-collapsed #sidebar {
 #interactive-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
   font-size: 11px;
@@ -838,6 +1005,8 @@ body.interactive-mode.interactive-collapsed #sidebar {
 }
 
 #interactive-title {
+  flex: 1;
+  min-width: 0;
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -845,33 +1014,15 @@ body.interactive-mode.interactive-collapsed #sidebar {
 }
 
 #interactive-collapse {
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  padding: 0 2px;
-  opacity: 0.6;
-  line-height: 1;
+  width: 22px;
+  height: 22px;
+  margin: 0 0 0 -10px;
+  padding: 0;
 }
 
-#interactive-collapse:hover {
-  opacity: 1;
-}
-
-body.interactive-collapsed #interactive-collapse {
-  transform: rotate(180deg);
-}
-
-body.interactive-collapsed #interactive-header {
-  justify-content: center;
-  padding: 10px 0;
-}
-
-body.interactive-collapsed #interactive-title,
-body.interactive-collapsed #interactive-questions,
-body.interactive-collapsed #interactive-footer {
-  display: none;
+#interactive-panel .sidebar-icon {
+  width: 14px;
+  height: 14px;
 }
 
 #interactive-questions {
@@ -1029,6 +1180,7 @@ body.interactive-collapsed #interactive-footer {
 
 #interactive-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }
@@ -1723,6 +1875,8 @@ body.dark-sidebar #about-update-result a {
   }
 
   #sidebar,
+  #sidebar-divider,
+  #sidebar-expand,
   #search-bar,
   #toast,
   #toc-panel,

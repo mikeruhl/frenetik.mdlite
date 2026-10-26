@@ -4,7 +4,8 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 async function loadSidebar() {
   vi.resetModules();
-  document.body.innerHTML = '<div id="main-content"></div><div id="sidebar-header"></div><div id="sidebar-tree"></div>';
+  document.body.innerHTML =
+    '<div id="main-content"></div><div id="sidebar-header"><span id="sidebar-title"></span></div><div id="sidebar-tree"></div>';
   return import("./sidebar.js");
 }
 

@@ -3,7 +3,7 @@ import { pushNavigation } from "./history.js";
 import { showToast } from "./toast.js";
 
 const mainContentEl = document.getElementById("main-content");
-const sidebarHeaderEl = document.getElementById("sidebar-header");
+const sidebarTitleEl = document.getElementById("sidebar-title");
 const sidebarTreeEl = document.getElementById("sidebar-tree");
 
 const folderNodeMap = new Map();
@@ -269,7 +269,7 @@ export async function enterFolderMode() {
   const modeInfo = await invoke("get_mode");
 
   if (modeInfo.folder_name) {
-    sidebarHeaderEl.textContent = modeInfo.folder_name;
+    sidebarTitleEl.textContent = modeInfo.folder_name;
   }
   currentFilePath = modeInfo.current_file || null;
 
@@ -298,7 +298,7 @@ export function resetSidebarForRescan() {
 export function initFolderStartup(modeInfo) {
   document.body.classList.add("folder-mode");
   if (modeInfo.folder_name) {
-    sidebarHeaderEl.textContent = modeInfo.folder_name;
+    sidebarTitleEl.textContent = modeInfo.folder_name;
   }
   currentFilePath = modeInfo.current_file || null;
   folderNodeMap.clear();
