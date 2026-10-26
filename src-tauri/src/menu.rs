@@ -3,6 +3,8 @@ use std::sync::Mutex;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::Manager;
 
+#[cfg(target_os = "macos")]
+use crate::cli_install;
 use crate::commands::current_file_display_path;
 use crate::config::{
     store_get_image_allowlist, store_get_recent, store_get_safe_file_types, store_get_trusted_origins,
@@ -115,11 +117,19 @@ pub(crate) fn build_menu(
         file_menu = file_menu.item(&export_pdf_item);
     }
 
-    let file_menu = file_menu
-        .item(&print_header_item)
-        .separator()
-        .item(&PredefinedMenuItem::quit(app, None)?)
-        .build()?;
+    #[allow(unused_mut)]
+    let mut file_menu = file_menu.item(&print_header_item).separator();
+
+    #[cfg(target_os = "macos")]
+    {
+        let install_cli =
+            MenuItemBuilder::with_id(cli_install::INSTALL_MENU_ID, "Install Command Line Tool").build(app)?;
+        let uninstall_cli =
+            MenuItemBuilder::with_id(cli_install::UNINSTALL_MENU_ID, "Uninstall Command Line Tool").build(app)?;
+        file_menu = file_menu.item(&install_cli).item(&uninstall_cli).separator();
+    }
+
+    let file_menu = file_menu.item(&PredefinedMenuItem::quit(app, None)?).build()?;
 
     let mut theme_sub = SubmenuBuilder::new(app, "Theme");
     for (id, label) in THEMES {

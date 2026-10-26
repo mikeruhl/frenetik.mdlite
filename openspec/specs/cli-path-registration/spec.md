@@ -3,6 +3,9 @@
 ## Purpose
 
 Define how the mdlite executable is made available on the user PATH so agents and shells can launch it by name.
+Windows registers `PATH` in the installer. macOS cannot, because the binary lives inside a drag-installed app bundle,
+so the app offers menu items that create and remove a `/usr/local/bin/mdlite` symlink through the native admin prompt
+(`osascript`), keeping elevation out of the installer and out of README copy-paste commands.
 
 ## Requirements
 

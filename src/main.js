@@ -288,6 +288,18 @@ await listen("file-path-copy-error", (event) => {
   reportCopyError(event.payload);
 });
 
+await listen("cli-tool-installed", (event) => {
+  showToast(event.payload);
+});
+
+await listen("cli-tool-uninstalled", (event) => {
+  showToast(event.payload);
+});
+
+await listen("cli-tool-error", (event) => {
+  window.alert("Command line tool: " + event.payload);
+});
+
 await listen("set-print-header", (event) => {
   document.body.classList.toggle("print-header-enabled", event.payload);
 });

@@ -51,7 +51,7 @@ Agents and scripts run `mdlite` by name, so it must be on `PATH`.
 | Platform | Setup                                                                                                               |
 | -------- | ------------------------------------------------------------------------------------------------------------------- |
 | Windows  | Automatic. The installer adds its folder to your user `PATH` and removes it on uninstall.                           |
-| macOS    | `sudo ln -sf /Applications/mdlite.app/Contents/MacOS/mdlite /usr/local/bin/mdlite`                                  |
+| macOS    | Choose **File → Install Command Line Tool** and enter your password. Use **Uninstall Command Line Tool** to undo.   |
 | Linux    | `chmod +x /path/to/mdlite.AppImage && mkdir -p ~/.local/bin && ln -sf /path/to/mdlite.AppImage ~/.local/bin/mdlite` |
 
 Restart open terminals and agent sessions afterwards; they do not see `PATH` changes made after they started.
