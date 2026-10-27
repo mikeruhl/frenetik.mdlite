@@ -57,18 +57,13 @@ pub(crate) fn resolve_placement(
     min: (u32, u32),
     frame: (u32, u32),
 ) -> Placement {
-    let largest_width = monitors
-        .iter()
-        .map(|m| m.width)
-        .max()
-        .map(|w| w.saturating_sub(frame.0));
-    let largest_height = monitors
-        .iter()
-        .map(|m| m.height)
-        .max()
-        .map(|h| h.saturating_sub(frame.1));
-    let width = state.width.min(largest_width.unwrap_or(state.width)).max(min.0);
-    let height = state.height.min(largest_height.unwrap_or(state.height)).max(min.1);
+    let largest = monitors.iter().max_by_key(|m| u64::from(m.width) * u64::from(m.height));
+    let width = largest
+        .map_or(state.width, |m| state.width.min(m.width.saturating_sub(frame.0)))
+        .max(min.0);
+    let height = largest
+        .map_or(state.height, |m| state.height.min(m.height.saturating_sub(frame.1)))
+        .max(min.1);
     if title_band_visible(state, width, monitors) {
         Placement::At {
             x: state.x,
@@ -307,6 +302,20 @@ mod tests {
                 y: 0,
                 width: 1280,
                 height: 720
+            }
+        );
+    }
+
+    #[test]
+    fn size_is_clamped_to_one_monitor_not_per_axis_maxima() {
+        let monitors = [monitor(0, 0, 3440, 1440), monitor(3440, 0, 1080, 1920)];
+        assert_eq!(
+            resolve_placement(&state(0, 0, 4000, 3000), &monitors, MIN, NO_FRAME),
+            Placement::At {
+                x: 0,
+                y: 0,
+                width: 3440,
+                height: 1440
             }
         );
     }

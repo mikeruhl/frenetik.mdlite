@@ -752,6 +752,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run_return(|app, event| {
+            if let RunEvent::ExitRequested { .. } = &event {
+                if let Some(window) = app.get_webview_window("main") {
+                    window_state::save(&window.as_ref().window());
+                }
+            }
             if let RunEvent::ExitRequested { code: None, api, .. } = event {
                 if let Some((output, ready)) = interactive_close_state(app) {
                     match interactive::close_action(RESULT_GATE.is_claimed(), ready) {
