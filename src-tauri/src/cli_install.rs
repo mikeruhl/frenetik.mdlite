@@ -40,13 +40,14 @@ pub(crate) fn install_target(exe: &Path) -> Result<PathBuf, String> {
     }
 }
 
-pub(crate) fn classify_link(link: &Path) -> LinkState {
+pub(crate) fn classify_link(link: &Path) -> Result<LinkState, String> {
     match std::fs::symlink_metadata(link) {
-        Err(_) => LinkState::Missing,
-        Ok(meta) if !meta.file_type().is_symlink() => LinkState::Foreign,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(LinkState::Missing),
+        Err(e) => Err(format!("Could not inspect {}: {e}", link.display())),
+        Ok(meta) if !meta.file_type().is_symlink() => Ok(LinkState::Foreign),
         Ok(_) => match std::fs::read_link(link) {
-            Ok(target) if is_bundle_executable(&target) => LinkState::Ours(target),
-            _ => LinkState::Foreign,
+            Ok(target) if is_bundle_executable(&target) => Ok(LinkState::Ours(target)),
+            _ => Ok(LinkState::Foreign),
         },
     }
 }
@@ -139,7 +140,7 @@ fn run_install() -> Result<Option<String>, String> {
 
 #[cfg(target_os = "macos")]
 fn run_uninstall() -> Result<Option<String>, String> {
-    match classify_link(Path::new(LINK_PATH)) {
+    match classify_link(Path::new(LINK_PATH))? {
         LinkState::Missing => Ok(Some("The command line tool is not installed.".to_string())),
         LinkState::Foreign => Err(format!(
             "{LINK_PATH} was not installed by mdlite, so it was left unchanged."
@@ -272,7 +273,17 @@ mod tests {
     #[test]
     fn missing_path_is_classified_missing() {
         let path = std::env::temp_dir().join("mdlite-cli-install-test-does-not-exist");
-        assert_eq!(classify_link(&path), LinkState::Missing);
+        assert_eq!(classify_link(&path), Ok(LinkState::Missing));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inspection_failure_is_an_error_not_missing() {
+        let file = std::env::temp_dir().join(format!("mdlite-cli-install-test-parent-{}", std::process::id()));
+        std::fs::write(&file, b"x").unwrap();
+        let result = classify_link(&file.join("child"));
+        std::fs::remove_file(&file).unwrap();
+        assert!(result.is_err());
     }
 
     #[test]
@@ -281,7 +292,7 @@ mod tests {
         std::fs::write(&path, b"x").unwrap();
         let state = classify_link(&path);
         std::fs::remove_file(&path).unwrap();
-        assert_eq!(state, LinkState::Foreign);
+        assert_eq!(state, Ok(LinkState::Foreign));
     }
 
     #[cfg(unix)]
@@ -298,8 +309,10 @@ mod tests {
         assert_eq!(
             results,
             (
-                LinkState::Ours(PathBuf::from("/Applications/mdlite.app/Contents/MacOS/mdlite")),
-                LinkState::Foreign
+                Ok(LinkState::Ours(PathBuf::from(
+                    "/Applications/mdlite.app/Contents/MacOS/mdlite"
+                ))),
+                Ok(LinkState::Foreign)
             )
         );
     }
