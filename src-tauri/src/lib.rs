@@ -1,3 +1,5 @@
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+mod cli_install;
 mod commands;
 mod config;
 mod export;
@@ -541,6 +543,14 @@ pub fn run() {
                 let id: &str = &event.id().0;
                 let switches_document = id == "open-file" || id == "open-folder" || id.starts_with("recent-");
                 if switches_document && interactive_output(handle).is_some() {
+                    return;
+                }
+                #[cfg(target_os = "macos")]
+                if id == cli_install::INSTALL_MENU_ID {
+                    cli_install::install(handle);
+                    return;
+                } else if id == cli_install::UNINSTALL_MENU_ID {
+                    cli_install::uninstall(handle);
                     return;
                 }
                 if id == "open-file" {
