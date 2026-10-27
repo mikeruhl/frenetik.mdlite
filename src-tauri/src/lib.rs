@@ -10,8 +10,10 @@ mod links;
 mod live;
 mod menu;
 mod scan;
+mod tree_paths;
 mod updater;
 mod watcher;
+mod window_state;
 
 use notify::RecommendedWatcher;
 use notify_debouncer_mini::Debouncer;
@@ -60,6 +62,7 @@ pub(crate) struct AppState {
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
     pub(crate) full_width: bool,
+    pub(crate) always_on_top: bool,
     pub(crate) debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) folder_debouncer: Option<Debouncer<RecommendedWatcher>>,
     pub(crate) startup_error: Option<String>,
@@ -97,10 +100,26 @@ fn main_window_config(
 fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
     let config = main_window_config(&app.config().app.windows)?;
     tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+        .visible(false)
+        .always_on_top(store_get_always_on_top(app.handle()))
         .on_navigation(is_app_navigation)
         .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
         .build()?;
     Ok(())
+}
+
+/// Runs after the menu is attached: the menu bar takes client height, so restoring earlier shrinks the window each launch.
+fn show_main_window(app: &tauri::App) -> tauri::Result<()> {
+    let config = main_window_config(&app.config().app.windows)?;
+    let window = app.get_webview_window("main").ok_or(tauri::Error::WindowNotFound)?;
+    window_state::restore(
+        &window,
+        (
+            config.min_width.unwrap_or_default(),
+            config.min_height.unwrap_or_default(),
+        ),
+    );
+    window.show()
 }
 
 pub(crate) fn display_path(p: &Path) -> String {
@@ -207,7 +226,7 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
         } else {
             let _ = w.set_title(&format!("mdlite — {}", folder_name));
         }
-        let _ = w.set_size(tauri::LogicalSize::new(1100.0, 700.0));
+        window_state::apply_default_size(&w, 1100.0, 700.0);
     }
 
     {
@@ -230,6 +249,16 @@ pub(crate) fn switch_to_folder(app: &tauri::AppHandle, folder_path: PathBuf) {
             let _ = app.emit("file-changed", content);
         }
     }
+}
+
+pub(crate) fn apply_always_on_top(app: &tauri::AppHandle, enabled: bool) {
+    app.state::<Mutex<AppState>>().lock().unwrap().always_on_top = enabled;
+    store_set_always_on_top(app, enabled);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_always_on_top(enabled);
+    }
+    refresh_menu(app);
+    let _ = app.emit("set-always-on-top", enabled);
 }
 
 /// Output path of the active interactive session, or `None` when not in interactive mode.
@@ -311,6 +340,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(window_state::NormalBounds::default())
         .manage(images::ImageState::new())
         .manage(links::PendingLinks::default())
         .register_asynchronous_uri_scheme_protocol(images::SCHEME, |ctx, request, responder| {
@@ -335,6 +365,9 @@ pub fn run() {
             set_outline_visible,
             notify_has_frontmatter,
             copy_file_path,
+            set_always_on_top,
+            tree_paths::copy_tree_path,
+            tree_paths::get_breadcrumb,
             export::export_pdf,
             updater::check_for_updates,
             get_interactive_session,
@@ -354,10 +387,16 @@ pub fn run() {
             updater::open_release_page
         ])
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+            if window.label() != "main" {
+                return;
+            }
+            match event {
+                WindowEvent::Moved(_) | WindowEvent::Resized(_) => window_state::track(window),
+                WindowEvent::CloseRequested { api, .. } => {
+                    window_state::save(window);
                     handle_interactive_close(window, api);
                 }
+                _ => {}
             }
         })
         .setup(|app| {
@@ -442,7 +481,7 @@ pub fn run() {
                         } else {
                             let _ = w.set_title(&format!("mdlite — {}", folder_name));
                         }
-                        let _ = w.set_size(tauri::LogicalSize::new(1100.0, 700.0));
+                        window_state::apply_default_size(&w, 1100.0, 700.0);
                     }
                     AppMode::File => {
                         if let Some(ref session) = interactive_session {
@@ -450,7 +489,7 @@ pub fn run() {
                                 file_path.file_name().unwrap_or_default().to_string_lossy().to_string()
                             });
                             let _ = w.set_title(&format!("mdlite — {} — awaiting answers", title));
-                            let _ = w.set_size(tauri::LogicalSize::new(1200.0, 800.0));
+                            window_state::apply_default_size(&w, 1200.0, 800.0);
                             let _ = w.set_focus();
                         } else {
                             let filename = file_path.file_name().unwrap_or_default().to_string_lossy();
@@ -466,6 +505,7 @@ pub fn run() {
             let show_hidden_files = store_get_show_hidden_files(app.handle());
             let show_frontmatter = store_get_show_frontmatter(app.handle());
             let full_width = store_get_full_width(app.handle());
+            let always_on_top = store_get_always_on_top(app.handle());
             let recent = if is_interactive {
                 store_get_recent(app.handle())
             } else if mode == AppMode::File {
@@ -506,6 +546,7 @@ pub fn run() {
                 show_frontmatter,
                 has_frontmatter: false,
                 full_width,
+                always_on_top,
                 debouncer: None,
                 folder_debouncer: None,
                 startup_error,
@@ -519,6 +560,7 @@ pub fn run() {
                 show_frontmatter,
                 has_frontmatter: false,
                 full_width,
+                always_on_top,
                 has_file: current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap()).is_some(),
                 image_hosts: store_get_image_allowlist(app.handle()),
                 trusted_origins: store_get_trusted_origins(app.handle()),
@@ -526,6 +568,7 @@ pub fn run() {
             };
             let menu = build_menu(app.handle(), &recent, &theme, &menu_state)?;
             app.set_menu(menu)?;
+            show_main_window(app)?;
 
             if mode == AppMode::Folder {
                 if let Some(ref fp) = folder_path_for_watch {
@@ -688,6 +731,9 @@ pub fn run() {
                     };
                     store_set_full_width(handle, new_val);
                     let _ = handle.emit("set-full-width", new_val);
+                } else if id == "toggle-always-on-top" {
+                    let enabled = !handle.state::<Mutex<AppState>>().lock().unwrap().always_on_top;
+                    apply_always_on_top(handle, enabled);
                 } else if id == "about" {
                     let _ = handle.emit("show-about", ());
                 } else if id == "check-updates" {

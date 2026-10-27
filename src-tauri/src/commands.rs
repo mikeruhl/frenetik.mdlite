@@ -168,6 +168,11 @@ pub(crate) fn copy_file_path(app: tauri::AppHandle) -> Result<Option<String>, St
     copy_current_file_path(&app)
 }
 
+#[tauri::command]
+pub(crate) fn set_always_on_top(enabled: bool, app: tauri::AppHandle) {
+    crate::apply_always_on_top(&app, enabled);
+}
+
 pub(crate) fn session_view(session: &InteractiveSession) -> serde_json::Value {
     let mut view = serde_json::to_value(&session.questions).unwrap_or_default();
     view["document"] = serde_json::json!(display_path(&session.document));
@@ -288,6 +293,7 @@ mod tests {
             show_frontmatter: false,
             has_frontmatter: false,
             full_width: false,
+            always_on_top: false,
             debouncer: None,
             folder_debouncer: None,
             startup_error: startup_error.map(str::to_string),

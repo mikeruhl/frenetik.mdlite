@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import { LogicalPosition } from "@tauri-apps/api/dpi";
+import { Menu } from "@tauri-apps/api/menu";
+import { initBreadcrumb, updateBreadcrumb, clearBreadcrumb } from "./breadcrumb.js";
 import { pushNavigation } from "./history.js";
+import { expandSidebar } from "./sidebar-layout.js";
 import { showToast } from "./toast.js";
 
 const mainContentEl = document.getElementById("main-content");
@@ -13,6 +17,13 @@ let renderFn = null;
 
 export function initSidebar(render) {
   renderFn = render;
+  initBreadcrumb(revealFolder);
+}
+
+function setCurrentFile(path) {
+  currentFilePath = path;
+  if (path) updateBreadcrumb(path);
+  else clearBreadcrumb();
 }
 
 export function getCurrentFilePath() {
@@ -196,7 +207,7 @@ export async function handleScanComplete() {
     const path = currentFilePath;
     const exists = await invoke("file_exists", { path }).catch(() => false);
     if (!exists && currentFilePath === path) {
-      currentFilePath = null;
+      setCurrentFile(null);
       renderFn("");
     }
   }
@@ -217,7 +228,7 @@ async function loadFile(path) {
     folderScrollPositions.set(currentFilePath, mainContentEl.scrollTop);
   }
   const content = await invoke("open_folder_file", { path });
-  currentFilePath = path;
+  setCurrentFile(path);
   await renderFn(content);
   highlightCurrentFile();
 }
@@ -240,16 +251,58 @@ export async function navigateToFile(path) {
   }
 }
 
-function revealInTree(path) {
-  const row = findFileElement(path);
-  if (!row) return;
-  let container = row.parentElement;
+function expandAncestors(el) {
+  let container = el.parentElement;
   while (container && container !== sidebarTreeEl) {
     if (container.style.display === "none") container.previousElementSibling.click();
     container = container.parentElement;
   }
+}
+
+function revealInTree(path) {
+  const row = findFileElement(path);
+  if (!row) return;
+  expandAncestors(row);
   row.scrollIntoView({ block: "nearest" });
 }
+
+export function revealFolder(path) {
+  expandSidebar();
+  const node = folderNodeMap.get(path);
+  if (!node) {
+    sidebarTreeEl.scrollTop = 0;
+    return;
+  }
+  expandAncestors(node.item);
+  if (node.container.style.display === "none") node.item.click();
+  node.item.scrollIntoView({ block: "nearest" });
+}
+
+export async function copyTreePath(path, kind) {
+  try {
+    await invoke("copy_tree_path", { path, kind });
+    showToast("Path copied");
+  } catch (e) {
+    window.alert("Could not copy path: " + e);
+  }
+}
+
+async function showPathMenu(path, x, y) {
+  const menu = await Menu.new({
+    items: [
+      { id: "copy-full-path", text: "Copy Full Path", action: () => copyTreePath(path, "full") },
+      { id: "copy-relative-path", text: "Copy Relative Path", action: () => copyTreePath(path, "relative") },
+    ],
+  });
+  await menu.popup(new LogicalPosition(x, y));
+}
+
+sidebarTreeEl.addEventListener("contextmenu", (e) => {
+  const row = e.target.closest?.(".tree-file, .tree-folder");
+  if (!row?.dataset.path) return;
+  e.preventDefault();
+  showPathMenu(row.dataset.path, e.clientX, e.clientY).catch((err) => showToast("Could not open menu: " + err));
+});
 
 export async function navigateToFolderLink(path, fragment) {
   try {
@@ -271,7 +324,7 @@ export async function enterFolderMode() {
   if (modeInfo.folder_name) {
     sidebarTitleEl.textContent = modeInfo.folder_name;
   }
-  currentFilePath = modeInfo.current_file || null;
+  setCurrentFile(modeInfo.current_file || null);
 
   folderNodeMap.clear();
   sidebarTreeEl.innerHTML = "";
@@ -285,7 +338,7 @@ export function exitFolderMode() {
   sidebarTreeEl.innerHTML = "";
   folderNodeMap.clear();
   folderScrollPositions.clear();
-  currentFilePath = null;
+  setCurrentFile(null);
 }
 
 export function resetSidebarForRescan() {
@@ -300,7 +353,7 @@ export function initFolderStartup(modeInfo) {
   if (modeInfo.folder_name) {
     sidebarTitleEl.textContent = modeInfo.folder_name;
   }
-  currentFilePath = modeInfo.current_file || null;
+  setCurrentFile(modeInfo.current_file || null);
   folderNodeMap.clear();
   showScanningIndicator();
   invoke("start_folder_scan").catch((e) => console.error("Folder scan failed:", e));
@@ -318,7 +371,7 @@ export function applyFolderChanges(changes) {
       const parentContainer = fileEl.parentElement;
       fileEl.remove();
       if (change.path === currentFilePath) {
-        currentFilePath = null;
+        setCurrentFile(null);
         renderFn("");
       }
       pruneEmptyAncestors(parentContainer);

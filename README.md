@@ -21,6 +21,8 @@ Built with [Tauri](https://tauri.app) + [marked](https://github.com/markedjs/mar
 - **Math/LaTeX**: inline (`$...$`) and block (`$$...$$`) math via KaTeX
 - **Footnotes, task lists, and emoji shortcodes**: GitHub-style `[^1]`, `- [ ]`, and `:rocket:`
 - **Full width**: optional reading layout that uses the whole window
+- **Window memory**: size, position, and maximized state are restored on the next launch
+- **Always on top**: pin the window above your editor or terminal with `Ctrl+Shift+T`
 - **Interactive mode**: agents present a decision document with questions and receive the answers as JSON
 - **Agent skills**: a Claude Code plugin and cross-agent skills that let agents ask decisions in interactive mode
   and open the markdown they write
@@ -84,6 +86,12 @@ Or use **File → Open Folder...** from the menu. The sidebar shows a collapsibl
 `.markdown`, and `.mdx` files. Click a file to preview it. Folders with no markdown descendants are
 hidden. If the folder contains a `README.md`, it opens automatically.
 
+A breadcrumb bar above the document shows where the open file sits in the folder. Click a folder in the bar to
+reveal it in the tree. Long paths collapse their middle folders into an ellipsis.
+
+Right-click a file or folder in the tree to **Copy Full Path** or **Copy Relative Path** (relative to the opened
+folder). **File → Copy File Path** (`Shift+Alt+C`) copies the path of the open file.
+
 ### Links
 
 - Links to files inside the open folder open directly.
@@ -118,6 +126,14 @@ follow the active theme.
 
 **View → Full Width** widens the document to the window, keeping a margin on each side. The setting persists across
 sessions and does not affect printing or PDF export.
+
+### Window position and always on top
+
+mdlite remembers the window size, position, and whether it was maximized, and restores them on the next launch. If the
+saved position is on a monitor that is no longer connected, the window opens on the primary monitor instead.
+
+**View → Always on Top** (`Ctrl+Shift+T`, `Cmd+Shift+T` on macOS) keeps the window above other windows. A pin icon in
+the top corner shows while it is active; click it to turn it off. The setting persists across sessions.
 
 ### Rich content
 

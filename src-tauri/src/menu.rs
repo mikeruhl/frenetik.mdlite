@@ -29,6 +29,7 @@ pub(crate) struct MenuState {
     pub(crate) show_frontmatter: bool,
     pub(crate) has_frontmatter: bool,
     pub(crate) full_width: bool,
+    pub(crate) always_on_top: bool,
     pub(crate) has_file: bool,
     pub(crate) image_hosts: Vec<String>,
     pub(crate) trusted_origins: Vec<String>,
@@ -62,6 +63,7 @@ pub(crate) fn build_menu(
         show_frontmatter,
         has_frontmatter,
         full_width,
+        always_on_top,
         has_file,
         ref image_hosts,
         ref trusted_origins,
@@ -167,6 +169,10 @@ pub(crate) fn build_menu(
         .checked(show_frontmatter)
         .enabled(has_frontmatter)
         .build(app)?;
+    let always_on_top_item = CheckMenuItemBuilder::with_id("toggle-always-on-top", "Always on Top")
+        .accelerator("CmdOrCtrl+Shift+T")
+        .checked(always_on_top)
+        .build(app)?;
     let mut image_hosts_sub = SubmenuBuilder::new(app, "Allowed Image Hosts");
     if image_hosts.is_empty() {
         let item = MenuItemBuilder::with_id("no-image-hosts", "(No Allowed Hosts)")
@@ -216,6 +222,7 @@ pub(crate) fn build_menu(
         .item(&full_width_item)
         .item(&show_hidden_files_item)
         .item(&show_frontmatter_item)
+        .item(&always_on_top_item)
         .separator()
         .item(&image_hosts_sub.build()?)
         .item(&trusted_sub.build()?)
@@ -247,6 +254,7 @@ pub(crate) fn rebuild_menu(app: &tauri::AppHandle, recent: &[String], theme: &st
             show_frontmatter: s.show_frontmatter,
             has_frontmatter: s.has_frontmatter,
             full_width: s.full_width,
+            always_on_top: s.always_on_top,
             has_file: current_file_display_path(&s).is_some(),
             image_hosts: store_get_image_allowlist(app),
             trusted_origins: store_get_trusted_origins(app),

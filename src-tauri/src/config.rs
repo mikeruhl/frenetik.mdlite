@@ -2,6 +2,8 @@ use std::path::Path;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+use crate::window_state::{parse_window_state, WindowState};
+
 pub(crate) const MAX_RECENT: usize = 10;
 pub(crate) const DEFAULT_ZOOM: u32 = 100;
 pub(crate) const MIN_ZOOM: u32 = 50;
@@ -143,6 +145,28 @@ pub(crate) fn store_get_full_width(app: &tauri::AppHandle) -> bool {
 pub(crate) fn store_set_full_width(app: &tauri::AppHandle, enabled: bool) {
     let store = app.store(STORE_FILE).expect("store");
     store.set("full_width", serde_json::json!(enabled));
+    let _ = store.save();
+}
+
+pub(crate) fn store_get_always_on_top(app: &tauri::AppHandle) -> bool {
+    let store = app.store(STORE_FILE).expect("store");
+    store.get("always_on_top").and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+pub(crate) fn store_set_always_on_top(app: &tauri::AppHandle, enabled: bool) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("always_on_top", serde_json::json!(enabled));
+    let _ = store.save();
+}
+
+pub(crate) fn store_get_window_state(app: &tauri::AppHandle) -> Option<WindowState> {
+    let store = app.store(STORE_FILE).expect("store");
+    store.get("window_state").and_then(parse_window_state)
+}
+
+pub(crate) fn store_set_window_state(app: &tauri::AppHandle, state: &WindowState) {
+    let store = app.store(STORE_FILE).expect("store");
+    store.set("window_state", serde_json::json!(state));
     let _ = store.save();
 }
 

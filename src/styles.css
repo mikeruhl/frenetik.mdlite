@@ -692,6 +692,151 @@ mark.search-match-current {
   display: none;
 }
 
+/* Breadcrumb path bar */
+#breadcrumb {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 56px 6px 16px;
+  overflow: hidden;
+  background: var(--theme-bg, #fff);
+  color: var(--theme-fg, #1f2328);
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 15%, transparent);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+body.folder-mode #breadcrumb:not([hidden]) {
+  display: block;
+}
+
+#breadcrumb .breadcrumb-list {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: nowrap;
+}
+
+#breadcrumb .breadcrumb-list li {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+}
+
+#breadcrumb .breadcrumb-list li + li::before {
+  content: "\203A";
+  margin: 0 4px;
+  opacity: 0.5;
+}
+
+#breadcrumb .breadcrumb-list li.breadcrumb-current {
+  flex-shrink: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+#breadcrumb .breadcrumb-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#breadcrumb .breadcrumb-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#breadcrumb .breadcrumb-link {
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+#breadcrumb .breadcrumb-link:hover,
+#breadcrumb .breadcrumb-link:focus-visible {
+  opacity: 1;
+}
+
+#breadcrumb .breadcrumb-link:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+#breadcrumb .breadcrumb-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, currentColor 70%, transparent);
+  outline-offset: 1px;
+}
+
+#breadcrumb .breadcrumb-ellipsis {
+  padding: 0 4px;
+  opacity: 0.75;
+  cursor: default;
+}
+
+/* Always-on-top pin indicator */
+#pin-badge {
+  position: fixed;
+  top: 8px;
+  right: 20px;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  background: var(--theme-bg, #fff);
+  color: var(--theme-fg, #1f2328);
+  border: 1px solid color-mix(in srgb, var(--theme-fg, #1f2328) 25%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+#pin-badge[hidden] {
+  display: none;
+}
+
+#pin-badge .sidebar-icon {
+  fill: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+#pin-badge:hover {
+  background: color-mix(in srgb, var(--theme-fg, #1f2328) 10%, var(--theme-bg, #fff));
+}
+
+#pin-badge:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--theme-fg, #1f2328) 70%, transparent);
+  outline-offset: 1px;
+}
+
+body.toc-visible #pin-badge {
+  right: 240px;
+}
+
 /* Dark theme search */
 body.dark-sidebar #search-bar {
   background: #161b22;
@@ -1877,6 +2022,8 @@ body.dark-sidebar #about-update-result a {
   #sidebar,
   #sidebar-divider,
   #sidebar-expand,
+  #breadcrumb,
+  #pin-badge,
   #search-bar,
   #toast,
   #toc-panel,

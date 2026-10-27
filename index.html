@@ -73,6 +73,19 @@
         </svg>
       </button>
       <div id="main-content">
+        <nav id="breadcrumb" aria-label="Path" hidden></nav>
+        <button
+          id="pin-badge"
+          type="button"
+          title="Always on top (click to turn off)"
+          aria-label="Always on top, click to turn off"
+          aria-pressed="false"
+          hidden
+        >
+          <svg class="sidebar-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M9.5 2 14 6.5l-2 .5-2 2 .3 3-.8.8-2.7-2.7L3 13.5l-.5-.5 3.4-3.4L3.2 7l.8-.8 3 .3 2-2z" />
+          </svg>
+        </button>
         <div id="search-bar" class="search-hidden">
           <input id="search-input" type="text" placeholder="Search..." spellcheck="false" autocomplete="off" />
           <button id="search-regex" class="search-toggle" title="Use regular expression">.*</button>
