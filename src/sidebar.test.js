@@ -1,11 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/menu", () => ({ Menu: { new: vi.fn() } }));
 
 async function loadSidebar() {
   vi.resetModules();
   document.body.innerHTML =
-    '<div id="main-content"></div><div id="sidebar-header"><span id="sidebar-title"></span></div><div id="sidebar-tree"></div>';
+    '<div id="main-content"></div><div id="toast" hidden></div><div id="sidebar-header"><span id="sidebar-title"></span></div><div id="sidebar-tree"></div>';
   return import("./sidebar.js");
 }
 
@@ -171,5 +172,125 @@ describe("link navigation", () => {
 
     expect(sidebar.getCurrentFilePath()).toBeNull();
     expect(render).toHaveBeenCalledWith("");
+  });
+});
+
+const fileEl = (path) => document.querySelector(`.tree-file[data-path="${path}"]`);
+const childrenOf = (path) => folderEl(path).nextElementSibling;
+
+describe("revealFolder", () => {
+  beforeEach(() => {
+    window.Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("expands the folder and every collapsed ancestor", async () => {
+    const sidebar = await loadSidebar();
+    sidebar.handleScanFiles([dir("a", "/root/a"), dir("b", "/root/a/b")], [{ name: "n.md", path: "/root/a/b/n.md" }]);
+    expect(childrenOf("/root/a").style.display).toBe("none");
+
+    sidebar.revealFolder("/root/a/b");
+
+    expect(childrenOf("/root/a").style.display).toBe("block");
+    expect(childrenOf("/root/a/b").style.display).toBe("block");
+    expect(window.Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("leaves an already expanded folder expanded", async () => {
+    const sidebar = await loadSidebar();
+    sidebar.handleScanFiles([dir("a", "/root/a")], [{ name: "n.md", path: "/root/a/n.md" }]);
+    folderEl("/root/a").click();
+
+    sidebar.revealFolder("/root/a");
+
+    expect(childrenOf("/root/a").style.display).toBe("block");
+  });
+
+  it("scrolls the tree to the top for the root", async () => {
+    const sidebar = await loadSidebar();
+    const tree = document.getElementById("sidebar-tree");
+    tree.scrollTop = 80;
+
+    sidebar.revealFolder("/root");
+
+    expect(tree.scrollTop).toBe(0);
+  });
+});
+
+describe("copyTreePath", () => {
+  it("copies and confirms with a toast", async () => {
+    const sidebar = await loadSidebar();
+    const { invoke } = await import("@tauri-apps/api/core");
+    invoke.mockResolvedValue("a/b.md");
+
+    await sidebar.copyTreePath("/root/a/b.md", "relative");
+
+    expect(invoke).toHaveBeenCalledWith("copy_tree_path", { path: "/root/a/b.md", kind: "relative" });
+    expect(document.getElementById("toast").textContent).toBe("Path copied");
+    expect(document.getElementById("toast").hidden).toBe(false);
+  });
+
+  it("alerts and shows no confirmation when the copy fails", async () => {
+    const sidebar = await loadSidebar();
+    const { invoke } = await import("@tauri-apps/api/core");
+    invoke.mockRejectedValue("Path is outside the opened folder");
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+    await sidebar.copyTreePath("/elsewhere/a.md", "full");
+
+    expect(alert).toHaveBeenCalledWith("Could not copy path: Path is outside the opened folder");
+    expect(document.getElementById("toast").hidden).toBe(true);
+    alert.mockRestore();
+  });
+});
+
+describe("tree context menu", () => {
+  const rightClick = (el) => {
+    const event = new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 20 });
+    el.dispatchEvent(event);
+    return event;
+  };
+
+  it("offers full and relative path copy on a file and suppresses the default menu", async () => {
+    const sidebar = await loadSidebar();
+    const { Menu } = await import("@tauri-apps/api/menu");
+    const { invoke } = await import("@tauri-apps/api/core");
+    const popup = vi.fn();
+    Menu.new.mockResolvedValue({ popup });
+    invoke.mockResolvedValue("copied");
+    sidebar.handleScanFiles([dir("docs", "/root/docs")], [{ name: "a.md", path: "/root/docs/a.md" }]);
+
+    const event = rightClick(fileEl("/root/docs/a.md"));
+    await vi.waitFor(() => expect(popup).toHaveBeenCalled());
+
+    expect(event.defaultPrevented).toBe(true);
+    const { items } = Menu.new.mock.calls[0][0];
+    expect(items.map((i) => i.text)).toEqual(["Copy Full Path", "Copy Relative Path"]);
+    items[0].action();
+    items[1].action();
+    expect(invoke).toHaveBeenCalledWith("copy_tree_path", { path: "/root/docs/a.md", kind: "full" });
+    expect(invoke).toHaveBeenCalledWith("copy_tree_path", { path: "/root/docs/a.md", kind: "relative" });
+  });
+
+  it("offers the same menu on a folder row", async () => {
+    const sidebar = await loadSidebar();
+    const { Menu } = await import("@tauri-apps/api/menu");
+    const popup = vi.fn();
+    Menu.new.mockResolvedValue({ popup });
+    sidebar.handleScanFiles([dir("docs", "/root/docs")], [{ name: "a.md", path: "/root/docs/a.md" }]);
+
+    rightClick(folderEl("/root/docs"));
+    await vi.waitFor(() => expect(popup).toHaveBeenCalled());
+
+    expect(Menu.new).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not open a path menu on the sidebar background", async () => {
+    await loadSidebar();
+    const { Menu } = await import("@tauri-apps/api/menu");
+
+    const event = rightClick(document.getElementById("sidebar-tree"));
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(Menu.new).not.toHaveBeenCalled();
   });
 });

@@ -31,10 +31,10 @@ pub(crate) struct FolderEntry {
     pub(crate) children: Option<Vec<FolderEntry>>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug, PartialEq)]
 pub(crate) struct DirAncestor {
-    name: String,
-    path: String,
+    pub(crate) name: String,
+    pub(crate) path: String,
 }
 
 #[derive(Serialize, Clone)]

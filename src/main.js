@@ -35,6 +35,7 @@ import {
 } from "./sidebar.js";
 import { initSidebarLayout, toggleSidebar } from "./sidebar-layout.js";
 import { initLinks } from "./links.js";
+import { applyAlwaysOnTop, bindPinBadge } from "./always-on-top.js";
 import { confirmLink, promptFileType } from "./link-dialog.js";
 
 const store = new LazyStore("settings.json");
@@ -178,6 +179,7 @@ A lightweight markdown previewer.
 | Print | Ctrl+P |
 | Export to PDF | Ctrl+Shift+E |
 | Copy file path | Shift+Alt+C |
+| Always on top | Ctrl+Shift+T |
 | Go back | Alt+Left |
 | Go forward | Alt+Right |
 | Switch theme | Theme menu |
@@ -308,6 +310,10 @@ await listen("set-full-width", (event) => {
   document.body.classList.toggle("full-width", event.payload);
 });
 
+await listen("set-always-on-top", (event) => {
+  applyAlwaysOnTop(event.payload);
+});
+
 await listen("image-allowlist-changed", () => {
   if (lastRawMarkdown) render(lastRawMarkdown);
 });
@@ -435,6 +441,8 @@ document.body.classList.toggle("print-header-enabled", printHeader);
 const fullWidth = (await store.get("full_width")) ?? false;
 document.body.classList.toggle("full-width", fullWidth);
 
+applyAlwaysOnTop((await store.get("always_on_top")) ?? false);
+
 showFrontmatter = (await store.get("show_frontmatter")) ?? false;
 
 if (await initInteractive({ contentEl, scrollRoot: mainContentEl })) {
@@ -470,6 +478,7 @@ if (startupError) {
 
 bindSearchEvents();
 bindTocEvents();
+bindPinBadge();
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !aboutOverlay.classList.contains("about-hidden")) {

@@ -9,6 +9,7 @@
     "dialog:default",
     "core:event:default",
     "core:webview:allow-create-webview-window",
+    "core:menu:default",
     "store:default"
   ]
 }
