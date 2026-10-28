@@ -210,7 +210,7 @@ pub(crate) fn restore(window: &WebviewWindow, min_logical: (f64, f64)) {
     };
     match resolve_placement(&state, &monitors, min_logical, frame_logical) {
         None => {}
-        Some(Placement::At { x, y, width, height }) => {
+        Some(Placement::At { x, y, width, height } | Placement::Centered { x, y, width, height }) => {
             let _ = window.set_position(PhysicalPosition::new(x, y));
             let _ = window.set_size(PhysicalSize::new(width, height));
             remember(
@@ -223,10 +223,6 @@ pub(crate) fn restore(window: &WebviewWindow, min_logical: (f64, f64)) {
                     maximized: false,
                 }),
             );
-        }
-        Some(Placement::Centered { x, y, width, height }) => {
-            let _ = window.set_position(PhysicalPosition::new(x, y));
-            let _ = window.set_size(PhysicalSize::new(width, height));
         }
     }
     if state.maximized {
