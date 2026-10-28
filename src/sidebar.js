@@ -287,13 +287,25 @@ export async function copyTreePath(path, kind) {
   }
 }
 
-async function showPathMenu(path, x, y) {
-  const menu = await Menu.new({
+let pathMenuTarget = null;
+let pathMenuPromise = null;
+
+function getPathMenu() {
+  pathMenuPromise ??= Menu.new({
     items: [
-      { id: "copy-full-path", text: "Copy Full Path", action: () => copyTreePath(path, "full") },
-      { id: "copy-relative-path", text: "Copy Relative Path", action: () => copyTreePath(path, "relative") },
+      { id: "copy-full-path", text: "Copy Full Path", action: () => copyTreePath(pathMenuTarget, "full") },
+      { id: "copy-relative-path", text: "Copy Relative Path", action: () => copyTreePath(pathMenuTarget, "relative") },
     ],
+  }).catch((err) => {
+    pathMenuPromise = null;
+    throw err;
   });
+  return pathMenuPromise;
+}
+
+async function showPathMenu(path, x, y) {
+  const menu = await getPathMenu();
+  pathMenuTarget = path;
   await menu.popup(new LogicalPosition(x, y));
 }
 

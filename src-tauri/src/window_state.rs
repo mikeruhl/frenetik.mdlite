@@ -25,9 +25,15 @@ pub(crate) struct Area {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Monitor {
+    pub(crate) area: Area,
+    pub(crate) scale: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Placement {
     At { x: i32, y: i32, width: u32, height: u32 },
-    Centered { width: u32, height: u32 },
+    Centered { x: i32, y: i32, width: u32, height: u32 },
 }
 
 #[derive(Default)]
@@ -39,41 +45,84 @@ pub(crate) fn parse_window_state(value: serde_json::Value) -> Option<WindowState
         .filter(|s| s.width > 0 && s.height > 0)
 }
 
-fn title_band_visible(state: &WindowState, width: u32, monitors: &[Area]) -> bool {
+fn title_band_visible(state: &WindowState, width: u32, area: &Area) -> bool {
     let left = i64::from(state.x);
     let right = left + i64::from(width);
     let top = i64::from(state.y);
-    monitors.iter().any(|m| {
-        let overlap = right.min(i64::from(m.x) + i64::from(m.width)) - left.max(i64::from(m.x));
-        overlap >= MIN_VISIBLE_WIDTH
-            && top >= i64::from(m.y)
-            && top + TITLE_BAND_HEIGHT <= i64::from(m.y) + i64::from(m.height)
-    })
+    let overlap = right.min(i64::from(area.x) + i64::from(area.width)) - left.max(i64::from(area.x));
+    overlap >= MIN_VISIBLE_WIDTH
+        && top >= i64::from(area.y)
+        && top + TITLE_BAND_HEIGHT <= i64::from(area.y) + i64::from(area.height)
 }
 
+fn scaled(logical: f64, scale: f64) -> u32 {
+    (logical * scale).round() as u32
+}
+
+fn fit_to_monitor(
+    state: &WindowState,
+    monitor: &Monitor,
+    min_logical: (f64, f64),
+    frame_logical: (f64, f64),
+) -> (u32, u32) {
+    let frame = (
+        scaled(frame_logical.0, monitor.scale),
+        scaled(frame_logical.1, monitor.scale),
+    );
+    let width = state
+        .width
+        .min(monitor.area.width.saturating_sub(frame.0))
+        .max(scaled(min_logical.0, monitor.scale));
+    let height = state
+        .height
+        .min(monitor.area.height.saturating_sub(frame.1))
+        .max(scaled(min_logical.1, monitor.scale));
+    (width, height)
+}
+
+fn centered_in(
+    state: &WindowState,
+    monitor: &Monitor,
+    min_logical: (f64, f64),
+    frame_logical: (f64, f64),
+) -> Placement {
+    let (width, height) = fit_to_monitor(state, monitor, min_logical, frame_logical);
+    let outer_width = i64::from(width) + i64::from(scaled(frame_logical.0, monitor.scale));
+    let outer_height = i64::from(height) + i64::from(scaled(frame_logical.1, monitor.scale));
+    let area = &monitor.area;
+    let x = i64::from(area.x) + ((i64::from(area.width) - outer_width) / 2).max(0);
+    let y = i64::from(area.y) + ((i64::from(area.height) - outer_height) / 2).max(0);
+    Placement::Centered {
+        x: x as i32,
+        y: y as i32,
+        width,
+        height,
+    }
+}
+
+/// `monitors[0]` is the primary monitor and receives the window when the saved position is no longer reachable.
 pub(crate) fn resolve_placement(
     state: &WindowState,
-    monitors: &[Area],
-    min: (u32, u32),
-    frame: (u32, u32),
-) -> Placement {
-    let largest = monitors.iter().max_by_key(|m| u64::from(m.width) * u64::from(m.height));
-    let width = largest
-        .map_or(state.width, |m| state.width.min(m.width.saturating_sub(frame.0)))
-        .max(min.0);
-    let height = largest
-        .map_or(state.height, |m| state.height.min(m.height.saturating_sub(frame.1)))
-        .max(min.1);
-    if title_band_visible(state, width, monitors) {
-        Placement::At {
-            x: state.x,
-            y: state.y,
-            width,
-            height,
+    monitors: &[Monitor],
+    min_logical: (f64, f64),
+    frame_logical: (f64, f64),
+) -> Option<Placement> {
+    let fallback = monitors.first()?;
+    let target = monitors
+        .iter()
+        .find(|m| title_band_visible(state, state.width, &m.area));
+    if let Some(monitor) = target {
+        let (width, height) = fit_to_monitor(state, monitor, min_logical, frame_logical);
+        if title_band_visible(state, width, &monitor.area) {
+            return Some(Placement::At {
+                x: state.x,
+                y: state.y,
+                width,
+                height,
+            });
         }
-    } else {
-        Placement::Centered { width, height }
     }
+    Some(centered_in(state, fallback, min_logical, frame_logical))
 }
 
 fn capture(window: &Window) -> Option<WindowState> {
@@ -133,34 +182,35 @@ pub(crate) fn restore(window: &WebviewWindow, min_logical: (f64, f64)) {
     let Some(state) = store_get_window_state(app) else {
         return;
     };
-    let monitors: Vec<Area> = window
-        .available_monitors()
-        .unwrap_or_default()
+    let primary_position = window.primary_monitor().ok().flatten().map(|m| *m.position());
+    let mut available = window.available_monitors().unwrap_or_default();
+    available.sort_by_key(|m| Some(*m.position()) != primary_position);
+    let monitors: Vec<Monitor> = available
         .iter()
         .map(|m| {
             let area = m.work_area();
-            Area {
-                x: area.position.x,
-                y: area.position.y,
-                width: area.size.width,
-                height: area.size.height,
+            Monitor {
+                area: Area {
+                    x: area.position.x,
+                    y: area.position.y,
+                    width: area.size.width,
+                    height: area.size.height,
+                },
+                scale: m.scale_factor(),
             }
         })
         .collect();
-    let frame = match (window.outer_size(), window.inner_size()) {
+    let current_scale = window.scale_factor().unwrap_or(1.0);
+    let frame_logical = match (window.outer_size(), window.inner_size()) {
         (Ok(outer), Ok(inner)) => (
-            outer.width.saturating_sub(inner.width),
-            outer.height.saturating_sub(inner.height),
+            f64::from(outer.width.saturating_sub(inner.width)) / current_scale,
+            f64::from(outer.height.saturating_sub(inner.height)) / current_scale,
         ),
-        _ => (0, 0),
+        _ => (0.0, 0.0),
     };
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let min = (
-        (min_logical.0 * scale).round() as u32,
-        (min_logical.1 * scale).round() as u32,
-    );
-    match resolve_placement(&state, &monitors, min, frame) {
-        Placement::At { x, y, width, height } => {
+    match resolve_placement(&state, &monitors, min_logical, frame_logical) {
+        None => {}
+        Some(Placement::At { x, y, width, height }) => {
             let _ = window.set_position(PhysicalPosition::new(x, y));
             let _ = window.set_size(PhysicalSize::new(width, height));
             remember(
@@ -174,9 +224,9 @@ pub(crate) fn restore(window: &WebviewWindow, min_logical: (f64, f64)) {
                 }),
             );
         }
-        Placement::Centered { width, height } => {
+        Some(Placement::Centered { x, y, width, height }) => {
+            let _ = window.set_position(PhysicalPosition::new(x, y));
             let _ = window.set_size(PhysicalSize::new(width, height));
-            let _ = window.center();
         }
     }
     if state.maximized {
@@ -194,11 +244,18 @@ pub(crate) fn apply_default_size(window: &WebviewWindow, width: f64, height: f64
 mod tests {
     use super::*;
 
-    const MIN: (u32, u32) = (620, 300);
-    const NO_FRAME: (u32, u32) = (0, 0);
+    const MIN: (f64, f64) = (620.0, 300.0);
+    const NO_FRAME: (f64, f64) = (0.0, 0.0);
 
-    fn monitor(x: i32, y: i32, width: u32, height: u32) -> Area {
-        Area { x, y, width, height }
+    fn monitor(x: i32, y: i32, width: u32, height: u32) -> Monitor {
+        scaled_monitor(x, y, width, height, 1.0)
+    }
+
+    fn scaled_monitor(x: i32, y: i32, width: u32, height: u32, scale: f64) -> Monitor {
+        Monitor {
+            area: Area { x, y, width, height },
+            scale,
+        }
     }
 
     fn state(x: i32, y: i32, width: u32, height: u32) -> WindowState {
@@ -211,29 +268,29 @@ mod tests {
         }
     }
 
+    fn at(x: i32, y: i32, width: u32, height: u32) -> Option<Placement> {
+        Some(Placement::At { x, y, width, height })
+    }
+
+    fn centered(x: i32, y: i32, width: u32, height: u32) -> Option<Placement> {
+        Some(Placement::Centered { x, y, width, height })
+    }
+
     #[test]
     fn visible_position_is_kept() {
         let monitors = [monitor(0, 0, 1920, 1080)];
         assert_eq!(
             resolve_placement(&state(300, 200, 1000, 650), &monitors, MIN, NO_FRAME),
-            Placement::At {
-                x: 300,
-                y: 200,
-                width: 1000,
-                height: 650
-            }
+            at(300, 200, 1000, 650)
         );
     }
 
     #[test]
-    fn disconnected_monitor_falls_back_to_centered() {
+    fn disconnected_monitor_falls_back_to_centered_on_primary() {
         let monitors = [monitor(0, 0, 1920, 1080)];
         assert_eq!(
             resolve_placement(&state(2200, 100, 1000, 650), &monitors, MIN, NO_FRAME),
-            Placement::Centered {
-                width: 1000,
-                height: 650
-            }
+            centered(460, 215, 1000, 650)
         );
     }
 
@@ -242,12 +299,7 @@ mod tests {
         let monitors = [monitor(0, 0, 1920, 1080), monitor(-1280, 0, 1280, 1024)];
         assert_eq!(
             resolve_placement(&state(-1200, 100, 900, 600), &monitors, MIN, NO_FRAME),
-            Placement::At {
-                x: -1200,
-                y: 100,
-                width: 900,
-                height: 600
-            }
+            at(-1200, 100, 900, 600)
         );
     }
 
@@ -256,12 +308,7 @@ mod tests {
         let monitors = [monitor(0, 0, 1920, 1080)];
         assert_eq!(
             resolve_placement(&state(1800, 300, 1000, 700), &monitors, MIN, NO_FRAME),
-            Placement::At {
-                x: 1800,
-                y: 300,
-                width: 1000,
-                height: 700
-            }
+            at(1800, 300, 1000, 700)
         );
     }
 
@@ -270,7 +317,7 @@ mod tests {
         let monitors = [monitor(0, 0, 1920, 1080)];
         assert!(matches!(
             resolve_placement(&state(1850, 300, 1000, 700), &monitors, MIN, NO_FRAME),
-            Placement::Centered { .. }
+            Some(Placement::Centered { .. })
         ));
     }
 
@@ -279,7 +326,7 @@ mod tests {
         let monitors = [monitor(0, 0, 1920, 1080)];
         assert!(matches!(
             resolve_placement(&state(100, -40, 1000, 700), &monitors, MIN, NO_FRAME),
-            Placement::Centered { .. }
+            Some(Placement::Centered { .. })
         ));
     }
 
@@ -288,21 +335,16 @@ mod tests {
         let monitors = [monitor(0, 0, 1920, 1080)];
         assert!(matches!(
             resolve_placement(&state(100, 1050, 1000, 700), &monitors, MIN, NO_FRAME),
-            Placement::Centered { .. }
+            Some(Placement::Centered { .. })
         ));
     }
 
     #[test]
-    fn size_is_clamped_to_largest_monitor() {
+    fn size_is_clamped_to_the_target_monitor() {
         let monitors = [monitor(0, 0, 1280, 720)];
         assert_eq!(
             resolve_placement(&state(0, 0, 3000, 2000), &monitors, MIN, NO_FRAME),
-            Placement::At {
-                x: 0,
-                y: 0,
-                width: 1280,
-                height: 720
-            }
+            at(0, 0, 1280, 720)
         );
     }
 
@@ -311,12 +353,7 @@ mod tests {
         let monitors = [monitor(0, 0, 3440, 1440), monitor(3440, 0, 1080, 1920)];
         assert_eq!(
             resolve_placement(&state(0, 0, 4000, 3000), &monitors, MIN, NO_FRAME),
-            Placement::At {
-                x: 0,
-                y: 0,
-                width: 3440,
-                height: 1440
-            }
+            at(0, 0, 3440, 1440)
         );
     }
 
@@ -324,13 +361,8 @@ mod tests {
     fn frame_is_subtracted_so_the_outer_window_fits() {
         let monitors = [monitor(0, 0, 1280, 720)];
         assert_eq!(
-            resolve_placement(&state(0, 0, 3000, 2000), &monitors, MIN, (16, 39)),
-            Placement::At {
-                x: 0,
-                y: 0,
-                width: 1264,
-                height: 681
-            }
+            resolve_placement(&state(0, 0, 3000, 2000), &monitors, MIN, (16.0, 39.0)),
+            at(0, 0, 1264, 681)
         );
     }
 
@@ -339,24 +371,47 @@ mod tests {
         let monitors = [monitor(0, 0, 1920, 1080)];
         assert_eq!(
             resolve_placement(&state(10, 10, 200, 100), &monitors, MIN, NO_FRAME),
-            Placement::At {
-                x: 10,
-                y: 10,
-                width: 620,
-                height: 300
-            }
+            at(10, 10, 620, 300)
         );
     }
 
     #[test]
-    fn no_monitors_centers_without_clamping() {
+    fn minimum_uses_the_destination_monitor_scale() {
+        let monitors = [
+            scaled_monitor(0, 0, 3840, 2160, 1.5),
+            scaled_monitor(3840, 0, 1920, 1080, 1.0),
+        ];
         assert_eq!(
-            resolve_placement(&state(10, 10, 900, 600), &[], MIN, NO_FRAME),
-            Placement::Centered {
-                width: 900,
-                height: 600
-            }
+            resolve_placement(&state(4000, 100, 800, 600), &monitors, MIN, NO_FRAME),
+            at(4000, 100, 800, 600)
         );
+        assert_eq!(
+            resolve_placement(&state(100, 100, 800, 600), &monitors, MIN, NO_FRAME),
+            at(100, 100, 930, 600)
+        );
+    }
+
+    #[test]
+    fn fallback_is_clamped_to_the_primary_monitor_it_is_centered_on() {
+        let monitors = [monitor(0, 0, 1920, 1040), monitor(1920, 0, 3840, 2120)];
+        assert_eq!(
+            resolve_placement(&state(9000, 0, 2400, 1600), &monitors, MIN, (16.0, 39.0)),
+            centered(0, 0, 1904, 1001)
+        );
+    }
+
+    #[test]
+    fn fallback_is_centered_within_a_primary_that_is_not_at_the_origin() {
+        let monitors = [monitor(1920, 100, 1920, 1080), monitor(0, 0, 1920, 1080)];
+        assert_eq!(
+            resolve_placement(&state(9000, 0, 1000, 600), &monitors, MIN, NO_FRAME),
+            centered(2380, 340, 1000, 600)
+        );
+    }
+
+    #[test]
+    fn no_monitors_leaves_placement_alone() {
+        assert_eq!(resolve_placement(&state(10, 10, 900, 600), &[], MIN, NO_FRAME), None);
     }
 
     #[test]
