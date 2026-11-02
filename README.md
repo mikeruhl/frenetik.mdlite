@@ -92,6 +92,12 @@ reveal it in the tree. Long paths collapse their middle folders into an ellipsis
 Right-click a file or folder in the tree to **Copy Full Path** or **Copy Relative Path** (relative to the opened
 folder). **File → Copy File Path** (`Shift+Alt+C`) copies the path of the open file.
 
+**File → Copy as Markdown** puts the open file's markdown source on the clipboard, frontmatter included, ready to
+paste into a GitHub comment. **File → Copy as Rich Text** puts the rendered document on the clipboard as formatted
+text for Word or an email. Rich text uses a fixed light style whatever the theme, embeds diagrams and charts as
+images, and replaces images that cannot travel with the clipboard by their alt text. Copying a selection with
+`Ctrl+C` is unchanged.
+
 ### Links
 
 - Links to files inside the open folder open directly.

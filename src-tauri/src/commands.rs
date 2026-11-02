@@ -168,6 +168,50 @@ pub(crate) fn copy_file_path(app: tauri::AppHandle) -> Result<Option<String>, St
     copy_current_file_path(&app)
 }
 
+fn copy_markdown_with(markdown: String, write: impl FnOnce(String) -> Result<(), String>) -> Result<bool, String> {
+    if markdown.is_empty() {
+        return Ok(false);
+    }
+    write(markdown)?;
+    Ok(true)
+}
+
+fn copy_rich_text_with(
+    html: String,
+    plain: String,
+    write: impl FnOnce(String, String) -> Result<(), String>,
+) -> Result<bool, String> {
+    if html.trim().is_empty() {
+        return Ok(false);
+    }
+    write(html, plain)?;
+    Ok(true)
+}
+
+fn has_displayed_file(app: &tauri::AppHandle) -> bool {
+    current_file_display_path(&app.state::<Mutex<AppState>>().lock().unwrap()).is_some()
+}
+
+#[tauri::command]
+pub(crate) fn copy_document_markdown(markdown: String, app: tauri::AppHandle) -> Result<bool, String> {
+    if !has_displayed_file(&app) {
+        return Ok(false);
+    }
+    copy_markdown_with(markdown, |text| {
+        app.clipboard().write_text(text).map_err(|e| e.to_string())
+    })
+}
+
+#[tauri::command]
+pub(crate) fn copy_document_rich(html: String, plain: String, app: tauri::AppHandle) -> Result<bool, String> {
+    if !has_displayed_file(&app) {
+        return Ok(false);
+    }
+    copy_rich_text_with(html, plain, |html, plain| {
+        app.clipboard().write_html(html, Some(plain)).map_err(|e| e.to_string())
+    })
+}
+
 #[tauri::command]
 pub(crate) fn set_always_on_top(enabled: bool, app: tauri::AppHandle) {
     crate::apply_always_on_top(&app, enabled);
@@ -368,6 +412,55 @@ mod tests {
     #[test]
     fn copy_propagates_clipboard_error() {
         let result = copy_path_with(Some(r"C:\a.md".into()), |_| Err("busy".into()));
+        assert_eq!(result, Err("busy".to_string()));
+    }
+
+    #[test]
+    fn markdown_copy_writes_source_verbatim() {
+        let source = "---\ntitle: x\n---\n# Hi\r\n";
+        let mut written = None;
+        let result = copy_markdown_with(source.into(), |text| {
+            written = Some(text);
+            Ok(())
+        });
+        assert_eq!(result, Ok(true));
+        assert_eq!(written.as_deref(), Some(source));
+    }
+
+    #[test]
+    fn markdown_copy_skips_clipboard_when_empty() {
+        let result = copy_markdown_with(String::new(), |_| panic!("clipboard must not be written"));
+        assert_eq!(result, Ok(false));
+    }
+
+    #[test]
+    fn markdown_copy_propagates_clipboard_error() {
+        let result = copy_markdown_with("# Hi".into(), |_| Err("busy".into()));
+        assert_eq!(result, Err("busy".to_string()));
+    }
+
+    #[test]
+    fn rich_copy_writes_html_and_plain_text() {
+        let mut written = None;
+        let result = copy_rich_text_with("<p>Hi</p>".into(), "Hi".into(), |html, plain| {
+            written = Some((html, plain));
+            Ok(())
+        });
+        assert_eq!(result, Ok(true));
+        assert_eq!(written, Some(("<p>Hi</p>".to_string(), "Hi".to_string())));
+    }
+
+    #[test]
+    fn rich_copy_skips_clipboard_when_html_blank() {
+        let result = copy_rich_text_with("  \n".into(), "x".into(), |_, _| {
+            panic!("clipboard must not be written")
+        });
+        assert_eq!(result, Ok(false));
+    }
+
+    #[test]
+    fn rich_copy_propagates_clipboard_error() {
+        let result = copy_rich_text_with("<p>Hi</p>".into(), "Hi".into(), |_, _| Err("busy".into()));
         assert_eq!(result, Err("busy".to_string()));
     }
 }
