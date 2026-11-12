@@ -92,6 +92,13 @@ pub(crate) fn build_menu(
         .enabled(has_file)
         .build(app)?;
 
+    let copy_markdown_item = MenuItemBuilder::with_id("copy-document-markdown", "Copy as Markdown")
+        .enabled(has_file)
+        .build(app)?;
+    let copy_rich_item = MenuItemBuilder::with_id("copy-document-rich", "Copy as Rich Text")
+        .enabled(has_file)
+        .build(app)?;
+
     let find_item = MenuItemBuilder::with_id("find", "Find...")
         .accelerator("CmdOrCtrl+F")
         .build(app)?;
@@ -108,6 +115,8 @@ pub(crate) fn build_menu(
         .item(&recent_sub.build()?)
         .separator()
         .item(&copy_path_item)
+        .item(&copy_markdown_item)
+        .item(&copy_rich_item)
         .separator()
         .item(&find_item)
         .separator()

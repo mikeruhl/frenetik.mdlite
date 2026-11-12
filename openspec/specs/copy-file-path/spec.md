@@ -3,7 +3,9 @@
 ## Purpose
 
 Let users copy the absolute path of the currently open file to the clipboard from the File menu or a keyboard
-shortcut, in single-file and folder modes.
+shortcut, in single-file and folder modes. The same File menu group also holds the document copy items (Copy as
+Markdown, Copy as Rich Text), specified in `copy-document-content`; they share this item's enablement and toast
+feedback.
 
 In folder mode, a right-click menu on navigation tree files and folders also copies the full or root-relative
 path. It uses the native menu popup, which follows the OS appearance, closes on outside click, and needs no
@@ -180,6 +182,16 @@ normalization rules as the existing File menu copy, including removal of Windows
 
 - **WHEN** a tree entry's path is not under the opened root (stale entry)
 - **THEN** nothing is written to the clipboard and an error is shown through the existing alert pattern
+
+### Requirement: Copy File Path shares its menu group with document copy items
+
+The **Copy File Path** menu item SHALL remain in the File menu group that also holds **Copy as Markdown** and **Copy
+as Rich Text**, and SHALL keep its label, shortcut, enablement, and feedback behavior unchanged.
+
+#### Scenario: Copy File Path unchanged by grouping
+
+- **WHEN** the user selects **File → Copy File Path** after the document copy items are added
+- **THEN** the clipboard contains the absolute path of the displayed file and a "Path copied" toast appears
 
 ### Requirement: Context menu copy gives the same feedback as menu copy
 

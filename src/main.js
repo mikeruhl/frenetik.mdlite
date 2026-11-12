@@ -37,6 +37,7 @@ import { initSidebarLayout, toggleSidebar } from "./sidebar-layout.js";
 import { initLinks } from "./links.js";
 import { applyAlwaysOnTop, bindPinBadge } from "./always-on-top.js";
 import { confirmLink, promptFileType } from "./link-dialog.js";
+import { copyMarkdown, copyRichText } from "./copy-document.js";
 
 const store = new LazyStore("settings.json");
 
@@ -82,9 +83,13 @@ async function allowImageHost(host) {
 
 const RICH_RENDER_TIMEOUT_MS = 10000;
 
-async function whenRichBlocksReady() {
+function awaitRichBlocks() {
   requestLiveSnapshots();
-  if (!(await awaitRichRender(RICH_RENDER_TIMEOUT_MS))) {
+  return awaitRichRender(RICH_RENDER_TIMEOUT_MS);
+}
+
+async function whenRichBlocksReady() {
+  if (!(await awaitRichBlocks())) {
     showToast("Diagrams may be incomplete");
   }
 }
@@ -278,9 +283,29 @@ await listen("export-pdf-error", (event) => {
   window.alert("PDF export failed: " + event.payload);
 });
 
-function reportCopyError(message) {
-  window.alert("Could not copy file path: " + message);
+function reportCopyError(error, subject = "file path") {
+  window.alert(`Could not copy ${subject}: ${error?.message ?? error}`);
 }
+
+await listen("copy-document-markdown", () =>
+  copyMarkdown({
+    source: lastRawMarkdown,
+    invoke,
+    notify: showToast,
+    report: (error) => reportCopyError(error, "markdown"),
+  })
+);
+
+await listen("copy-document-rich", () =>
+  copyRichText({
+    root: contentEl,
+    ready: awaitRichBlocks,
+    generation: () => renderSeq,
+    invoke,
+    notify: showToast,
+    report: (error) => reportCopyError(error, "rich text"),
+  })
+);
 
 await listen("file-path-copied", () => {
   showToast("Path copied");

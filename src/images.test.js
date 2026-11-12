@@ -30,6 +30,29 @@ describe("imageProxyUrl", () => {
   });
 });
 
+describe("originalImageUrl", () => {
+  it("recovers the remote URL from a proxy URL", async () => {
+    platform.windows = true;
+    const { imageProxyUrl, originalImageUrl } = await loadImages();
+    const url = "https://example.com/a b.png?x=1&y=2";
+    expect(originalImageUrl(imageProxyUrl(url))).toBe(new URL(url).href);
+  });
+
+  it("returns null for anything that is not a proxy URL", async () => {
+    platform.windows = true;
+    const { originalImageUrl } = await loadImages();
+    expect(originalImageUrl("https://example.com/a.png")).toBeNull();
+    expect(originalImageUrl("local.png")).toBeNull();
+    expect(originalImageUrl(null)).toBeNull();
+  });
+
+  it("returns null when the proxied target is not an http(s) URL", async () => {
+    platform.windows = true;
+    const { imageProxyUrl, originalImageUrl } = await loadImages();
+    expect(originalImageUrl(imageProxyUrl("file:///etc/passwd"))).toBeNull();
+  });
+});
+
 describe("parseRemoteUrl", () => {
   it.each([
     ["https://example.com/a.png", "https://example.com/a.png"],

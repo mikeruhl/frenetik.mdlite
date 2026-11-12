@@ -16,6 +16,18 @@ export function imageProxyUrl(url) {
   return `${proxyBase}?u=${encodeURIComponent(url)}`;
 }
 
+/** Returns the remote URL behind an `imageProxyUrl`, or null when `src` is not a proxy URL. */
+export function originalImageUrl(src) {
+  proxyBase ??= convertFileSrc("", IMAGE_SCHEME);
+  const prefix = `${proxyBase}?u=`;
+  if (!src?.startsWith(prefix)) return null;
+  try {
+    return parseRemoteUrl(decodeURIComponent(src.slice(prefix.length)))?.href ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns the parsed URL when `src` targets a remote http(s) host, otherwise null. */
 export function parseRemoteUrl(src) {
   if (!src) return null;

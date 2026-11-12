@@ -365,6 +365,8 @@ pub fn run() {
             set_outline_visible,
             notify_has_frontmatter,
             copy_file_path,
+            copy_document_markdown,
+            copy_document_rich,
             set_always_on_top,
             tree_paths::copy_tree_path,
             tree_paths::get_breadcrumb,
@@ -682,6 +684,10 @@ pub fn run() {
                             let _ = handle.emit("file-path-copy-error", e);
                         }
                     }
+                } else if id == "copy-document-markdown" {
+                    let _ = handle.emit("copy-document-markdown", ());
+                } else if id == "copy-document-rich" {
+                    let _ = handle.emit("copy-document-rich", ());
                 } else if id == "find" {
                     let _ = handle.emit("open-search", ());
                 } else if id == "toggle-outline" {
