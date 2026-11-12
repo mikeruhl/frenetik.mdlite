@@ -112,6 +112,38 @@ describe("copyRichText", () => {
     expect(d.notify).toHaveBeenCalledWith("Copy canceled: document changed");
   });
 
+  it("drops a pending rich copy when markdown is copied before rich blocks settle", async () => {
+    let settle;
+    const d = deps();
+    const pending = copyRichText({
+      root,
+      ready: () => new Promise((resolve) => (settle = resolve)),
+      build: build(),
+      ...d,
+    });
+    await copyMarkdown({ source: "# Hi", ...d });
+    settle(true);
+    await pending;
+    expect(d.invoke).toHaveBeenCalledTimes(1);
+    expect(d.invoke).toHaveBeenCalledWith("copy_document_markdown", { markdown: "# Hi" });
+  });
+
+  it("drops an older rich copy when a newer rich copy is requested", async () => {
+    let settleFirst;
+    const d = deps();
+    const first = copyRichText({
+      root,
+      ready: () => new Promise((resolve) => (settleFirst = resolve)),
+      build: build(),
+      ...d,
+    });
+    await copyRichText({ root, ready: async () => true, build: build(), ...d });
+    settleFirst(true);
+    await first;
+    expect(d.invoke).toHaveBeenCalledTimes(1);
+    expect(d.notify).toHaveBeenCalledTimes(1);
+  });
+
   it("reports a build failure without touching the clipboard", async () => {
     const d = deps();
     const failure = new Error("boom");

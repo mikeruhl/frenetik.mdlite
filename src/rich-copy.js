@@ -53,6 +53,8 @@ const KEPT_ATTRIBUTES = new Set([
   "rowspan",
   "align",
   "start",
+  "reversed",
+  "value",
   "open",
   "lang",
   "dir",
@@ -338,12 +340,22 @@ function scrubAttributes(clone) {
   }
 }
 
-function listMarker(item) {
-  const list = item.parentElement;
-  if (list?.tagName !== "OL") return "- ";
-  const position = [...list.children].filter((child) => child.tagName === "LI").indexOf(item);
-  const start = parseInt(list.getAttribute("start"), 10);
-  return `${(Number.isNaN(start) ? 1 : start) + position}. `;
+function integerAttribute(node, name) {
+  const value = parseInt(node.getAttribute(name), 10);
+  return Number.isNaN(value) ? null : value;
+}
+
+function orderedNumbers(list) {
+  const items = [...list.children].filter((child) => child.tagName === "LI");
+  const reversed = list.hasAttribute("reversed");
+  const numbers = new Map();
+  let next = integerAttribute(list, "start") ?? (reversed ? items.length : 1);
+  for (const item of items) {
+    const current = integerAttribute(item, "value") ?? next;
+    numbers.set(item, current);
+    next = current + (reversed ? -1 : 1);
+  }
+  return numbers;
 }
 
 /** Readable plain text of a rendered DOM subtree: block separators, list markers, tab separated table cells. */
@@ -352,6 +364,14 @@ export function toPlainText(root) {
   let pending = 0;
   let atLineStart = true;
   let markerOpen = false;
+  const listNumbers = new Map();
+
+  const listMarker = (item) => {
+    const list = item.parentElement;
+    if (list?.tagName !== "OL") return "- ";
+    if (!listNumbers.has(list)) listNumbers.set(list, orderedNumbers(list));
+    return `${listNumbers.get(list).get(item)}. `;
+  };
 
   const write = (text, preserve = false) => {
     const flushing = pending > 0 && out.length > 0;

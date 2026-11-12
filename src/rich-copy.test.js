@@ -368,6 +368,14 @@ describe("buildRichCopy", () => {
       expect(html).toMatch(/<span style="[^"]*color:#0a3069[^"]*">"a"<\/span>/);
     });
 
+    it("keeps reversed and per-item numbering on ordered lists", async () => {
+      const root = mount(`<ol reversed start="3"><li>a</li><li value="7">b</li></ol>`);
+      const { html, plain } = await buildRichCopy(root, fakes());
+      expect(html).toMatch(/<ol[^>]*reversed/);
+      expect(html).toMatch(/<li[^>]*value="7"/);
+      expect(plain).toBe("3. a\n7. b");
+    });
+
     it("produces identical output regardless of the active theme", async () => {
       const markup =
         `<h2>T</h2><p>x</p><pre><code class="hljs"><span class="hljs-keyword">if</span></code></pre>` +
@@ -464,6 +472,21 @@ describe("toPlainText", () => {
   it("numbers an ordered list that starts at zero from zero", () => {
     const root = mount(`<ol start="0"><li>a</li><li>b</li></ol>`);
     expect(toPlainText(root)).toBe("0. a\n1. b");
+  });
+
+  it("counts down in a reversed list from its item count by default", () => {
+    const root = mount(`<ol reversed><li>a</li><li>b</li><li>c</li></ol>`);
+    expect(toPlainText(root)).toBe("3. a\n2. b\n1. c");
+  });
+
+  it("continues numbering from an item value", () => {
+    const root = mount(`<ol><li>a</li><li value="10">b</li><li>c</li></ol>`);
+    expect(toPlainText(root)).toBe("1. a\n10. b\n11. c");
+  });
+
+  it("continues a reversed countdown from an item value", () => {
+    const root = mount(`<ol reversed start="3"><li>a</li><li value="9">b</li><li>c</li></ol>`);
+    expect(toPlainText(root)).toBe("3. a\n9. b\n8. c");
   });
 
   it("keeps the indentation of a leading code block", () => {
