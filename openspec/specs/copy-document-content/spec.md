@@ -153,6 +153,11 @@ cap, diagrams that failed), the toast SHALL say so.
 - **WHEN** Copy as Rich Text succeeds but one or more images or diagrams were replaced by text
 - **THEN** the toast indicates that some content was replaced
 
+#### Scenario: Document changes while preparing rich text
+
+- **WHEN** the displayed document is replaced or reloaded while Copy as Rich Text waits for diagrams and Live Blocks
+- **THEN** nothing is written to the clipboard and a "Copy canceled: document changed" toast appears
+
 #### Scenario: Clipboard failure
 
 - **WHEN** the clipboard write fails for either action

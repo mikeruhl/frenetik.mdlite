@@ -153,6 +153,22 @@ describe("buildRichCopy", () => {
       expect(omitted).toBe(1);
     });
 
+    it("replaces a block with malformed source by an empty fallback instead of failing", async () => {
+      const root = mount(`<p>before</p><div class="mermaid-block" data-mermaid="%%%"></div><p>after</p>`);
+      const { plain, omitted } = await buildRichCopy(root, fakes());
+      expect(plain).toBe("before\n\nafter");
+      expect(omitted).toBe(1);
+    });
+
+    it("counts a running Live Block without a snapshot as replaced", async () => {
+      const root = mount(
+        `<div class="live-block" data-live="x" data-live-state="running"><pre class="live-source"><code>src</code></pre></div>` +
+          `<div class="live-block" data-live="y" data-live-state="source"><pre class="live-source"><code>src</code></pre></div>`
+      );
+      const { omitted } = await buildRichCopy(root, fakes());
+      expect(omitted).toBe(1);
+    });
+
     it("replaces a diagram that would exceed the size cap by its source", async () => {
       const root = mount(mermaid("graph BIG"));
       const f = fakes({ rasterizeSvg: vi.fn(async () => ({ src: png(MAX_IMAGE_CHARS), width: 10, height: 10 })) });
@@ -217,6 +233,14 @@ describe("buildRichCopy", () => {
       expect(html).toContain('alt="pic"');
       expect(html).not.toMatch(/file:|asset:|C:\/docs/);
       expect(omitted).toBe(0);
+    });
+
+    it("sizes an image by its displayed dimensions rather than its intrinsic size", async () => {
+      const root = mount(`<img src="C:/docs/big.png" alt="big" width="100" height="50">`);
+      loaded(root.querySelector("img"), 1000, 500);
+      const { html } = await buildRichCopy(root, fakes());
+      expect(html).toContain('width="100"');
+      expect(html).toContain('height="50"');
     });
 
     it("keeps an existing PNG data URI without redrawing it", async () => {
@@ -435,6 +459,16 @@ describe("toPlainText", () => {
         "pic",
       ].join("\n")
     );
+  });
+
+  it("numbers an ordered list that starts at zero from zero", () => {
+    const root = mount(`<ol start="0"><li>a</li><li>b</li></ol>`);
+    expect(toPlainText(root)).toBe("0. a\n1. b");
+  });
+
+  it("keeps the indentation of a leading code block", () => {
+    const root = mount(`<pre>    foo()\n    bar()</pre>`);
+    expect(toPlainText(root)).toBe("    foo()\n    bar()");
   });
 
   it("ignores whitespace-only text between blocks", () => {

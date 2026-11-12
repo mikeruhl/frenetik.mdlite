@@ -176,7 +176,11 @@ function sizedImage(context, { src, width, height, alt }) {
 
 function sourceFallback(context, encoded) {
   const pre = context.doc.createElement("pre");
-  pre.textContent = decodeSource(encoded);
+  try {
+    pre.textContent = decodeSource(encoded ?? "");
+  } catch {
+    pre.textContent = "";
+  }
   return pre;
 }
 
@@ -209,7 +213,10 @@ async function replaceRichBlocks(blockPairs, context) {
 async function replaceLiveBlocks(livePairs, context) {
   for (const [live, copy] of livePairs) {
     const liveSnapshot = live.querySelector(".live-snapshot");
-    if (!liveSnapshot) continue;
+    if (!liveSnapshot) {
+      if (live.dataset.liveState === "running") context.omitted++;
+      continue;
+    }
     try {
       if (!isLoaded(liveSnapshot)) await liveSnapshot.decode();
       const src = await context.rasterizeImage(liveSnapshot);
@@ -246,13 +253,19 @@ async function resolveImage(live, context) {
   return { src: embedded };
 }
 
+function displaySize(img) {
+  return img.width > 0 && img.height > 0
+    ? { width: img.width, height: img.height }
+    : { width: img.naturalWidth, height: img.naturalHeight };
+}
+
 async function embedImages(imagePairs, clone, context) {
   for (const [live, copy] of imagePairs) {
     if (!clone.contains(copy)) continue;
     try {
       const { src } = await resolveImage(live, context);
       const alt = copy.getAttribute("alt") ?? "";
-      copy.replaceWith(sizedImage(context, { src, width: live.naturalWidth, height: live.naturalHeight, alt }));
+      copy.replaceWith(sizedImage(context, { src, ...displaySize(live), alt }));
     } catch {
       context.omitted++;
       copy.replaceWith(textNode(context, copy.getAttribute("alt") || "[image]"));
@@ -329,7 +342,8 @@ function listMarker(item) {
   const list = item.parentElement;
   if (list?.tagName !== "OL") return "- ";
   const position = [...list.children].filter((child) => child.tagName === "LI").indexOf(item);
-  return `${(parseInt(list.getAttribute("start"), 10) || 1) + position}. `;
+  const start = parseInt(list.getAttribute("start"), 10);
+  return `${(Number.isNaN(start) ? 1 : start) + position}. `;
 }
 
 /** Readable plain text of a rendered DOM subtree: block separators, list markers, tab separated table cells. */
@@ -382,7 +396,7 @@ export function toPlainText(root) {
   };
 
   visit(root, false);
-  return out.join("").trim();
+  return out.join("").trimEnd();
 }
 
 function sanitize(html) {

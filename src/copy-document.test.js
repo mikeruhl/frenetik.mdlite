@@ -5,7 +5,13 @@ vi.mock("@tauri-apps/api/core", () => ({ convertFileSrc: (path, protocol) => `ht
 const { copyMarkdown, copyRichText } = await import("./copy-document.js");
 
 function deps(overrides = {}) {
-  return { invoke: vi.fn().mockResolvedValue(true), notify: vi.fn(), report: vi.fn(), ...overrides };
+  return {
+    invoke: vi.fn().mockResolvedValue(true),
+    notify: vi.fn(),
+    report: vi.fn(),
+    generation: () => 1,
+    ...overrides,
+  };
 }
 
 describe("copyMarkdown", () => {
@@ -90,6 +96,20 @@ describe("copyRichText", () => {
     await copyRichText({ root, ready: async () => true, build: build(), ...d });
     expect(d.report).toHaveBeenCalledWith("busy");
     expect(d.notify).not.toHaveBeenCalled();
+  });
+
+  it("cancels without building when the document changes while rich blocks settle", async () => {
+    let current = 1;
+    const builder = build();
+    const d = deps({ generation: () => current });
+    const ready = async () => {
+      current = 2;
+      return true;
+    };
+    await copyRichText({ root, ready, build: builder, ...d });
+    expect(builder).not.toHaveBeenCalled();
+    expect(d.invoke).not.toHaveBeenCalled();
+    expect(d.notify).toHaveBeenCalledWith("Copy canceled: document changed");
   });
 
   it("reports a build failure without touching the clipboard", async () => {

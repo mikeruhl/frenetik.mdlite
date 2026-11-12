@@ -300,6 +300,7 @@ await listen("copy-document-rich", () =>
   copyRichText({
     root: contentEl,
     ready: awaitRichBlocks,
+    generation: () => renderSeq,
     invoke,
     notify: showToast,
     report: (error) => reportCopyError(error, "rich text"),
