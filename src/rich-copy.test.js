@@ -174,6 +174,36 @@ describe("buildRichCopy", () => {
       expect(html).not.toContain("iframe");
       expect(plain).not.toContain("src");
     });
+
+    it("decodes a Live Block snapshot that has not loaded before rasterizing it", async () => {
+      const root = mount(
+        `<div class="live-block" data-live="x"><img class="live-snapshot" alt="Live Block output" src="data:image/png;base64,AAAA"></div>`
+      );
+      const snapshot = root.querySelector(".live-snapshot");
+      snapshot.decode = vi.fn(async () => loaded(snapshot, 300, 100));
+      const f = fakes();
+      const { html, omitted } = await buildRichCopy(root, f);
+      expect(snapshot.decode).toHaveBeenCalled();
+      expect(f.rasterizeImage).toHaveBeenCalledWith(snapshot);
+      expect(html).toContain('width="300"');
+      expect(omitted).toBe(0);
+    });
+
+    it("pairs blocks with the document captured at the start when the content is replaced mid copy", async () => {
+      const root = mount(
+        `${mermaid("graph A")}<div class="chart-block" data-chart="${encodeSource("{}")}"><div class="chart-rendered"><svg id="old-chart"></svg></div></div>`
+      );
+      const oldChart = root.querySelector("#old-chart");
+      const f = fakes({
+        rasterizeSvg: vi.fn(async () => {
+          root.innerHTML = `<div class="chart-block" data-chart="${encodeSource("{}")}"><div class="chart-rendered"><svg id="new-chart"></svg></div></div>`;
+          return { src: png(), width: 10, height: 10 };
+        }),
+      });
+      const { omitted } = await buildRichCopy(root, f);
+      expect(f.rasterizeSvg).toHaveBeenLastCalledWith(oldChart);
+      expect(omitted).toBe(0);
+    });
   });
 
   describe("images", () => {
@@ -405,5 +435,15 @@ describe("toPlainText", () => {
         "pic",
       ].join("\n")
     );
+  });
+
+  it("ignores whitespace-only text between blocks", () => {
+    const root = mount("<p>one</p>\n<p>two</p>\n<ul>\n<li>a</li>\n<li>b</li>\n</ul>");
+    expect(toPlainText(root)).toBe("one\n\ntwo\n\n- a\n- b");
+  });
+
+  it("keeps the list marker on the first paragraph of a loose list item", () => {
+    const root = mount("<ul>\n<li><p>alpha</p>\n</li>\n<li><p>beta</p>\n<p>more</p>\n</li>\n</ul>");
+    expect(toPlainText(root)).toBe("- alpha\n- beta\n\nmore");
   });
 });

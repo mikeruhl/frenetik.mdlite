@@ -189,9 +189,9 @@ async function diagramImage(context, liveSvg, alt) {
   return holder;
 }
 
-async function replaceRichBlocks(root, clone, context) {
-  for (const definition of RICH_BLOCKS) {
-    for (const [live, copy] of pairs(root, clone, definition.selector)) {
+async function replaceRichBlocks(blockPairs, context) {
+  for (const [index, definition] of RICH_BLOCKS.entries()) {
+    for (const [live, copy] of blockPairs[index]) {
       const liveSvg = live.querySelector(definition.svg);
       let replacement;
       try {
@@ -206,11 +206,12 @@ async function replaceRichBlocks(root, clone, context) {
   }
 }
 
-async function replaceLiveBlocks(root, clone, context) {
-  for (const [live, copy] of pairs(root, clone, ".live-block")) {
+async function replaceLiveBlocks(livePairs, context) {
+  for (const [live, copy] of livePairs) {
     const liveSnapshot = live.querySelector(".live-snapshot");
     if (!liveSnapshot) continue;
     try {
+      if (!isLoaded(liveSnapshot)) await liveSnapshot.decode();
       const src = await context.rasterizeImage(liveSnapshot);
       charge(context, src);
       const holder = context.doc.createElement("div");
@@ -336,16 +337,18 @@ export function toPlainText(root) {
   const out = [];
   let pending = 0;
   let atLineStart = true;
+  let markerOpen = false;
 
   const write = (text, preserve = false) => {
-    if (pending > 0 && out.length > 0) {
+    const flushing = pending > 0 && out.length > 0;
+    const visible = !preserve && (atLineStart || flushing) ? text.replace(/^ +/, "") : text;
+    if (!visible) return;
+    if (flushing) {
       out[out.length - 1] = out[out.length - 1].replace(/ +$/, "");
       out.push("\n".repeat(pending));
-      atLineStart = true;
     }
     pending = 0;
-    const visible = !preserve && atLineStart ? text.replace(/^ +/, "") : text;
-    if (!visible) return;
+    markerOpen = false;
     out.push(visible);
     atLineStart = visible.endsWith("\n");
   };
@@ -366,9 +369,13 @@ export function toPlainText(root) {
       return;
     }
     const nestedList = (tag === "UL" || tag === "OL") && node.parentElement?.tagName === "LI";
-    const gap = nestedList ? 1 : PARAGRAPH_TAGS.has(tag) ? 2 : LINE_TAGS.has(tag) ? 1 : 0;
+    const blockGap = nestedList ? 1 : PARAGRAPH_TAGS.has(tag) ? 2 : LINE_TAGS.has(tag) ? 1 : 0;
+    const gap = markerOpen ? 0 : blockGap;
     pending = Math.max(pending, gap);
-    if (tag === "LI") write(listMarker(node), true);
+    if (tag === "LI") {
+      write(listMarker(node), true);
+      markerOpen = true;
+    }
     for (const child of node.childNodes) visit(child, inPre || tag === "PRE");
     if ((tag === "TD" || tag === "TH") && node.nextElementSibling) write("\t", true);
     pending = Math.max(pending, gap);
@@ -397,9 +404,11 @@ export async function buildRichCopy(
   const doc = root.ownerDocument;
   const clone = root.cloneNode(true);
   const context = { doc, omitted: 0, budget: MAX_TOTAL_CHARS, rasterizeSvg: svgToPng, rasterizeImage: imageToPng };
+  const blockPairs = RICH_BLOCKS.map((definition) => pairs(root, clone, definition.selector));
+  const livePairs = pairs(root, clone, ".live-block");
   const imagePairs = pairs(root, clone, "img");
-  await replaceRichBlocks(root, clone, context);
-  await replaceLiveBlocks(root, clone, context);
+  await replaceRichBlocks(blockPairs, context);
+  await replaceLiveBlocks(livePairs, context);
   await embedImages(imagePairs, clone, context);
   replacePlaceholders(clone, context);
   replaceMath(clone, context);
