@@ -2638,9 +2638,9 @@ dependencies = [
 
 [[package]]
 name = "notify"
-version = "8.2.2"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c41a04a5f59df9322cc657286dd2d79f90816119b22c5f847607c850110205ab"
+checksum = "5482d5bd11b91a337521980e5d52fe115bdccfb4c217099daaf0abd69159dc4e"
 dependencies = [
  "bitflags 2.13.2",
  "inotify",
@@ -2653,25 +2653,25 @@ dependencies = [
  "objc2-core-services",
  "walkdir",
  "windows-sys 0.61.2",
+ "xxhash-rust",
 ]
 
 [[package]]
 name = "notify-debouncer-mini"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17849edfaabd9a5fef1c606d99cfc615a8e99f7ac4366406d86c7942a3184cf2"
+checksum = "2ce20d2a4f7b6929982f96f746c979fbb7450194350c88694b398aec6b73eae2"
 dependencies = [
  "log",
  "notify",
  "notify-types",
- "tempfile",
 ]
 
 [[package]]
 name = "notify-types"
-version = "2.1.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42b8cfee0e339a0337359f3c88165702ac6e600dc01c0cc9579a92d62b08477a"
+checksum = "cbd044e85df3d939d8e32a1c35a3b737c7d0a4eeb7acd737bd207644e00f4e5f"
 dependencies = [
  "bitflags 2.13.2",
 ]
@@ -4495,9 +4495,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-opener"
-version = "2.7.2"
+version = "2.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53810be1b4fed22bb6ac3f4cab5a2b80d9391d1af436bda145607532bc0bb219"
+checksum = "54592c6718b42ab198bf11bda6a428a3553ca2f2f8e506df56f6a063ec328331"
 dependencies = [
  "dunce",
  "glob",
@@ -4517,9 +4517,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-store"
-version = "2.5.0"
+version = "2.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3c6fdaac41e60f2313a440fa1776f3a5fdd16800ff967915e9800985b680822"
+checksum = "2981fb70ff65a4d2ffc4e366d8f3e45996a85fdb72af4f7ee274bcbda824fa37"
 dependencies = [
  "dunce",
  "serde",
@@ -5972,6 +5972,12 @@ name = "x11rb-protocol"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd"
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40de123dbb523ebcc00d61ec01840ad192578afc378d859f3429caa38308fad5"
 
 [[package]]
 name = "yoke"
